@@ -1,0 +1,40 @@
+# 1. Preprocessing (se non gia fatto)
+python src/preprocessing.python
+o
+python src/preprocessing.py --n-jobs 10
+
+# 2. Feature Engineering
+python src/feature_engineering.py
+o
+python src/feature_engineering.py --rf-estimators 20 --n-jobs 10
+
+# 3. Training (test veloce)
+python src/training/random_forest.py --n-iter 5 --cv 2 --n-jobs 10
+python src/training/xgboost_model.py --n-iter 5 --cv 2 --n-jobs 10
+python src/training/lightgbm_model.py --n-iter 5 --cv 2 --n-jobs 10
+
+# 4. Evaluation
+python src/evaluation.py --model-path models/random_forest/model_binary.pkl
+python src/evaluation.py --model-path models/xgboost/model_binary.pkl
+python src/evaluation.py --model-path models/lightgbm/model_binary.pkl
+
+# 5. Sniffer (richiede sudo)
+sudo python src/sniffer.py --model-path models/random_forest/model_binary.pkl --verbose
+
+-   -   -   -   -
+
+Cosa fanno --n-iter e --cv?
+
+--n-iter 5: Numero di combinazioni random di iperparametri da testare
+    Default 20 = testa 20 combinazioni diverse di (n_estimators, max_depth, learning_rate, etc.)
+    Con 5 = testa solo 5 combinazioni (piu veloce, meno ottimale)
+
+--cv 2: Numero di fold per cross-validation
+    Default 3 = divide il training in 3 parti, allena su 2 e valida su 1, ripete 3 volte
+    Con 2 = solo 2 fold (piu veloce, stima meno robusta)
+
+Totale fit = n_iter * cv
+    Default: 20 * 3 = 60 training
+    Test: 5 * 2 = 10 training (6x piu veloce)
+
+Per produzione usa almeno --n-iter 20 --cv 3 o meglio --n-iter 30 --cv 5.
