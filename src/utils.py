@@ -62,147 +62,70 @@ DEFAULT_MAX_RAM_PERCENT = 85
 # GESTIONE RISORSE
 # ==============================================================================
 
-class ResourceLimiter:
+def set_cpu_affinity(n_cores: int) -> bool:
     """
-    Limita effettivamente l'uso di CPU impostando affinita e variabili d'ambiente.
+    Limita il processo corrente a usare solo N core specifici.
     
-    Questo limiter funziona PRIMA che i job vengano lanciati, configurando:
-    1. Variabili d'ambiente per thread pool (OMP, MKL, OpenBLAS, etc.)
-    2. Numero di job per scikit-learn e modelli
-    
-    IMPORTANTE: Deve essere chiamato PRIMA di importare sklearn/xgboost/lightgbm
-    o all'inizio dello script.
-    
-    Example:
-        limiter = ResourceLimiter(n_cores=4)
-        limiter.apply()  # Applica limiti a livello di sistema
-        n_jobs = limiter.n_jobs  # Usa questo per i modelli
-    """
-    
-    def __init__(self, n_cores: int = None, max_ram_percent: int = 85):
-        """
-        Inizializza il limiter.
-        
-        Args:
-            n_cores: Numero core da usare. None = totale - 2 (min 1)
-            max_ram_percent: Limite RAM per warning (non blocca, solo avvisa)
-        """
-        self.total_cores = os.cpu_count() or 4
-        
-        if n_cores is None:
-            # Default: lascia 2 core liberi per sistema e UI
-            self.n_cores = max(1, self.total_cores - 2)
-        else:
-            self.n_cores = max(1, min(n_cores, self.total_cores))
-        
-        self.n_jobs = self.n_cores
-        self.max_ram_percent = max_ram_percent
-        self._applied = False
-    
-    def apply(self) -> None:
-        """
-        Applica i limiti CPU a livello di sistema.
-        
-        Imposta variabili d'ambiente che controllano il parallelismo di:
-        - OpenMP (usato da sklearn, xgboost, lightgbm)
-        - MKL (Intel Math Kernel Library)
-        - OpenBLAS
-        - NumExpr
-        - Joblib
-        """
-        n = str(self.n_cores)
-        
-        # OpenMP - usato da XGBoost, LightGBM, sklearn
-        os.environ['OMP_NUM_THREADS'] = n
-        
-        # Intel MKL
-        os.environ['MKL_NUM_THREADS'] = n
-        
-        # OpenBLAS
-        os.environ['OPENBLAS_NUM_THREADS'] = n
-        
-        # NumExpr
-        os.environ['NUMEXPR_NUM_THREADS'] = n
-        
-        # Joblib (sklearn parallel backend)
-        os.environ['LOKY_MAX_CPU_COUNT'] = n
-        
-        # Anche questo per sicurezza
-        os.environ['VECLIB_MAXIMUM_THREADS'] = n
-        
-        self._applied = True
-    
-    def get_status(self) -> dict:
-        """Restituisce stato corrente delle risorse."""
-        return {
-            'cpu_percent': psutil.cpu_percent(interval=0.5),
-            'ram_percent': psutil.virtual_memory().percent,
-            'ram_available_gb': psutil.virtual_memory().available / (1024 ** 3),
-            'cores_configured': self.n_cores,
-            'cores_total': self.total_cores,
-            'limits_applied': self._applied
-        }
-    
-    def log_status(self, logger: logging.Logger) -> None:
-        """Logga stato corrente."""
-        status = self.get_status()
-        logger.info(f"CPU: {status['cpu_percent']:.1f}% | "
-                    f"RAM: {status['ram_percent']:.1f}% | "
-                    f"Disponibile: {status['ram_available_gb']:.1f}GB | "
-                    f"Core: {status['cores_configured']}/{status['cores_total']}")
-    
-    def check_ram(self) -> bool:
-        """Verifica se RAM e sotto il limite."""
-        return psutil.virtual_memory().percent < self.max_ram_percent
-    
-    def warn_if_high_ram(self, logger: logging.Logger) -> None:
-        """Logga warning se RAM alta."""
-        ram = psutil.virtual_memory().percent
-        if ram > self.max_ram_percent:
-            logger.warning(f"RAM al {ram:.1f}% (limite: {self.max_ram_percent}%)")
-
-
-# Alias per retrocompatibilita
-class ResourceMonitor(ResourceLimiter):
-    """Alias per ResourceLimiter (retrocompatibilita)."""
-    pass
-
-
-def setup_resource_limits(n_cores: int = None, max_ram: int = 85) -> ResourceLimiter:
-    """
-    Funzione helper per setup rapido dei limiti risorse.
-    
-    CHIAMARE ALL'INIZIO DELLO SCRIPT, prima di altri import.
+    Questo e il metodo PIU EFFICACE per limitare la CPU perche agisce
+    a livello di sistema operativo, non a livello di libreria.
     
     Args:
-        n_cores: Core da usare (None = auto)
-        max_ram: Limite RAM percentuale
+        n_cores: Numero di core da usare
     
     Returns:
-        ResourceLimiter configurato e applicato
-    
-    Example:
-        # All'inizio dello script
-        from src.utils import setup_resource_limits
-        limiter = setup_resource_limits(n_cores=4)
+        True se applicato con successo, False altrimenti
+    """
+    try:
+        import psutil
+        p = psutil.Process()
+        total = psutil.cpu_count()
         
-        # Poi usa limiter.n_jobs per i modelli
-        model = RandomForestClassifier(n_jobs=limiter.n_jobs)
-    """
-    limiter = ResourceLimiter(n_cores=n_cores, max_ram_percent=max_ram)
-    limiter.apply()
-    return limiter
+        # Seleziona i primi N core
+        cores_to_use = list(range(min(n_cores, total)))
+        p.cpu_affinity(cores_to_use)
+        
+        return True
+    except Exception:
+        return False
 
 
-def limit_cpu_cores(n_cores: Optional[int] = None) -> int:
+def set_process_priority_low() -> bool:
     """
-    Limita il numero di core CPU utilizzabili (legacy function).
+    Imposta priorita bassa per il processo corrente.
     
-    NOTA: Questa funzione restituisce solo il numero, non applica limiti.
-    Per limiti effettivi usare setup_resource_limits() o ResourceLimiter.
+    Questo permette ad altri processi (UI, sistema) di avere precedenza.
+    
+    Returns:
+        True se applicato con successo
+    """
+    try:
+        import psutil
+        p = psutil.Process()
+        # BELOW_NORMAL su Windows, nice 10 su Linux
+        if sys.platform == 'win32':
+            p.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)
+        else:
+            p.nice(10)  # Valore piu alto = priorita piu bassa
+        return True
+    except Exception:
+        return False
+
+
+def apply_cpu_limits(n_cores: int = None, set_low_priority: bool = True) -> int:
+    """
+    Applica TUTTI i limiti CPU possibili.
+    
+    Questa funzione deve essere chiamata ALL'INIZIO dello script,
+    PRIMA di importare sklearn, xgboost, lightgbm.
+    
+    Applica:
+    1. Affinita CPU (limita a N core fisici)
+    2. Variabili d'ambiente per thread pools
+    3. Priorita bassa (opzionale)
     
     Args:
-        n_cores: Numero di core da usare. Se None, usa tutti meno 2.
+        n_cores: Numero core da usare (None = totale - 2)
+        set_low_priority: Se True, imposta priorita bassa
     
     Returns:
         Numero di core configurato
@@ -214,7 +137,104 @@ def limit_cpu_cores(n_cores: Optional[int] = None) -> int:
     else:
         n_cores = max(1, min(n_cores, total_cores))
     
+    n_str = str(n_cores)
+    
+    # 1. Variabili d'ambiente (devono essere impostate PRIMA degli import)
+    os.environ['OMP_NUM_THREADS'] = n_str
+    os.environ['MKL_NUM_THREADS'] = n_str
+    os.environ['OPENBLAS_NUM_THREADS'] = n_str
+    os.environ['NUMEXPR_NUM_THREADS'] = n_str
+    os.environ['LOKY_MAX_CPU_COUNT'] = n_str
+    os.environ['VECLIB_MAXIMUM_THREADS'] = n_str
+    os.environ['NUMBA_NUM_THREADS'] = n_str
+    
+    # 2. Affinita CPU (il metodo piu efficace)
+    set_cpu_affinity(n_cores)
+    
+    # 3. Priorita bassa
+    if set_low_priority:
+        set_process_priority_low()
+    
     return n_cores
+
+
+class ResourceMonitor:
+    """
+    Monitor per utilizzo risorse con limiti configurabili.
+    """
+    
+    def __init__(self, max_cpu: int = 85, max_ram: int = 85):
+        """
+        Args:
+            max_cpu: Limite CPU % per warning
+            max_ram: Limite RAM % per warning
+        """
+        self.max_cpu_percent = max_cpu
+        self.max_ram_percent = max_ram
+    
+    def get_cpu_usage(self) -> float:
+        return psutil.cpu_percent(interval=0.1)
+    
+    def get_ram_usage(self) -> float:
+        return psutil.virtual_memory().percent
+    
+    def get_available_ram_gb(self) -> float:
+        return psutil.virtual_memory().available / (1024 ** 3)
+    
+    def check_resources(self) -> bool:
+        cpu = self.get_cpu_usage()
+        ram = self.get_ram_usage()
+        return cpu < self.max_cpu_percent and ram < self.max_ram_percent
+    
+    def log_status(self, logger: logging.Logger) -> None:
+        cpu = self.get_cpu_usage()
+        ram = self.get_ram_usage()
+        available = self.get_available_ram_gb()
+        
+        # Mostra anche affinita corrente
+        try:
+            p = psutil.Process()
+            affinity = p.cpu_affinity()
+            cores_used = len(affinity)
+            total = psutil.cpu_count()
+            logger.info(f"CPU: {cpu:.1f}% | RAM: {ram:.1f}% | "
+                        f"Disponibile: {available:.1f}GB | "
+                        f"Core attivi: {cores_used}/{total}")
+        except Exception:
+            logger.info(f"CPU: {cpu:.1f}% | RAM: {ram:.1f}% | "
+                        f"Disponibile: {available:.1f}GB")
+
+
+class ResourceLimiter(ResourceMonitor):
+    """
+    Limiter risorse con applicazione affinita CPU.
+    """
+    
+    def __init__(self, n_cores: int = None, max_ram_percent: int = 85):
+        super().__init__(max_cpu=85, max_ram=max_ram_percent)
+        
+        self.total_cores = os.cpu_count() or 4
+        
+        if n_cores is None:
+            self.n_cores = max(1, self.total_cores - 2)
+        else:
+            self.n_cores = max(1, min(n_cores, self.total_cores))
+        
+        self.n_jobs = self.n_cores
+        self._applied = False
+    
+    def apply(self) -> None:
+        """Applica limiti CPU."""
+        apply_cpu_limits(self.n_cores, set_low_priority=True)
+        self._applied = True
+
+
+def limit_cpu_cores(n_cores: Optional[int] = None) -> int:
+    """Legacy function per retrocompatibilita."""
+    total_cores = os.cpu_count() or 4
+    if n_cores is None:
+        n_cores = max(1, total_cores - 2)
+    return min(n_cores, total_cores)
 
 
 # ==============================================================================
