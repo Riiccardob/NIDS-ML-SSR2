@@ -1,0 +1,87 @@
+======================================================================
+SCORECARD COMPARISON REPORT
+======================================================================
+
+Data: 2026-01-16 15:56:46
+Metodo: Scorecard con Hard Constraints
+
+HARD CONSTRAINTS:
+  - FPR massimo:     1.00%
+  - Latenza massima: 1.00ms per sample
+
+======================================================================
+RISULTATI PER MODELLO
+======================================================================
+
+RANDOM_FOREST - PASS
+--------------------------------------------------
+  Constraints:
+    FPR:     0.0911% [PASS]
+    Latency: 0.0136ms [PASS]
+  Metriche:
+    accuracy                 : 0.9990
+    precision                : 0.9982
+    recall                   : 0.9989
+    f1                       : 0.9985
+    specificity              : 0.9991
+    false_positive_rate      : 0.0009
+    false_negative_rate      : 0.0011
+    roc_auc                  : 1.0000
+    average_precision        : 1.0000
+  Latenza dettagliata:
+    latency_total_ms         : 13.6349
+    latency_per_sample_ms    : 0.0136
+    latency_std_ms           : 4.1421
+    samples_per_second       : 73341.1515
+  Score finale: 0.9963
+
+XGBOOST [BEST] - PASS
+--------------------------------------------------
+  Constraints:
+    FPR:     0.1209% [PASS]
+    Latency: 0.0010ms [PASS]
+  Metriche:
+    accuracy                 : 0.9990
+    precision                : 0.9976
+    recall                   : 0.9995
+    f1                       : 0.9985
+    specificity              : 0.9988
+    false_positive_rate      : 0.0012
+    false_negative_rate      : 0.0005
+    roc_auc                  : 1.0000
+    average_precision        : 1.0000
+  Latenza dettagliata:
+    latency_total_ms         : 0.9568
+    latency_per_sample_ms    : 0.0010
+    latency_std_ms           : 0.0494
+    samples_per_second       : 1045198.5666
+  Score finale: 0.9991
+
+LIGHTGBM - PASS
+--------------------------------------------------
+  Constraints:
+    FPR:     0.1030% [PASS]
+    Latency: 0.0015ms [PASS]
+  Metriche:
+    accuracy                 : 0.9992
+    precision                : 0.9979
+    recall                   : 0.9995
+    f1                       : 0.9987
+    specificity              : 0.9990
+    false_positive_rate      : 0.0010
+    false_negative_rate      : 0.0005
+    roc_auc                  : 1.0000
+    average_precision        : 1.0000
+  Latenza dettagliata:
+    latency_total_ms         : 1.4604
+    latency_per_sample_ms    : 0.0015
+    latency_std_ms           : 0.0600
+    samples_per_second       : 684724.6823
+  Score finale: 0.9991
+
+======================================================================
+VERDETTO FINALE
+======================================================================
+
+Modello selezionato: XGBOOST
+Modelli che passano: 3/3
