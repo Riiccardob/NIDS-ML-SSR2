@@ -1,0 +1,28 @@
+{
+  "model_name": "LightGBM",
+  "task": "binary",
+  "best_params": {
+    "subsample": 0.7,
+    "reg_lambda": 0.1,
+    "reg_alpha": 0.1,
+    "num_leaves": 50,
+    "n_estimators": 300,
+    "min_child_samples": 20,
+    "max_depth": -1,
+    "learning_rate": 0.1,
+    "colsample_bytree": 0.9
+  },
+  "best_cv_score": 0.9985277451685275,
+  "validation_metrics": {
+    "accuracy": 0.9991414721770945,
+    "precision": 0.9978836188140353,
+    "recall": 0.9995443198478424,
+    "f1": 0.9987132789611213
+  },
+  "train_time_seconds": 2612.881373,
+  "train_samples": 706632,
+  "n_features": 30,
+  "early_stopping_used": true,
+  "best_iteration": 248,
+  "n_jobs": 10
+}

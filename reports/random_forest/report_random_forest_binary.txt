@@ -1,0 +1,40 @@
+============================================================
+EVALUATION REPORT - RANDOM_FOREST
+============================================================
+
+Task: binary
+Timestamp: 20260116_122657
+Test samples: 151,422
+
+----------------------------------------
+METRICS
+----------------------------------------
+  accuracy                 : 0.9990
+  precision                : 0.9982
+  recall                   : 0.9989
+  f1                       : 0.9985
+  specificity              : 0.9991
+  false_positive_rate      : 0.0009
+  false_negative_rate      : 0.0011
+  roc_auc                  : 1.0000
+  average_precision        : 1.0000
+
+----------------------------------------
+ERROR ANALYSIS
+----------------------------------------
+  total_errors             : 150
+  error_rate               : 0.0010
+  false_positives          : 92
+  false_negatives          : 58
+
+----------------------------------------
+CLASSIFICATION REPORT
+----------------------------------------
+              precision    recall  f1-score   support
+
+           0       1.00      1.00      1.00    100948
+           1       1.00      1.00      1.00     50474
+
+    accuracy                           1.00    151422
+   macro avg       1.00      1.00      1.00    151422
+weighted avg       1.00      1.00      1.00    151422
