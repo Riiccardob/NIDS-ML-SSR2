@@ -17,4 +17,6 @@ SEMPRE:
 
 4 - setup colab per runnare gli script di training (lentissimi e super onerosi, soprattutto se fatti al max dei parametri)
 
-5 - README
+5 - Dashboard
+
+6 - README
