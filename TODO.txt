@@ -5,6 +5,8 @@ SEMPRE:
 - CODICI PARAMETRICI
 -   -   -
 
+0 - farci spiegare la logica con cui assegna i pesi agli attributi utilizzati dal modello (correggimi se sbaglio) per determinare se un elemento sia o meno un attacco
+
 1 - capire la logica di evaluation, capire come confrontare e creare best_model
 
 2 - lo sniffer deve essere quanto più parametrico possibile: 
@@ -20,3 +22,5 @@ SEMPRE:
 5 - Dashboard
 
 6 - README
+
+

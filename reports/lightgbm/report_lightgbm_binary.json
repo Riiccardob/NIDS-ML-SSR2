@@ -1,7 +1,7 @@
 {
   "model_name": "lightgbm",
   "task": "binary",
-  "timestamp": "20260116_122708",
+  "timestamp": "20260116_154119",
   "test_samples": 151422,
   "metrics": {
     "accuracy": 0.9991612843576231,
