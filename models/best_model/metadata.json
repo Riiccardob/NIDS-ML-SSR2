@@ -1,0 +1,10 @@
+{
+  "best_model": "xgboost",
+  "task": "binary",
+  "timestamp": "2026-01-16T15:56:46.695989",
+  "selection_method": "scorecard",
+  "constraints": {
+    "fpr_threshold": 0.01,
+    "latency_threshold_ms": 1.0,
+    "fpr_pass": true,
+    "latency_pass": 
