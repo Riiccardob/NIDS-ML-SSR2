@@ -2,11 +2,11 @@
 SCORECARD COMPARISON REPORT
 ======================================================================
 
-Data: 2026-01-16 15:56:46
+Data: 2026-01-18 23:39:01
 Metodo: Scorecard con Hard Constraints
 
 HARD CONSTRAINTS:
-  - FPR massimo:     1.00%
+  - FPR massimo:     2.00%
   - Latenza massima: 1.00ms per sample
 
 ======================================================================
@@ -16,68 +16,68 @@ RISULTATI PER MODELLO
 RANDOM_FOREST - PASS
 --------------------------------------------------
   Constraints:
-    FPR:     0.0911% [PASS]
-    Latency: 0.0136ms [PASS]
+    FPR:     0.0941% [PASS]
+    Latency: 0.0132ms [PASS]
   Metriche:
     accuracy                 : 0.9990
-    precision                : 0.9982
+    precision                : 0.9981
     recall                   : 0.9989
     f1                       : 0.9985
     specificity              : 0.9991
     false_positive_rate      : 0.0009
     false_negative_rate      : 0.0011
     roc_auc                  : 1.0000
-    average_precision        : 1.0000
+    average_precision        : 0.9999
   Latenza dettagliata:
-    latency_total_ms         : 13.6349
-    latency_per_sample_ms    : 0.0136
-    latency_std_ms           : 4.1421
-    samples_per_second       : 73341.1515
+    latency_total_ms         : 13.1969
+    latency_per_sample_ms    : 0.0132
+    latency_std_ms           : 4.1309
+    samples_per_second       : 75775.1694
   Score finale: 0.9963
 
 XGBOOST [BEST] - PASS
 --------------------------------------------------
   Constraints:
-    FPR:     0.1209% [PASS]
-    Latency: 0.0010ms [PASS]
+    FPR:     0.2397% [PASS]
+    Latency: 0.0021ms [PASS]
   Metriche:
-    accuracy                 : 0.9990
-    precision                : 0.9976
+    accuracy                 : 0.9982
+    precision                : 0.9952
     recall                   : 0.9995
-    f1                       : 0.9985
-    specificity              : 0.9988
-    false_positive_rate      : 0.0012
+    f1                       : 0.9973
+    specificity              : 0.9976
+    false_positive_rate      : 0.0024
     false_negative_rate      : 0.0005
     roc_auc                  : 1.0000
     average_precision        : 1.0000
   Latenza dettagliata:
-    latency_total_ms         : 0.9568
-    latency_per_sample_ms    : 0.0010
-    latency_std_ms           : 0.0494
-    samples_per_second       : 1045198.5666
-  Score finale: 0.9991
+    latency_total_ms         : 2.1055
+    latency_per_sample_ms    : 0.0021
+    latency_std_ms           : 1.3925
+    samples_per_second       : 474956.5391
+  Score finale: 0.9985
 
 LIGHTGBM - PASS
 --------------------------------------------------
   Constraints:
-    FPR:     0.1030% [PASS]
-    Latency: 0.0015ms [PASS]
+    FPR:     0.1803% [PASS]
+    Latency: 0.0038ms [PASS]
   Metriche:
-    accuracy                 : 0.9992
-    precision                : 0.9979
-    recall                   : 0.9995
-    f1                       : 0.9987
-    specificity              : 0.9990
-    false_positive_rate      : 0.0010
-    false_negative_rate      : 0.0005
+    accuracy                 : 0.9985
+    precision                : 0.9964
+    recall                   : 0.9992
+    f1                       : 0.9978
+    specificity              : 0.9982
+    false_positive_rate      : 0.0018
+    false_negative_rate      : 0.0008
     roc_auc                  : 1.0000
     average_precision        : 1.0000
   Latenza dettagliata:
-    latency_total_ms         : 1.4604
-    latency_per_sample_ms    : 0.0015
-    latency_std_ms           : 0.0600
-    samples_per_second       : 684724.6823
-  Score finale: 0.9991
+    latency_total_ms         : 3.8411
+    latency_per_sample_ms    : 0.0038
+    latency_std_ms           : 0.2555
+    samples_per_second       : 260345.3022
+  Score finale: 0.9982
 
 ======================================================================
 VERDETTO FINALE

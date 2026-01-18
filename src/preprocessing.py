@@ -84,6 +84,7 @@ from src.utils import (
     ResourceMonitor,
     suppress_warnings
 )
+from src.timing import TimingLogger
 
 # Applica limiti CPU (affinity + priority)
 apply_cpu_limits(_n_cores, set_low_priority=True)
@@ -399,6 +400,14 @@ def main():
     
     monitor = ResourceMonitor()
     
+    # Inizializza timing logger
+    timer = TimingLogger("preprocessing", parameters={
+        'balance_ratio': args.balance_ratio,
+        'no_balance': args.no_balance,
+        'chunk_size': args.chunk_size,
+        'n_jobs': _n_cores
+    })
+    
     print("\n" + "=" * 60)
     print("PREPROCESSING CIC-IDS2017")
     print("=" * 60)
@@ -413,13 +422,16 @@ def main():
     
     try:
         print(f"1. Caricamento CSV da {input_dir}...")
-        df = load_all_csv(input_dir, chunk_size=args.chunk_size)
+        with timer.time_operation("caricamento_csv"):
+            df = load_all_csv(input_dir, chunk_size=args.chunk_size)
         
         print("\n2. Pulizia dati...")
-        df = clean_data(df)
+        with timer.time_operation("pulizia_dati"):
+            df = clean_data(df)
         
         print("\n3. Encoding label...")
-        df, mappings = encode_labels(df)
+        with timer.time_operation("encoding_label"):
+            df, mappings = encode_labels(df)
         
         print("\n   Distribuzione classi:")
         class_dist = df['Label_Original'].value_counts()
@@ -429,17 +441,26 @@ def main():
         
         if not args.no_balance:
             print(f"\n4. Bilanciamento (ratio {args.balance_ratio}:1)...")
-            df = balance_dataset(df, ratio=args.balance_ratio, random_state=args.random_state)
+            with timer.time_operation("bilanciamento"):
+                df = balance_dataset(df, ratio=args.balance_ratio, random_state=args.random_state)
         else:
             print("\n4. Bilanciamento saltato")
         
         print("\n5. Split train/val/test...")
-        train, val, test = split_dataset(
-            df, args.test_size, args.val_size, random_state=args.random_state
-        )
+        with timer.time_operation("split_dataset"):
+            train, val, test = split_dataset(
+                df, args.test_size, args.val_size, random_state=args.random_state
+            )
         
         print("\n6. Salvataggio...")
-        save_processed_data(train, val, test, mappings, output_dir)
+        with timer.time_operation("salvataggio"):
+            save_processed_data(train, val, test, mappings, output_dir)
+        
+        # Salva timing
+        timer.add_metric("train_rows", len(train))
+        timer.add_metric("val_rows", len(val))
+        timer.add_metric("test_rows", len(test))
+        timing_path = timer.save()
         
         print("\n" + "=" * 60)
         print("PREPROCESSING COMPLETATO")
@@ -448,8 +469,10 @@ def main():
         print(f"Train:  {len(train):,} righe")
         print(f"Val:    {len(val):,} righe")
         print(f"Test:   {len(test):,} righe")
+        print(f"Timing: {timing_path}")
         print(f"\nProssimo step: python src/feature_engineering.py")
         
+        timer.print_summary()
         monitor.log_status(logger)
         
     except FileNotFoundError as e:

@@ -93,6 +93,7 @@ from src.utils import (
     suppress_warnings
 )
 from src.preprocessing import load_processed_data
+from src.timing import TimingLogger
 
 suppress_warnings()
 logger = get_logger(__name__)
@@ -247,6 +248,7 @@ def apply_feature_selection(X: pd.DataFrame,
 def save_artifacts(scaler: StandardScaler,
                    selected_features: List[str],
                    feature_importances: dict,
+                   scaler_columns: List[str] = None,
                    output_dir: Path = None) -> None:
     """Salva artifacts del feature engineering."""
     if output_dir is None:
@@ -261,6 +263,12 @@ def save_artifacts(scaler: StandardScaler,
         json.dump(selected_features, f, indent=2)
     logger.info(f"Salvato: selected_features.json")
     
+    # Salva le colonne usate per fittare lo scaler
+    if scaler_columns is not None:
+        with open(output_dir / "scaler_columns.json", 'w') as f:
+            json.dump(scaler_columns, f, indent=2)
+        logger.info(f"Salvato: scaler_columns.json ({len(scaler_columns)} colonne)")
+    
     sorted_importances = dict(sorted(feature_importances.items(),
                                      key=lambda x: x[1], 
                                      reverse=True))
@@ -270,8 +278,14 @@ def save_artifacts(scaler: StandardScaler,
 
 
 def load_artifacts(artifacts_dir: Path = None
-                   ) -> Tuple[StandardScaler, List[str], dict]:
-    """Carica artifacts salvati."""
+                   ) -> Tuple[StandardScaler, List[str], dict, List[str]]:
+    """
+    Carica artifacts salvati.
+    
+    Returns:
+        Tuple (scaler, selected_features, importances, scaler_columns)
+        scaler_columns puo essere None se non salvato (vecchi artifacts)
+    """
     if artifacts_dir is None:
         artifacts_dir = get_project_root() / "artifacts"
     
@@ -288,9 +302,16 @@ def load_artifacts(artifacts_dir: Path = None
     with open(artifacts_dir / "feature_importances.json", 'r') as f:
         importances = json.load(f)
     
+    # Carica scaler_columns se presente
+    scaler_columns = None
+    scaler_columns_path = artifacts_dir / "scaler_columns.json"
+    if scaler_columns_path.exists():
+        with open(scaler_columns_path, 'r') as f:
+            scaler_columns = json.load(f)
+    
     logger.info(f"Caricati artifacts da {artifacts_dir}")
     
-    return scaler, selected_features, importances
+    return scaler, selected_features, importances, scaler_columns
 
 
 # ==============================================================================
@@ -339,7 +360,7 @@ def run_feature_engineering(train: pd.DataFrame,
     del X_train_scaled, X_val_scaled, X_test_scaled
     gc.collect()
     
-    save_artifacts(scaler, selected_features, importances)
+    save_artifacts(scaler, selected_features, importances, scaler_columns=feature_cols)
     
     logger.info(f"Feature engineering completato")
     
@@ -403,57 +424,77 @@ def main():
     print(f"  Max RAM:                {args.max_ram}%")
     print()
     
+    # Inizializza timing logger
+    timer = TimingLogger("feature_engineering", parameters={
+        'n_features': args.n_features,
+        'rf_estimators': args.rf_estimators,
+        'n_jobs': n_jobs,
+        'max_ram': args.max_ram,
+        'label_col': args.label_col,
+        'random_state': args.random_state
+    })
+    
     try:
         print("1. Caricamento dati preprocessati...")
-        train, val, test, mappings = load_processed_data()
+        with timer.time_operation("caricamento_dati"):
+            train, val, test, mappings = load_processed_data()
         print(f"   Train: {len(train):,} | Val: {len(val):,} | Test: {len(test):,}")
         
         limiter.log_status(logger)
         
         print("\n2. Esecuzione pipeline feature engineering...")
-        X_train, X_val, X_test, y_train, y_val, y_test = run_feature_engineering(
-            train, val, test,
-            label_col=args.label_col,
-            n_features=args.n_features,
-            n_estimators=args.rf_estimators,
-            n_jobs=n_jobs,
-            random_state=args.random_state
-        )
+        with timer.time_operation("feature_engineering_pipeline"):
+            X_train, X_val, X_test, y_train, y_val, y_test = run_feature_engineering(
+                train, val, test,
+                label_col=args.label_col,
+                n_features=args.n_features,
+                n_estimators=args.rf_estimators,
+                n_jobs=n_jobs,
+                random_state=args.random_state
+            )
         
         print("\n3. Salvataggio dataset pronti per training...")
-        processed_dir = get_project_root() / "data" / "processed"
-        
-        train_ready = pd.concat([
-            X_train.reset_index(drop=True),
-            y_train.reset_index(drop=True).rename('target')
-        ], axis=1)
-        val_ready = pd.concat([
-            X_val.reset_index(drop=True),
-            y_val.reset_index(drop=True).rename('target')
-        ], axis=1)
-        test_ready = pd.concat([
-            X_test.reset_index(drop=True),
-            y_test.reset_index(drop=True).rename('target')
-        ], axis=1)
-        
-        train_ready.to_parquet(processed_dir / "train_ready.parquet", index=False)
-        val_ready.to_parquet(processed_dir / "val_ready.parquet", index=False)
-        test_ready.to_parquet(processed_dir / "test_ready.parquet", index=False)
+        with timer.time_operation("salvataggio_dataset"):
+            processed_dir = get_project_root() / "data" / "processed"
+            
+            train_ready = pd.concat([
+                X_train.reset_index(drop=True),
+                y_train.reset_index(drop=True).rename('target')
+            ], axis=1)
+            val_ready = pd.concat([
+                X_val.reset_index(drop=True),
+                y_val.reset_index(drop=True).rename('target')
+            ], axis=1)
+            test_ready = pd.concat([
+                X_test.reset_index(drop=True),
+                y_test.reset_index(drop=True).rename('target')
+            ], axis=1)
+            
+            train_ready.to_parquet(processed_dir / "train_ready.parquet", index=False)
+            val_ready.to_parquet(processed_dir / "val_ready.parquet", index=False)
+            test_ready.to_parquet(processed_dir / "test_ready.parquet", index=False)
         
         print(f"   Salvati in {processed_dir}")
         
         print("\n   Top 10 feature selezionate:")
-        _, selected_features, importances = load_artifacts()
+        _, selected_features, importances, _ = load_artifacts()
         for i, feat in enumerate(selected_features[:10]):
             print(f"   {i+1:2}. {feat}: {importances[feat]:.4f}")
+        
+        # Salva metriche timing
+        timer.add_metric("train_samples", len(train))
+        timer.add_metric("n_features_selected", len(selected_features))
+        timing_path = timer.save()
         
         print("\n" + "=" * 60)
         print("FEATURE ENGINEERING COMPLETATO")
         print("=" * 60)
         print(f"\nArtifacts: {get_project_root() / 'artifacts'}")
         print(f"Shape:     ({X_train.shape[0]:,}, {X_train.shape[1]})")
+        print(f"Timing:    {timing_path}")
         print(f"\nProssimo step: python src/training/random_forest.py")
         
+        timer.print_summary()
         limiter.log_status(logger)
         
     except FileNotFoundError as e:
