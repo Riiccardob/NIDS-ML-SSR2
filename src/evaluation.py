@@ -101,6 +101,7 @@ from src.feature_engineering import (
     transform_data,
     apply_feature_selection
 )
+from src.timing import TimingLogger
 
 suppress_warnings()
 logger = get_logger(__name__)
@@ -121,18 +122,27 @@ def load_model(model_path: Path):
     return model
 
 
-def prepare_test_data(task: str = 'binary') -> Tuple[pd.DataFrame, pd.Series]:
+def prepare_test_data(task: str = 'binary', 
+                      model_features: list[str] = None) -> Tuple[pd.DataFrame, pd.Series, dict]:
     """
     Prepara dati di test applicando scaler e feature selection.
     
+    Args:
+        task: 'binary' o 'multiclass'
+        model_features: Lista feature del modello (se None usa artifacts globali)
+    
     Returns:
-        Tuple (X_test, y_test) pronti per predizione
+        Tuple (X_test, y_test, mappings) pronti per predizione
     """
     # Carica dati
     _, _, test, mappings = load_processed_data()
     
     # Carica artifacts
-    scaler, selected_features, _ = load_artifacts()
+    scaler, selected_features, _, _ = load_artifacts()
+    
+    # Usa feature specifiche del modello se fornite
+    if model_features is not None:
+        selected_features = model_features
     
     # Prepara X e y
     label_col = 'Label_Binary' if task == 'binary' else 'Label_Multiclass'
@@ -458,7 +468,6 @@ def evaluate_model(model_path: Path,
     """
     # Setup output directory
     if output_dir is None:
-        # Estrai nome modello dal path (es. models/random_forest/model_binary.pkl -> random_forest)
         model_name = model_path.parent.name
         output_dir = get_project_root() / "reports" / model_name
     
@@ -468,8 +477,16 @@ def evaluate_model(model_path: Path,
     model = load_model(model_path)
     model_name = model_path.parent.name
     
-    # Prepara dati test
-    X_test, y_test, mappings = prepare_test_data(task)
+    # Cerca file features specifico del modello
+    model_features = None
+    features_path = model_path.parent / f"features_{task}.json"
+    if features_path.exists():
+        with open(features_path, 'r') as f:
+            model_features = json.load(f)
+        logger.info(f"Caricate feature specifiche del modello: {len(model_features)}")
+    
+    # Prepara dati test (usa feature del modello se disponibili)
+    X_test, y_test, mappings = prepare_test_data(task, model_features=model_features)
     
     # Predizioni
     print("   Generazione predizioni...")
@@ -520,7 +537,7 @@ def evaluate_model(model_path: Path,
         )
     
     # Feature importance
-    _, selected_features, _ = load_artifacts()
+    _, selected_features, _, _ = load_artifacts()
     plot_feature_importance(
         model, selected_features,
         output_dir / f"feature_importance_{task}.png",

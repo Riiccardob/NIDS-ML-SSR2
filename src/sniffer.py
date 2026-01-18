@@ -193,7 +193,7 @@ class SnifferLogger:
             'src_port': flow_data.get('src_port'),
             'dst_port': flow_data.get('dst_port'),
             'protocol': flow_data.get('protocol'),
-            'probability': probability,
+            'probability': float(probability),
             'packets': flow_data.get('total_packets'),
             'bytes': flow_data.get('total_bytes'),
             'duration': flow_data.get('duration')
@@ -217,9 +217,21 @@ class SnifferLogger:
         entry = {
             'timestamp': datetime.now().isoformat(),
             'prediction': 'attack' if prediction == 1 else 'benign',
-            'probability': probability,
+            'probability': float(probability),  # Converti numpy.float32 a float
             **flow_data
         }
+        
+        # Converti tutti i valori numpy a tipi Python nativi
+        def convert_numpy(obj):
+            if hasattr(obj, 'item'):  # numpy scalar
+                return obj.item()
+            elif isinstance(obj, dict):
+                return {k: convert_numpy(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_numpy(i) for i in obj]
+            return obj
+        
+        entry = convert_numpy(entry)
         
         with open(self.flow_log, 'a') as f:
             f.write(json.dumps(entry) + '\n')
@@ -754,7 +766,21 @@ class NIDSSniffer:
         self.model = joblib.load(model_path)
         
         self.sniffer_logger.log_info("Caricamento artifacts...")
-        self.scaler, self.selected_features, _ = load_artifacts()
+        self.scaler, self.selected_features, _, self.scaler_columns = load_artifacts()
+        
+        # Cerca file features specifico del modello
+        features_path = model_path.parent / "features_binary.json"
+        if features_path.exists():
+            with open(features_path, 'r') as f:
+                self.selected_features = json.load(f)
+            self.sniffer_logger.log_info(f"Caricate feature dal modello: {len(self.selected_features)}")
+        
+        # Se scaler_columns non e disponibile (vecchi artifacts), usa selected_features
+        if self.scaler_columns is None:
+            self.sniffer_logger.log_warning(
+                "scaler_columns.json non trovato. Rieseguire feature_engineering.py"
+            )
+            self.scaler_columns = self.selected_features
         
         # Flow manager
         self.flow_manager = FlowManager(timeout=timeout)
@@ -868,26 +894,33 @@ class NIDSSniffer:
     
     def _analyze_flow(self, flow: Flow):
         """Analizza un flusso e genera alert se necessario."""
-        # Estrai feature
-        features = flow.extract_features()
+        # Estrai feature dal flusso
+        extracted_features = flow.extract_features()
         
-        # Prepara DataFrame
-        feature_dict = {feat: features.get(feat, 0) for feat in self.selected_features}
-        df = pd.DataFrame([feature_dict])
+        # Crea DataFrame con TUTTE le colonne usate per fittare lo scaler
+        # Le feature non estratte vengono impostate a 0
+        feature_dict = {}
+        for col in self.scaler_columns:
+            feature_dict[col] = extracted_features.get(col, 0)
         
-        # Scala
+        df_full = pd.DataFrame([feature_dict])
+        
+        # Scala usando tutte le colonne originali
         df_scaled = pd.DataFrame(
-            self.scaler.transform(df),
-            columns=df.columns
+            self.scaler.transform(df_full),
+            columns=self.scaler_columns
         )
         
-        # Predizione
-        prediction = self.model.predict(df_scaled)[0]
+        # Seleziona solo le feature usate dal modello
+        df_selected = df_scaled[self.selected_features]
         
-        # Probabilita
+        # Predizione
+        prediction = int(self.model.predict(df_selected)[0])
+        
+        # Probabilita (converti a float Python nativo)
         prob = 0.5
         if hasattr(self.model, 'predict_proba'):
-            prob = self.model.predict_proba(df_scaled)[0][1]
+            prob = float(self.model.predict_proba(df_selected)[0][1])
         
         # Log flusso
         self.sniffer_logger.log_flow(flow.to_dict(), prediction, prob)
