@@ -1,10 +1,31 @@
 {
   "best_model": "xgboost",
   "task": "binary",
-  "timestamp": "2026-01-16T15:56:46.695989",
+  "timestamp": "2026-01-18T23:39:01.724471",
   "selection_method": "scorecard",
   "constraints": {
-    "fpr_threshold": 0.01,
+    "fpr_threshold": 0.02,
     "latency_threshold_ms": 1.0,
     "fpr_pass": true,
-    "latency_pass": 
+    "latency_pass": true,
+    "all_pass": true
+  },
+  "metrics": {
+    "accuracy": 0.9982235078126032,
+    "precision": 0.9952257886326422,
+    "recall": 0.9994650711257281,
+    "f1": 0.9973409250417643,
+    "specificity": 0.9976027261560407,
+    "false_positive_rate": 0.0023972738439592663,
+    "false_negative_rate": 0.0005349288742719023,
+    "roc_auc": 0.9999853934528304,
+    "average_precision": 0.9999705560048818
+  },
+  "latency": {
+    "latency_total_ms": 2.105455799983247,
+    "latency_per_sample_ms": 0.0021054557999832467,
+    "latency_std_ms": 1.3925166710140977,
+    "samples_per_second": 474956.5391056687
+  },
+  "score": 0.9985137219153967
+}

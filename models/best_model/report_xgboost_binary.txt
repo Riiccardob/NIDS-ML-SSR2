@@ -3,18 +3,18 @@ EVALUATION REPORT - XGBOOST
 ============================================================
 
 Task: binary
-Timestamp: 20260116_154117
+Timestamp: 20260118_233842
 Test samples: 151,422
 
 ----------------------------------------
 METRICS
 ----------------------------------------
-  accuracy                 : 0.9990
-  precision                : 0.9976
+  accuracy                 : 0.9982
+  precision                : 0.9952
   recall                   : 0.9995
-  f1                       : 0.9985
-  specificity              : 0.9988
-  false_positive_rate      : 0.0012
+  f1                       : 0.9973
+  specificity              : 0.9976
+  false_positive_rate      : 0.0024
   false_negative_rate      : 0.0005
   roc_auc                  : 1.0000
   average_precision        : 1.0000
@@ -22,10 +22,10 @@ METRICS
 ----------------------------------------
 ERROR ANALYSIS
 ----------------------------------------
-  total_errors             : 148
-  error_rate               : 0.0010
-  false_positives          : 122
-  false_negatives          : 26
+  total_errors             : 269
+  error_rate               : 0.0018
+  false_positives          : 242
+  false_negatives          : 27
 
 ----------------------------------------
 CLASSIFICATION REPORT

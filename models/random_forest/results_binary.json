@@ -3,23 +3,23 @@
   "task": "binary",
   "best_params": {
     "n_estimators": 100,
-    "min_samples_split": 5,
+    "min_samples_split": 10,
     "min_samples_leaf": 1,
-    "max_features": "log2",
-    "max_depth": 20,
-    "class_weight": "balanced_subsample"
+    "max_features": "sqrt",
+    "max_depth": null,
+    "class_weight": "balanced"
   },
-  "best_cv_score": 0.9981218008812847,
+  "best_cv_score": 0.9982451129615436,
   "validation_metrics": {
-    "accuracy": 0.9987518326266989,
-    "precision": 0.9979205861966531,
-    "recall": 0.9983357768355985,
-    "f1": 0.9981281383394903
+    "accuracy": 0.9988508935293419,
+    "precision": 0.9978620635046322,
+    "recall": 0.9986923960851132,
+    "f1": 0.9982770571343698
   },
-  "train_time_seconds": 234.88497,
+  "train_time_seconds": 14576.292173,
   "train_samples": 706632,
   "n_features": 30,
-  "n_iter": 5,
-  "cv_folds": 2,
-  "n_jobs": 10
+  "n_iter": 20,
+  "cv_folds": 3,
+  "n_jobs": 4
 }

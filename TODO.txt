@@ -5,9 +5,7 @@ SEMPRE:
 - CODICI PARAMETRICI
 -   -   -
 
-0 - logica con cui assegna i pesi agli attributi utilizzati dal modello (correggimi se sbaglio) per determinare se un elemento sia o meno un attacco
-
-1 - sistemare errore compare_models
+1 - testare nuovi codici training (ho integrato modulo timing) | mal che vada ho lasciato la vecchia versione commentata
 
 2 - Sistemare errore sniffer
     GIA FATTO --> lo sniffer deve essere quanto più parametrico possibile: 

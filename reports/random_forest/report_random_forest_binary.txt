@@ -3,29 +3,29 @@ EVALUATION REPORT - RANDOM_FOREST
 ============================================================
 
 Task: binary
-Timestamp: 20260116_154115
+Timestamp: 20260118_233839
 Test samples: 151,422
 
 ----------------------------------------
 METRICS
 ----------------------------------------
   accuracy                 : 0.9990
-  precision                : 0.9982
+  precision                : 0.9981
   recall                   : 0.9989
   f1                       : 0.9985
   specificity              : 0.9991
   false_positive_rate      : 0.0009
   false_negative_rate      : 0.0011
   roc_auc                  : 1.0000
-  average_precision        : 1.0000
+  average_precision        : 0.9999
 
 ----------------------------------------
 ERROR ANALYSIS
 ----------------------------------------
-  total_errors             : 150
+  total_errors             : 152
   error_rate               : 0.0010
-  false_positives          : 92
-  false_negatives          : 58
+  false_positives          : 95
+  false_negatives          : 57
 
 ----------------------------------------
 CLASSIFICATION REPORT

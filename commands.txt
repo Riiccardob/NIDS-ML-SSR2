@@ -1,5 +1,5 @@
 # 1. Preprocessing (se non gia fatto)
-python src/preprocessing.python
+python src/preprocessing.py
 o
 python src/preprocessing.py --n-jobs 10
 
@@ -18,8 +18,22 @@ python src/evaluation.py --model-path models/random_forest/model_binary.pkl
 python src/evaluation.py --model-path models/xgboost/model_binary.pkl
 python src/evaluation.py --model-path models/lightgbm/model_binary.pkl
 
-# 5. Sniffer (richiede sudo)
-sudo python src/sniffer.py --model-path models/random_forest/model_binary.pkl --verbose
+# 5. Confronto e selezione best model
+python src/compare_models.py --metric f1
+
+# 6. Sniffer con best model
+# Live capture (detection)
+||| sudo $(which python) src/sniffer.py |||
+sudo python src/sniffer.py --interface eth0
+
+# Live capture (prevention - blocca IP)
+sudo python src/sniffer.py --interface eth0 --mode prevention
+
+# Analisi PCAP
+python src/sniffer.py --pcap test.pcap --verbose
+
+# 7. Report timing
+python src/timing.py --report
 
 -   -   -   -   -
 
@@ -38,3 +52,90 @@ Totale fit = n_iter * cv
     Test: 5 * 2 = 10 training (6x piu veloce)
 
 Per produzione usa almeno --n-iter 20 --cv 3 o meglio --n-iter 30 --cv 5.
+
+-   -   -   -   -
+
+Come Funziona il Sistema Timing1. Raccolta Dati
+Ogni modulo (preprocessing, feature_engineering, training, etc.) crea un TimingLogger che traccia:
+    Durata di ogni operazione
+    Parametri utilizzati
+    Metriche finali
+
+2. Salvataggio
+Ogni esecuzione salva un file JSON in logs/timing/:
+logs/timing/
+├── preprocessing_20260117_173000.json
+├── feature_engineering_20260117_173500.json
+├── training_random_forest_20260117_174000.json
+└── ...
+
+3. Report
+Per generare il report finale:
+bashpython src/timing.py --report
+
+Questo analizza tutti i file JSON e genera:
+    reports/timing/timing_report_XXXXXX.txt - Report leggibile
+    reports/timing/timing_report_XXXXXX.json - Dati per analisi
+
+
+Il report mostra:
+    Tempo medio/min/max per ogni modulo
+    Tempo per ogni operazione (caricamento, training, etc.)
+    Confronto tra esecuzioni con parametri diversi
+
+-   -   -   -   -
+
+Passo 6: Scarica i Risultati
+
+Alla fine, il notebook crea nids_ml_output.zip
+Vai nella tab "Output" (barra laterale destra)
+Clicca sul file ZIP per scaricarlo
+
+Passo 7: Usa i Risultati in Locale
+bash# 1. Vai nella cartella del progetto
+cd ~/Documents/NIDS-ML-SSR2
+
+# 2. Decomprimi (sovrascrive i file esistenti)
+unzip -o ~/Downloads/nids_ml_output.zip
+
+# 3. Verifica
+ls -la artifacts/
+ls -la models/best_model/
+
+# 4. Testa lo sniffer
+sudo python src/sniffer.py --interface eno1 --verbose
+```
+
+---
+
+## Struttura File Scaricati
+```
+nids_ml_output.zip
+├── artifacts/
+│   ├── scaler.pkl              # Scaler per normalizzazione
+│   ├── scaler_columns.json     # 77 colonne originali
+│   ├── selected_features.json  # 30 feature selezionate
+│   ├── feature_importances.json
+│   └── label_mappings.json
+│
+├── models/
+│   ├── random_forest/
+│   │   ├── model_binary.pkl
+│   │   ├── features_binary.json  # Feature di QUESTO modello
+│   │   └── results_binary.json
+│   ├── xgboost/
+│   │   └── ...
+│   ├── lightgbm/
+│   │   └── ...
+│   └── best_model/
+│       ├── model_binary.pkl      # Modello migliore
+│       ├── features_binary.json
+│       ├── results_binary.json
+│       └── metadata.json
+│
+└── reports/
+    ├── feature_importance.png
+    ├── model_comparison.png
+    ├── model_comparison.csv
+    ├── best_model_confusion_matrix.png
+    └── best_model_roc_curve.png

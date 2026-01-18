@@ -131,7 +131,7 @@ def benchmark_model_latency(model, n_samples: int = 1000, n_iterations: int = 5)
         Dict con latency_mean_ms, latency_std_ms, latency_per_sample_ms
     """
     # Carica artifacts per ottenere numero feature
-    _, selected_features, _ = load_artifacts()
+    _, selected_features, _, _ = load_artifacts()
     n_features = len(selected_features)
     
     # Genera dati sintetici (non importa il contenuto, solo la dimensione)
@@ -395,18 +395,40 @@ def copy_best_model(best_model_name: str,
         'task': task,
         'timestamp': datetime.now().isoformat(),
         'selection_method': 'scorecard',
-        'constraints': best_result['constraints'] if best_result else {},
-        'metrics': best_result['metrics'] if best_result else {},
-        'latency': best_result['latency'] if best_result else {},
-        'score': best_result['score'] if best_result else 0
+        'constraints': {
+            k: (bool(v) if isinstance(v, (np.bool_, np.generic)) else v)
+            for k, v in (best_result['constraints'] if best_result else {}).items()
+        },
+        'metrics': {
+            k: (float(v) if isinstance(v, (np.floating, np.integer)) else v)
+            for k, v in (best_result['metrics'] if best_result else {}).items()
+        },
+        'latency': {
+            k: (float(v) if isinstance(v, (np.floating, np.integer)) else v)
+            for k, v in (best_result['latency'] if best_result else {}).items()
+        },
+        'score': float(best_result['score']) if best_result else 0
     }
     
     with open(output_dir / "metadata.json", 'w') as f:
         json.dump(metadata, f, indent=2)
     
-    # Salva tutti i risultati comparazione
+    # Salva tutti i risultati comparazione (converti numpy types)
+    def convert_numpy(obj):
+        if isinstance(obj, (np.bool_, np.generic)):
+            if isinstance(obj, np.bool_):
+                return bool(obj)
+            return float(obj) if isinstance(obj, np.floating) else int(obj)
+        elif isinstance(obj, dict):
+            return {k: convert_numpy(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [convert_numpy(i) for i in obj]
+        return obj
+    
+    results_converted = convert_numpy(results)
+    
     with open(output_dir / "comparison_results.json", 'w') as f:
-        json.dump(results, f, indent=2, default=str)
+        json.dump(results_converted, f, indent=2)
 
 
 def generate_comparison_report(results: List[Dict],
