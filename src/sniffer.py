@@ -96,7 +96,7 @@ suppress_warnings()
 
 # Verifica Scapy
 try:
-    from scapy.all import sniff, rdpcap, IP, TCP, UDP, ICMP, get_if_list, conf
+    from scapy.all import sniff, IP, TCP, UDP, ICMP, get_if_list, conf
     SCAPY_AVAILABLE = True
 except ImportError:
     SCAPY_AVAILABLE = False
@@ -928,6 +928,12 @@ class NIDSSniffer:
         # Gestisci risultato
         is_attack = prediction == 1 and prob >= self.threshold
         
+        # Stampa progresso ogni 10 flussi
+        total_flows = self.sniffer_logger.stats.get('flows_analyzed', 0) + 1
+        if total_flows % 10 == 0 and not self.quiet:
+            attacks = self.sniffer_logger.stats.get('attacks_detected', 0)
+            print(f"[PROGRESS] Flussi: {total_flows} | Attacchi: {attacks} | Ultimo: {'ATTACK' if is_attack else 'BENIGN'} ({prob:.2f})")
+        
         if is_attack:
             self._handle_attack(flow, prob)
         elif self.verbose:
@@ -1038,45 +1044,60 @@ class NIDSSniffer:
         
         print(f"\nAnalisi PCAP: {self.pcap_file}")
         print(f"Session ID: {self.session_id}")
+        print(f"Modalita: STREAMING (memory-efficient)")
         print()
         
         self.running = True
         
-        # Carica pacchetti
-        print("Caricamento pacchetti...")
-        packets = rdpcap(str(self.pcap_file))
-        total_packets = len(packets)
-        print(f"Pacchetti totali: {total_packets:,}")
+        # Usa PcapReader per streaming (non carica tutto in RAM)
+        from scapy.all import PcapReader
         
-        if packet_count > 0:
-            packets = packets[:packet_count]
+        print("Analisi in corso (streaming)...")
+        processed = 0
         
-        # Processa pacchetti
-        print("\nAnalisi in corso...")
-        for i, packet in enumerate(packets):
-            if not self.running:
-                break
-            
-            info = self._extract_packet_info(packet)
-            if info:
-                self.sniffer_logger.update_packet_stats(captured=1, processed=1)
-                self.sniffer_logger.add_ip(info['src_ip'], info['dst_ip'])
-                
-                completed_flow = self.flow_manager.add_packet(
-                    info['src_ip'], info['dst_ip'],
-                    info['src_port'], info['dst_port'],
-                    info['protocol'], info['length'],
-                    info['timestamp'], info['tcp_flags']
-                )
-                
-                if completed_flow and completed_flow.total_packets >= self.min_packets:
-                    self._analyze_flow(completed_flow)
-            
-            # Progress ogni 10000 pacchetti
-            if (i + 1) % 10000 == 0:
-                print(f"  Processati: {i+1:,}/{len(packets):,}")
+        try:
+            with PcapReader(str(self.pcap_file)) as reader:
+                for packet in reader:
+                    if not self.running:
+                        break
+                    
+                    if packet_count > 0 and processed >= packet_count:
+                        break
+                    
+                    info = self._extract_packet_info(packet)
+                    if info:
+                        self.sniffer_logger.update_packet_stats(captured=1, processed=1)
+                        self.sniffer_logger.add_ip(info['src_ip'], info['dst_ip'])
+                        
+                        completed_flow = self.flow_manager.add_packet(
+                            info['src_ip'], info['dst_ip'],
+                            info['src_port'], info['dst_port'],
+                            info['protocol'], info['length'],
+                            info['timestamp'], info['tcp_flags']
+                        )
+                        
+                        if completed_flow and completed_flow.total_packets >= self.min_packets:
+                            self._analyze_flow(completed_flow)
+                    
+                    processed += 1
+                    
+                    # Progress e cleanup periodico
+                    if processed % 10000 == 0:
+                        attacks = self.sniffer_logger.stats.get('attacks_detected', 0)
+                        flows = self.sniffer_logger.stats.get('flows_analyzed', 0)
+                        print(f"  Pacchetti: {processed:,} | Flussi: {flows:,} | Attacchi: {attacks}")
+                        
+                        # Cleanup flussi scaduti ogni 50k pacchetti
+                        if processed % 50000 == 0:
+                            self._process_expired_flows()
         
-        # Processa flussi scaduti
+        except Exception as e:
+            print(f"ERRORE durante analisi PCAP: {e}")
+            raise
+        
+        print(f"\nPacchetti processati: {processed:,}")
+        
+        # Processa flussi rimanenti
         self._process_expired_flows()
         self._process_remaining_flows()
         
