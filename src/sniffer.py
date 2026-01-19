@@ -1121,6 +1121,387 @@ class NIDSSniffer:
 
 
 # ==============================================================================
+# FUNZIONE PER USO DA NOTEBOOK/SCRIPT
+# ==============================================================================
+
+def analyze_pcap_file(
+    pcap_path: str,
+    model_path: str = None,
+    threshold: float = 0.5,
+    timeout: int = 60,
+    min_packets: int = 2,
+    verbose: bool = False,
+    progress_interval: int = 10000
+) -> Dict[str, Any]:
+    """
+    Analizza un file PCAP e restituisce i risultati.
+    
+    Questa funzione può essere importata e usata direttamente da notebook o script
+    senza dover passare per la CLI.
+    
+    Args:
+        pcap_path: Path al file PCAP
+        model_path: Path al modello (default: models/best_model/model_binary.pkl)
+        threshold: Soglia probabilità per classificare come attacco (default: 0.5)
+        timeout: Timeout flusso in secondi (default: 60)
+        min_packets: Minimo pacchetti per analizzare un flusso (default: 2)
+        verbose: Mostra dettagli flussi benigni (default: False)
+        progress_interval: Intervallo pacchetti per progress (default: 10000)
+    
+    Returns:
+        Dict con risultati:
+            - pcap: nome file
+            - packets_processed: pacchetti totali processati
+            - flows_analyzed: flussi analizzati
+            - attacks_detected: attacchi rilevati
+            - benign_detected: flussi benigni
+            - attack_flows: lista top attacchi (max 100)
+            - detection_rate: percentuale attacchi
+            - stats: statistiche dettagliate
+    
+    Example:
+        >>> from src.sniffer import analyze_pcap_file
+        >>> results = analyze_pcap_file(
+        ...     "Friday-WorkingHours.pcap",
+        ...     threshold=0.3,
+        ...     min_packets=1
+        ... )
+        >>> print(f"Attacchi: {results['attacks_detected']}")
+    """
+    from scapy.all import PcapReader, IP, TCP, UDP
+    
+    pcap_path = Path(pcap_path)
+    if not pcap_path.exists():
+        raise FileNotFoundError(f"PCAP non trovato: {pcap_path}")
+    
+    # Carica modello
+    project_root = get_project_root()
+    if model_path is None:
+        model_path = project_root / "models" / "best_model" / "model_binary.pkl"
+    else:
+        model_path = Path(model_path)
+    
+    if not model_path.exists():
+        raise FileNotFoundError(f"Modello non trovato: {model_path}")
+    
+    print(f"Caricamento modello: {model_path.name}")
+    model = joblib.load(model_path)
+    
+    # Carica artifacts
+    scaler, selected_features, _, scaler_columns = load_artifacts()
+    
+    # Carica feature specifiche del modello se presenti
+    model_features_path = model_path.parent / "features_binary.json"
+    if model_features_path.exists():
+        with open(model_features_path) as f:
+            selected_features = json.load(f)
+    
+    print(f"Feature: {len(selected_features)}")
+    print(f"Soglia: {threshold}")
+    print(f"Min packets: {min_packets}")
+    
+    # Risultati
+    results = {
+        'pcap': pcap_path.name,
+        'packets_processed': 0,
+        'flows_analyzed': 0,
+        'attacks_detected': 0,
+        'benign_detected': 0,
+        'attack_flows': [],
+        'benign_sample': [],
+        'probabilities': []  # Per analisi distribuzione
+    }
+    
+    # Flow tracking
+    flows = {}
+    
+    print(f"\n{'='*60}")
+    print(f"Analisi: {pcap_path.name}")
+    print(f"Size: {pcap_path.stat().st_size / (1024**2):.1f} MB")
+    print(f"{'='*60}")
+    
+    def extract_flow_features(flow_data):
+        """Estrae feature da un flusso."""
+        feat = {}
+        
+        fwd_lengths = flow_data['fwd_lengths']
+        bwd_lengths = flow_data['bwd_lengths']
+        fwd_times = flow_data['fwd_times']
+        bwd_times = flow_data['bwd_times']
+        tcp_flags = flow_data['tcp_flags']
+        
+        duration = flow_data['end_time'] - flow_data['start_time'] if flow_data['start_time'] else 0
+        feat['Flow Duration'] = duration * 1e6
+        
+        # Conteggi
+        feat['Total Fwd Packets'] = feat['Subflow Fwd Packets'] = len(fwd_lengths)
+        feat['Total Backward Packets'] = feat['Subflow Bwd Packets'] = len(bwd_lengths)
+        
+        # Forward
+        fwd = fwd_lengths if fwd_lengths else [0]
+        feat['Total Length of Fwd Packets'] = feat['Subflow Fwd Bytes'] = sum(fwd)
+        feat['Fwd Packet Length Max'] = max(fwd)
+        feat['Fwd Packet Length Min'] = min(fwd)
+        feat['Fwd Packet Length Mean'] = feat['Avg Fwd Segment Size'] = np.mean(fwd)
+        feat['Fwd Packet Length Std'] = np.std(fwd, ddof=0) if len(fwd) > 1 else 0
+        
+        # Backward
+        bwd = bwd_lengths if bwd_lengths else [0]
+        feat['Total Length of Bwd Packets'] = feat['Subflow Bwd Bytes'] = sum(bwd)
+        feat['Bwd Packet Length Max'] = max(bwd)
+        feat['Bwd Packet Length Min'] = min(bwd)
+        feat['Bwd Packet Length Mean'] = feat['Avg Bwd Segment Size'] = np.mean(bwd)
+        feat['Bwd Packet Length Std'] = np.std(bwd, ddof=0) if len(bwd) > 1 else 0
+        
+        # Combined
+        all_len = fwd + bwd
+        feat['Packet Length Mean'] = feat['Average Packet Size'] = np.mean(all_len)
+        feat['Packet Length Std'] = np.std(all_len, ddof=0) if len(all_len) > 1 else 0
+        feat['Packet Length Variance'] = np.var(all_len, ddof=0) if len(all_len) > 1 else 0
+        feat['Max Packet Length'] = max(all_len)
+        
+        # Rates
+        if duration > 0:
+            total_packets = len(fwd_lengths) + len(bwd_lengths)
+            feat['Flow Bytes/s'] = sum(all_len) / duration
+            feat['Flow Packets/s'] = total_packets / duration
+            feat['Fwd Packets/s'] = len(fwd_lengths) / duration
+            feat['Bwd Packets/s'] = len(bwd_lengths) / duration
+        else:
+            feat['Flow Bytes/s'] = feat['Flow Packets/s'] = 0
+            feat['Fwd Packets/s'] = feat['Bwd Packets/s'] = 0
+        
+        # IAT
+        def calc_iat(times):
+            if len(times) < 2:
+                return [0]
+            t = sorted(times)
+            return [t[i+1] - t[i] for i in range(len(t)-1)]
+        
+        all_times = sorted(fwd_times + bwd_times)
+        flow_iat = calc_iat(all_times)
+        fwd_iat = calc_iat(fwd_times)
+        bwd_iat = calc_iat(bwd_times)
+        
+        for prefix, iat_vals in [('Flow IAT', flow_iat), ('Fwd IAT', fwd_iat), ('Bwd IAT', bwd_iat)]:
+            feat[f'{prefix} Mean'] = np.mean(iat_vals) * 1e6 if iat_vals else 0
+            feat[f'{prefix} Std'] = np.std(iat_vals, ddof=0) * 1e6 if len(iat_vals) > 1 else 0
+            feat[f'{prefix} Max'] = max(iat_vals) * 1e6 if iat_vals else 0
+            feat[f'{prefix} Min'] = min(iat_vals) * 1e6 if iat_vals else 0
+            if 'Fwd' in prefix or 'Bwd' in prefix:
+                feat[f'{prefix} Total'] = sum(iat_vals) * 1e6
+        
+        # TCP Flags
+        flag_map = {'F': 'FIN', 'S': 'SYN', 'R': 'RST', 'P': 'PSH', 'A': 'ACK', 'U': 'URG'}
+        for short, full in flag_map.items():
+            feat[f'{full} Flag Count'] = tcp_flags.get(short, 0)
+        
+        # Headers
+        feat['Fwd Header Length'] = feat['Fwd Header Length.1'] = len(fwd_lengths) * 20
+        feat['Bwd Header Length'] = len(bwd_lengths) * 20
+        
+        # Init window (placeholder)
+        feat['Init_Win_bytes_forward'] = feat['Init_Win_bytes_backward'] = 65535
+        
+        # Active/Idle (placeholder)
+        for stat in ['Mean', 'Std', 'Max', 'Min']:
+            feat[f'Active {stat}'] = feat[f'Idle {stat}'] = 0
+        
+        return feat
+    
+    def predict_flow(flow_data):
+        """Predice se un flusso è un attacco."""
+        features = extract_flow_features(flow_data)
+        
+        # Crea DataFrame con colonne scaler
+        feature_dict = {col: features.get(col, 0) for col in scaler_columns}
+        df = pd.DataFrame([feature_dict])
+        
+        # Scala
+        df_scaled = pd.DataFrame(scaler.transform(df), columns=scaler_columns)
+        
+        # Seleziona feature modello
+        df_selected = df_scaled[selected_features]
+        
+        # Predici
+        pred = int(model.predict(df_selected)[0])
+        prob = float(model.predict_proba(df_selected)[0][1]) if hasattr(model, 'predict_proba') else 0.5
+        
+        return pred, prob
+    
+    def analyze_and_clear_flow(flow_key, flow_data):
+        """Analizza un flusso e aggiorna risultati."""
+        total_packets = len(flow_data['fwd_lengths']) + len(flow_data['bwd_lengths'])
+        
+        if total_packets < min_packets:
+            return
+        
+        pred, prob = predict_flow(flow_data)
+        
+        results['flows_analyzed'] += 1
+        results['probabilities'].append(prob)
+        
+        flow_id = f"{flow_data['src_ip']}:{flow_data['src_port']}->{flow_data['dst_ip']}:{flow_data['dst_port']}"
+        
+        is_attack = pred == 1 and prob >= threshold
+        
+        if is_attack:
+            results['attacks_detected'] += 1
+            if len(results['attack_flows']) < 100:
+                results['attack_flows'].append({
+                    'flow_id': flow_id,
+                    'probability': prob,
+                    'packets': total_packets,
+                    'duration': flow_data['end_time'] - flow_data['start_time']
+                })
+            if verbose:
+                print(f"  [ATTACK] {flow_id} | prob={prob:.3f} | pkts={total_packets}")
+        else:
+            results['benign_detected'] += 1
+            if len(results['benign_sample']) < 10:
+                results['benign_sample'].append({
+                    'flow_id': flow_id,
+                    'probability': prob,
+                    'packets': total_packets
+                })
+    
+    # Processa PCAP in streaming
+    try:
+        with PcapReader(str(pcap_path)) as reader:
+            for pkt in reader:
+                if not pkt.haslayer(IP):
+                    continue
+                
+                ip = pkt[IP]
+                src_ip, dst_ip = ip.src, ip.dst
+                protocol = ip.proto
+                pkt_len = len(pkt)
+                timestamp = float(pkt.time)
+                
+                src_port = dst_port = 0
+                tcp_flags_str = None
+                
+                if pkt.haslayer(TCP):
+                    src_port = pkt[TCP].sport
+                    dst_port = pkt[TCP].dport
+                    tcp_flags_str = str(pkt[TCP].flags)
+                elif pkt.haslayer(UDP):
+                    src_port = pkt[UDP].sport
+                    dst_port = pkt[UDP].dport
+                
+                # Chiave flusso bidirezionale
+                if (src_ip, src_port) < (dst_ip, dst_port):
+                    flow_key = (src_ip, dst_ip, src_port, dst_port, protocol)
+                    is_fwd = True
+                else:
+                    flow_key = (dst_ip, src_ip, dst_port, src_port, protocol)
+                    is_fwd = False
+                
+                # Crea o aggiorna flusso
+                if flow_key not in flows:
+                    flows[flow_key] = {
+                        'src_ip': flow_key[0],
+                        'dst_ip': flow_key[1],
+                        'src_port': flow_key[2],
+                        'dst_port': flow_key[3],
+                        'protocol': flow_key[4],
+                        'fwd_lengths': [],
+                        'bwd_lengths': [],
+                        'fwd_times': [],
+                        'bwd_times': [],
+                        'tcp_flags': defaultdict(int),
+                        'start_time': timestamp,
+                        'end_time': timestamp
+                    }
+                
+                flow = flows[flow_key]
+                
+                if is_fwd:
+                    flow['fwd_lengths'].append(pkt_len)
+                    flow['fwd_times'].append(timestamp)
+                else:
+                    flow['bwd_lengths'].append(pkt_len)
+                    flow['bwd_times'].append(timestamp)
+                
+                flow['end_time'] = timestamp
+                
+                if tcp_flags_str:
+                    for flag in 'FSRPAU':
+                        if flag in tcp_flags_str:
+                            flow['tcp_flags'][flag] += 1
+                
+                results['packets_processed'] += 1
+                
+                # Progress e cleanup periodico
+                if results['packets_processed'] % progress_interval == 0:
+                    print(f"  Packets: {results['packets_processed']:,} | Flows: {len(flows):,} | Attacks: {results['attacks_detected']}")
+                    
+                    # Cleanup flussi scaduti
+                    expired_keys = [k for k, f in flows.items() 
+                                   if f['end_time'] and (timestamp - f['end_time']) > timeout]
+                    
+                    for key in expired_keys:
+                        analyze_and_clear_flow(key, flows.pop(key))
+        
+        # Analizza flussi rimanenti
+        print(f"\nAnalisi flussi rimanenti: {len(flows):,}")
+        for key, flow_data in flows.items():
+            analyze_and_clear_flow(key, flow_data)
+        
+    except Exception as e:
+        print(f"ERRORE: {e}")
+        results['error'] = str(e)
+        raise
+    
+    # Calcola statistiche finali
+    if results['flows_analyzed'] > 0:
+        results['detection_rate'] = results['attacks_detected'] / results['flows_analyzed'] * 100
+    else:
+        results['detection_rate'] = 0
+    
+    # Statistiche probabilità
+    if results['probabilities']:
+        probs = np.array(results['probabilities'])
+        results['stats'] = {
+            'prob_mean': float(np.mean(probs)),
+            'prob_std': float(np.std(probs)),
+            'prob_min': float(np.min(probs)),
+            'prob_max': float(np.max(probs)),
+            'prob_median': float(np.median(probs)),
+            'above_threshold': int(np.sum(probs >= threshold)),
+            'below_threshold': int(np.sum(probs < threshold))
+        }
+    
+    # Rimuovi lista probabilità (troppo grande)
+    del results['probabilities']
+    
+    # Riepilogo
+    print(f"\n{'='*60}")
+    print(f"RISULTATI: {pcap_path.name}")
+    print(f"{'='*60}")
+    print(f"Pacchetti processati: {results['packets_processed']:,}")
+    print(f"Flussi analizzati:    {results['flows_analyzed']:,}")
+    print(f"Attacchi rilevati:    {results['attacks_detected']:,} ({results['detection_rate']:.1f}%)")
+    print(f"Benigni:              {results['benign_detected']:,}")
+    
+    if 'stats' in results:
+        print(f"\nDistribuzione probabilità:")
+        print(f"  Media:   {results['stats']['prob_mean']:.3f}")
+        print(f"  Mediana: {results['stats']['prob_median']:.3f}")
+        print(f"  Min:     {results['stats']['prob_min']:.3f}")
+        print(f"  Max:     {results['stats']['prob_max']:.3f}")
+        print(f"  >= {threshold}: {results['stats']['above_threshold']:,}")
+        print(f"  <  {threshold}: {results['stats']['below_threshold']:,}")
+    
+    if results['attack_flows']:
+        print(f"\nTop 5 attacchi (per probabilità):")
+        for att in sorted(results['attack_flows'], key=lambda x: x['probability'], reverse=True)[:5]:
+            print(f"  - {att['flow_id']}: {att['probability']:.3f} ({att['packets']} pkts)")
+    
+    return results
+
+
+# ==============================================================================
 # ARGUMENT PARSER
 # ==============================================================================
 

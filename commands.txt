@@ -85,57 +85,17 @@ Il report mostra:
 
 -   -   -   -   -
 
-Passo 6: Scarica i Risultati
+Cosa significano --max-fpr 0.02 --max-latency-ms 1.0 nell'evaluation?
+Sono vincoli di produzione per la selezione del modello:
+Parametro               Significato                     Valore
+--max-fpr 0.0           False Positive Rate massimo     2%
+--max-latency-ms 1.0    Latenza massima per predizione  1 millisecondo
 
-Alla fine, il notebook crea nids_ml_output.zip
-Vai nella tab "Output" (barra laterale destra)
-Clicca sul file ZIP per scaricarlo
+Come funziona la scorecard:
+    Elimina modelli che NON rispettano i vincoli:
+        FPR > 2% → scartato (troppi falsi allarmi in produzione)
+        Latenza > 1ms → scartato (troppo lento per real-time)
+    Classifica i modelli rimanenti per score complessivo (F1, accuracy, etc.)
 
-Passo 7: Usa i Risultati in Locale
-bash# 1. Vai nella cartella del progetto
-cd ~/Documents/NIDS-ML-SSR2
-
-# 2. Decomprimi (sovrascrive i file esistenti)
-unzip -o ~/Downloads/nids_ml_output.zip
-
-# 3. Verifica
-ls -la artifacts/
-ls -la models/best_model/
-
-# 4. Testa lo sniffer
-sudo python src/sniffer.py --interface eno1 --verbose
-```
-
----
-
-## Struttura File Scaricati
-```
-nids_ml_output.zip
-├── artifacts/
-│   ├── scaler.pkl              # Scaler per normalizzazione
-│   ├── scaler_columns.json     # 77 colonne originali
-│   ├── selected_features.json  # 30 feature selezionate
-│   ├── feature_importances.json
-│   └── label_mappings.json
-│
-├── models/
-│   ├── random_forest/
-│   │   ├── model_binary.pkl
-│   │   ├── features_binary.json  # Feature di QUESTO modello
-│   │   └── results_binary.json
-│   ├── xgboost/
-│   │   └── ...
-│   ├── lightgbm/
-│   │   └── ...
-│   └── best_model/
-│       ├── model_binary.pkl      # Modello migliore
-│       ├── features_binary.json
-│       ├── results_binary.json
-│       └── metadata.json
-│
-└── reports/
-    ├── feature_importance.png
-    ├── model_comparison.png
-    ├── model_comparison.csv
-    ├── best_model_confusion_matrix.png
-    └── best_model_roc_curve.png
+FPR 2%: In produzione, se analizzi 1 milione di flussi benigni al giorno, 2% = 20,000 falsi allarmi. È già tanto. Idealmente vuoi <1%.
+Latenza 1ms: Per analisi real-time a 10,000 pacchetti/secondo, hai ~0.1ms per pacchetto. 1ms è già generoso.
