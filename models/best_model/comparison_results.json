@@ -14,10 +14,10 @@
       "average_precision": 0.9999146920152439
     },
     "latency": {
-      "latency_total_ms": 13.196935200085136,
-      "latency_per_sample_ms": 0.013196935200085136,
-      "latency_std_ms": 4.130935388895772,
-      "samples_per_second": 75775.16937368525
+      "latency_total_ms": 11.103565125040404,
+      "latency_per_sample_ms": 0.011103565125040404,
+      "latency_std_ms": 0.11509467246101242,
+      "samples_per_second": 90061.16402603268
     },
     "constraints": {
       "fpr_threshold": 0.02,
@@ -26,7 +26,7 @@
       "latency_pass": true,
       "all_pass": true
     },
-    "score": 0.9963444180756276,
+    "score": 0.9977856146027972,
     "status": "PASS"
   },
   {
@@ -44,10 +44,10 @@
       "average_precision": 0.9999705560048818
     },
     "latency": {
-      "latency_total_ms": 2.105455799983247,
-      "latency_per_sample_ms": 0.0021054557999832467,
-      "latency_std_ms": 1.3925166710140977,
-      "samples_per_second": 474956.5391056687
+      "latency_total_ms": 1.2831746249730713,
+      "latency_per_sample_ms": 0.0012831746249730713,
+      "latency_std_ms": 0.0188114336299732,
+      "samples_per_second": 779317.1564789835
     },
     "constraints": {
       "fpr_threshold": 0.02,
@@ -56,7 +56,7 @@
       "latency_pass": true,
       "all_pass": true
     },
-    "score": 0.9985137219153967,
+    "score": 0.9985046900628439,
     "status": "PASS"
   },
   {
@@ -74,10 +74,10 @@
       "average_precision": 0.9999748686355188
     },
     "latency": {
-      "latency_total_ms": 3.841052600000694,
-      "latency_per_sample_ms": 0.003841052600000694,
-      "latency_std_ms": 0.25549905283359176,
-      "samples_per_second": 260345.3022225781
+      "latency_total_ms": 3.7851992499327025,
+      "latency_per_sample_ms": 0.0037851992499327025,
+      "latency_std_ms": 0.23847258204448665,
+      "samples_per_second": 264186.8852789663
     },
     "constraints": {
       "fpr_threshold": 0.02,
@@ -86,7 +86,7 @@
       "latency_pass": true,
       "all_pass": true
     },
-    "score": 0.9981896072257398,
+    "score": 0.9983646658650204,
     "status": "PASS"
   }
 ]

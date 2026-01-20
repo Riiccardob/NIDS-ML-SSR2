@@ -99,3 +99,22 @@ Come funziona la scorecard:
 
 FPR 2%: In produzione, se analizzi 1 milione di flussi benigni al giorno, 2% = 20,000 falsi allarmi. È già tanto. Idealmente vuoi <1%.
 Latenza 1ms: Per analisi real-time a 10,000 pacchetti/secondo, hai ~0.1ms per pacchetto. 1ms è già generoso.
+
+-   -   -   -   -
+
+sudo python src/sniffer.py --pcap Friday-WorkingHours.pcap --threshold 0.3 --min-packets 1 --verbose
+Parametro:
+--threshold 
+    Soglia probabilità per considerare un flusso "attacco". Se il modello dice "70% attacco", con threshold 0.5 è attacco, con threshold 0.8 no 
+    default: 0.5
+    comando: 0.3 (più sensibile)
+--min-packets
+    Minimo pacchetti per analizzare un flusso. Flussi con meno pacchetti vengono ignorati
+    default: 3
+    comando: 1 (analizza tutto)
+--verbose
+
+ESEMPIO --> Un flusso con 2 pacchetti e probabilità attacco 0.4:
+    Con --min-packets 3 --threshold 0.5: IGNORATO (troppi pochi pacchetti)
+    Con --min-packets 1 --threshold 0.5: BENIGNO (prob 0.4 < 0.5)
+    Con --min-packets 1 --threshold 0.3: ATTACCO (prob 0.4 > 0.3)

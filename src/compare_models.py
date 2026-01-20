@@ -118,14 +118,14 @@ def load_model(model_name: str, task: str):
 # BENCHMARK LATENZA
 # ==============================================================================
 
-def benchmark_model_latency(model, n_samples: int = 1000, n_iterations: int = 5) -> Dict[str, float]:
+def benchmark_model_latency(model, n_samples: int = 1000, n_iterations: int = 10) -> Dict[str, float]:
     """
     Misura latenza di predizione del modello.
     
     Args:
         model: Modello sklearn/xgboost/lightgbm
         n_samples: Campioni per batch
-        n_iterations: Ripetizioni per media stabile
+        n_iterations: Ripetizioni per media stabile (aumentato a 10)
     
     Returns:
         Dict con latency_mean_ms, latency_std_ms, latency_per_sample_ms
@@ -134,13 +134,15 @@ def benchmark_model_latency(model, n_samples: int = 1000, n_iterations: int = 5)
     _, selected_features, _, _ = load_artifacts()
     n_features = len(selected_features)
     
-    # Genera dati sintetici (non importa il contenuto, solo la dimensione)
+    # Genera dati sintetici CON SEED FISSO per riproducibilita
+    np.random.seed(42)
     X_dummy = np.random.randn(n_samples, n_features)
     
-    # Warmup (JIT compilation per XGBoost/LightGBM)
-    _ = model.predict(X_dummy[:10])
+    # Warmup (JIT compilation per XGBoost/LightGBM) - piu warmup
+    for _ in range(3):
+        _ = model.predict(X_dummy[:100])
     
-    # Benchmark
+    # Benchmark con piu iterazioni per stabilita
     latencies = []
     
     for _ in range(n_iterations):
@@ -150,12 +152,19 @@ def benchmark_model_latency(model, n_samples: int = 1000, n_iterations: int = 5)
         
         latencies.append((end - start) * 1000)  # Converti in ms
     
-    total_latency = np.mean(latencies)
+    # Rimuovi outlier (primo e ultimo valore) per stabilita
+    latencies_sorted = sorted(latencies)
+    if len(latencies_sorted) > 4:
+        latencies_trimmed = latencies_sorted[1:-1]  # Rimuovi min e max
+    else:
+        latencies_trimmed = latencies_sorted
+    
+    total_latency = np.mean(latencies_trimmed)
     
     return {
         'latency_total_ms': total_latency,
         'latency_per_sample_ms': total_latency / n_samples,
-        'latency_std_ms': np.std(latencies),
+        'latency_std_ms': np.std(latencies_trimmed),
         'samples_per_second': n_samples / (total_latency / 1000)
     }
 
@@ -226,15 +235,17 @@ def evaluate_model_scorecard(model_name: str,
     if result['constraints']['all_pass']:
         result['status'] = 'PASS'
         
-        # Score composito: priorita a Recall, poi F1, poi velocita
+        # Score composito: priorita a Recall, poi F1, poi Accuracy, poi velocita
         recall = metrics.get('recall', 0)
         f1 = metrics.get('f1', 0)
+        accuracy = metrics.get('accuracy', 0)
         
         # Normalizza latenza (piu bassa = meglio, max 1.0)
         latency_score = max(0, 1 - (latency_per_sample / max_latency_ms))
         
-        # Score pesato: 50% Recall + 30% F1 + 20% Velocita
-        result['score'] = (0.5 * recall) + (0.3 * f1) + (0.2 * latency_score)
+        # Score pesato: 40% Recall + 30% F1 + 20% Accuracy + 10% Velocita
+        # Accuracy serve come tie-breaker quando Recall e F1 sono simili
+        result['score'] = (0.40 * recall) + (0.30 * f1) + (0.20 * accuracy) + (0.10 * latency_score)
     
     return result
 
@@ -364,6 +375,16 @@ def copy_best_model(best_model_name: str,
                     results: List[Dict],
                     output_dir: Path) -> None:
     """Copia modello migliore e genera report."""
+    
+    # PULIZIA CARTELLA: Rimuovi tutto il contenuto esistente
+    if output_dir.exists():
+        logger.info(f"Pulizia cartella {output_dir}...")
+        for item in output_dir.iterdir():
+            if item.is_file():
+                item.unlink()
+            elif item.is_dir():
+                shutil.rmtree(item)
+    
     output_dir.mkdir(parents=True, exist_ok=True)
     
     project_root = get_project_root()
