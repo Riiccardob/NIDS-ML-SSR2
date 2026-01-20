@@ -1,0 +1,55 @@
+# --- Python Standard ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Ambienti Virtuali (Virtual Environments) ---
+# È buona norma non committare mai la cartella venv
+venv/
+env/
+.env
+.venv/
+
+# --- Jupyter Notebooks ---
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# 1. Ignora tutto il contenuto di data
+data/*
+
+# 2. Eccezioni: non ignorare mai i file .gitkeep
+# Questo permette di committare le cartelle vuote
+!data/.gitkeep
+
+# 3. Gestione specifica per le sottocartelle raw e processed
+# Nota: dobbiamo esplicitamente dire a git di non ignorare le cartelle stesse
+!data/raw/
+data/raw/*
+!data/raw/.gitkeep
+
+!data/processed/
+data/processed/*
+!data/processed/.gitkeep
+
+
+# --- Cartelle dei Modelli (Output) ---
+# Dato che queste cartelle contengono risultati di training (json, png, pkl),
+# solitamente si ignorano per non appesantire git.
+# models/best_model/
+# models/lightgbm/
+# models/random_forest/
+# models/xgboost/
+
+# Oppure, se vuoi ignorare tutto dentro models tranne eventuali script:
+# models/*
+# !models/*.py
+
+# --- IDE & Sistema Operativo ---
+# Configurazione VS Code
+.vscode/
+
+
+# --- Log e Report ---
+# *.log
+# report_*.txt
+# comparison_results.json
