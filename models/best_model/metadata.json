@@ -1,7 +1,7 @@
 {
   "best_model": "xgboost",
   "task": "binary",
-  "timestamp": "2026-01-18T23:39:01.724471",
+  "timestamp": "2026-01-20T13:27:05.396048",
   "selection_method": "scorecard",
   "constraints": {
     "fpr_threshold": 0.02,
@@ -22,10 +22,10 @@
     "average_precision": 0.9999705560048818
   },
   "latency": {
-    "latency_total_ms": 2.105455799983247,
-    "latency_per_sample_ms": 0.0021054557999832467,
-    "latency_std_ms": 1.3925166710140977,
-    "samples_per_second": 474956.5391056687
+    "latency_total_ms": 1.2831746249730713,
+    "latency_per_sample_ms": 0.0012831746249730713,
+    "latency_std_ms": 0.0188114336299732,
+    "samples_per_second": 779317.1564789835
   },
-  "score": 0.9985137219153967
+  "score": 0.9985046900628439
 }

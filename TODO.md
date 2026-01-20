@@ -5,6 +5,8 @@ SEMPRE:
 - CODICI PARAMETRICI
 -   -   -
 
+0 - check stacking ensemble per unire piu modelli in uno con algoritmi diversi
+
 1 - per ora è binary, dovremmo farlo multiclass:
     Binary (quello che usiamo):
         2 classi: BENIGN (0) vs ATTACK (1)
