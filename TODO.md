@@ -18,4 +18,4 @@ SEMPRE:
 
 3 - README
 
-
+4- check fomrula score cone le foto su WA
