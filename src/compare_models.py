@@ -235,17 +235,19 @@ def evaluate_model_scorecard(model_name: str,
     if result['constraints']['all_pass']:
         result['status'] = 'PASS'
         
-        # Score composito: priorita a Recall, poi F1, poi Accuracy, poi velocita
         recall = metrics.get('recall', 0)
         f1 = metrics.get('f1', 0)
-        accuracy = metrics.get('accuracy', 0)
+        # accuracy = metrics.get('accuracy', 0)  <-- RIMOSSA, è ridondante con F1
         
-        # Normalizza latenza (piu bassa = meglio, max 1.0)
+        # Normalizza latenza (piu bassa = meglio)
+        # latency_score va da 0 (lento) a 1 (istantaneo)
         latency_score = max(0, 1 - (latency_per_sample / max_latency_ms))
         
-        # Score pesato: 40% Recall + 30% F1 + 20% Accuracy + 10% Velocita
-        # Accuracy serve come tie-breaker quando Recall e F1 sono simili
-        result['score'] = (0.40 * recall) + (0.30 * f1) + (0.20 * accuracy) + (0.10 * latency_score)
+        # NUOVA FORMULA BILANCIATA PER NIDS:
+        # 50% Recall: La sicurezza prima di tutto.
+        # 30% F1: Precisione generale.
+        # 20% Velocità: L'efficienza conta il doppio di prima.
+        result['score'] = (0.50 * recall) + (0.30 * f1) + (0.20 * latency_score)
     
     return result
 
