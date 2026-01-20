@@ -14,20 +14,32 @@
       "average_precision": 0.9999146920152439
     },
     "latency": {
-      "latency_total_ms": 11.045130499951483,
-      "latency_per_sample_ms": 0.011045130499951483,
-      "latency_std_ms": 0.02153639998349513,
-      "samples_per_second": 90537.63556749217
+      "total_samples": 151422,
+      "n_runs": 5,
+      "mean_ms": 116.23970939981518,
+      "std_ms": 1.8523246730004361,
+      "min_ms": 115.18726800022705,
+      "max_ms": 119.93884099956631,
+      "per_sample_ms": 0.0007676540357399531,
+      "throughput_samples_per_sec": 1302670.152754535
     },
     "constraints": {
       "fpr_threshold": 0.02,
-      "latency_threshold_ms": 1.0,
+      "latency_threshold_ms": 2.0,
       "fpr_pass": true,
       "latency_pass": true,
       "all_pass": true
     },
-    "score": 0.9967747790156543,
-    "status": "PASS"
+    "score": 10085.834475444153,
+    "status": "PASS",
+    "score_components": {
+      "f1": 0.9984948408690314,
+      "recall": 0.9988707057098705,
+      "accuracy": 0.9989961828532181,
+      "f1_contribution": 9984.948408690314,
+      "recall_contribution": 99.88707057098705,
+      "accuracy_contribution": 0.9989961828532181
+    }
   },
   {
     "model_name": "xgboost",
@@ -44,20 +56,32 @@
       "average_precision": 0.9999705560048818
     },
     "latency": {
-      "latency_total_ms": 1.5290312501292647,
-      "latency_per_sample_ms": 0.0015290312501292647,
-      "latency_std_ms": 0.4489281890186888,
-      "samples_per_second": 654008.8699400092
+      "total_samples": 151422,
+      "n_runs": 5,
+      "mean_ms": 114.4008875999134,
+      "std_ms": 4.499577046901413,
+      "min_ms": 108.9505800000552,
+      "max_ms": 122.54267499974958,
+      "per_sample_ms": 0.0007555103459201001,
+      "throughput_samples_per_sec": 1323608.611583138
     },
     "constraints": {
       "fpr_threshold": 0.02,
-      "latency_threshold_ms": 1.0,
+      "latency_threshold_ms": 2.0,
       "fpr_pass": true,
       "latency_pass": true,
       "all_pass": true
     },
-    "score": 0.9986290068253674,
-    "status": "PASS"
+    "score": 10074.353981038028,
+    "status": "PASS",
+    "score_components": {
+      "f1": 0.9973409250417643,
+      "recall": 0.9994650711257281,
+      "accuracy": 0.9982235078126032,
+      "f1_contribution": 9973.409250417642,
+      "recall_contribution": 99.94650711257282,
+      "accuracy_contribution": 0.9982235078126032
+    }
   },
   {
     "model_name": "lightgbm",
@@ -74,19 +98,31 @@
       "average_precision": 0.9999748686355188
     },
     "latency": {
-      "latency_total_ms": 3.6722023751281085,
-      "latency_per_sample_ms": 0.0036722023751281085,
-      "latency_std_ms": 0.4015178262585579,
-      "samples_per_second": 272316.14651006646
+      "total_samples": 151422,
+      "n_runs": 5,
+      "mean_ms": 372.83518700005516,
+      "std_ms": 2.6421852225737807,
+      "min_ms": 370.11854000047606,
+      "max_ms": 377.28927900025155,
+      "per_sample_ms": 0.002462226010751774,
+      "throughput_samples_per_sec": 406136.5592083389
     },
     "constraints": {
       "fpr_threshold": 0.02,
-      "latency_threshold_ms": 1.0,
+      "latency_threshold_ms": 2.0,
       "fpr_pass": true,
       "latency_pass": true,
       "all_pass": true
     },
-    "score": 0.9982233772707143,
-    "status": "PASS"
+    "score": 10079.059781866888,
+    "status": "PASS",
+    "score_components": {
+      "f1": 0.9978138508868247,
+      "recall": 0.999227324959385,
+      "accuracy": 0.9985405027010607,
+      "f1_contribution": 9978.138508868247,
+      "recall_contribution": 99.9227324959385,
+      "accuracy_contribution": 0.9985405027010607
+    }
   }
 ]

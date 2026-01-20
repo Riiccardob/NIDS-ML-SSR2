@@ -1,28 +1,25 @@
 {
-  "model_name": "XGBoost",
+  "model_name": "RandomForest",
   "task": "binary",
   "best_params": {
-    "subsample": 0.9,
-    "reg_lambda": 2,
-    "reg_alpha": 0.01,
-    "n_estimators": 200,
-    "min_child_weight": 1,
-    "max_depth": 10,
-    "learning_rate": 0.1,
-    "gamma": 0.1,
-    "colsample_bytree": 0.7
+    "n_estimators": 100,
+    "min_samples_split": 10,
+    "min_samples_leaf": 1,
+    "max_features": "sqrt",
+    "max_depth": null,
+    "class_weight": "balanced"
   },
-  "best_cv_score": 0.9971820592172573,
+  "best_cv_score": 0.9982451129615436,
   "validation_metrics": {
-    "accuracy": 0.9982036956320746,
-    "precision": 0.9952450477468234,
-    "recall": 0.9993858224036137,
-    "f1": 0.9973111370331561
+    "accuracy": 0.9988508935293419,
+    "precision": 0.9978620635046322,
+    "recall": 0.9986923960851132,
+    "f1": 0.9982770571343698
   },
-  "train_time_seconds": 2427.473133,
+  "train_time_seconds": 14576.292173,
   "train_samples": 706632,
   "n_features": 30,
-  "early_stopping_used": true,
-  "best_iteration": 351,
+  "n_iter": 20,
+  "cv_folds": 3,
   "n_jobs": 4
 }
