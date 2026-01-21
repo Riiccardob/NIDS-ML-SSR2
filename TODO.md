@@ -5,6 +5,8 @@ SEMPRE:
 - CODICI PARAMETRICI
 -   -   -
 
+!!! TEST all training models, compare, sniffer e sniff_evaluation
+
 0 - check stacking ensemble per unire piu modelli in uno con algoritmi diversi
 
 1 - SNIFFER:
