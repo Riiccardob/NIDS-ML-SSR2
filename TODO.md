@@ -5,7 +5,7 @@ SEMPRE:
 - CODICI PARAMETRICI
 -   -   -
 
-!!! TEST all training models, compare, sniffer e sniff_evaluation
+!!! TEST sniffer e sniff_evaluation && togliere creazione latest da models
 
 0 - check stacking ensemble per unire piu modelli in uno con algoritmi diversi
 

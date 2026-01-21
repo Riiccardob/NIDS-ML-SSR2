@@ -119,29 +119,3 @@ ESEMPIO --> Un flusso con 2 pacchetti e probabilità attacco 0.4:
     Con --min-packets 1 --threshold 0.5: BENIGNO (prob 0.4 < 0.5)
     Con --min-packets 1 --threshold 0.3: ATTACCO (prob 0.4 > 0.3)
 
--   -   -   -   -
-from src.sniffer import analyze_pcap_file
-from src.sniff_evaluation import (
-    save_sniff_result, 
-    extract_ground_truth_from_csv,
-    evaluate_sniff_against_ground_truth,
-    generate_comparison_report
-)
-
-# 1. Esegui sniffata
-result = analyze_pcap_file("Friday.pcap", model_path="models/xgboost/cv5_iter100_gpu/model_binary.pkl")
-
-# 2. Salva risultato strutturato
-save_sniff_result(result, "xgboost", "cv5_iter100_gpu")
-
-# 3. Valuta con ground truth
-gt = extract_ground_truth_from_csv("Friday-WorkingHours.csv")
-evaluation = evaluate_sniff_against_ground_truth(result, gt)
-print(f"Precision: {evaluation['metrics']['precision']:.3f}")
-print(f"Recall: {evaluation['metrics']['recall']:.3f}")
-
-# 4. Confronta modelli
-report_path = generate_comparison_report({
-    "xgboost/cv5_iter100_gpu": [result1],
-    "lightgbm/cv5_iter50": [result2]
-})
