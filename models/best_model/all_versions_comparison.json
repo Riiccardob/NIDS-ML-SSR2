@@ -1,0 +1,209 @@
+[
+  {
+    "full_id": "lightgbm/default",
+    "model_type": "lightgbm",
+    "version_id": "default",
+    "task": "binary",
+    "metrics": {
+      "accuracy": 0.9986263554833512,
+      "precision": 0.9965622159876714,
+      "recall": 0.9993263858620279,
+      "f1": 0.9979423868312757
+    },
+    "latency": {
+      "latency_total_ms": 3.709886249680494,
+      "latency_per_sample_ms": 0.003709886249680494,
+      "latency_std_ms": 0.2846117561756579,
+      "samples_per_second": 269550.04350500583
+    },
+    "constraints": {
+      "fpr_threshold": 0.02,
+      "latency_threshold_ms": 2.0,
+      "fpr_pass": true,
+      "latency_pass": 1,
+      "all_pass": 1
+    },
+    "score": 0.9986749203554287,
+    "status": "PASS",
+    "n_iter": 0,
+    "cv": 0,
+    "train_time": 7385.725174,
+    "fpr_estimated": true,
+    "intra_rank": 2,
+    "total_versions": 2
+  },
+  {
+    "full_id": "lightgbm/cv2_iter1",
+    "model_type": "lightgbm",
+    "version_id": "cv2_iter1",
+    "task": "binary",
+    "metrics": {
+      "accuracy": 0.9986131473629988,
+      "precision": 0.9965032201983484,
+      "recall": 0.9993461980425565,
+      "f1": 0.9979226842875796,
+      "false_positive_rate": 0.0017533779767801244,
+      "false_negative_rate": 0.0006538019574434362,
+      "specificity": 0.9982466220232199
+    },
+    "latency": {
+      "latency_total_ms": 2.566367875033393,
+      "latency_per_sample_ms": 0.002566367875033393,
+      "latency_std_ms": 0.12377186512584586,
+      "samples_per_second": 389655.750342101
+    },
+    "constraints": {
+      "fpr_threshold": 0.02,
+      "latency_threshold_ms": 2.0,
+      "fpr_pass": true,
+      "latency_pass": 1,
+      "all_pass": 1
+    },
+    "score": 0.9987932675200487,
+    "status": "PASS",
+    "n_iter": 1,
+    "cv": 2,
+    "train_time": 10.041324,
+    "fpr_estimated": false,
+    "intra_rank": 1,
+    "total_versions": 2
+  },
+  {
+    "full_id": "random_forest/default",
+    "model_type": "random_forest",
+    "version_id": "default",
+    "task": "binary",
+    "metrics": {
+      "accuracy": 0.9988508935293419,
+      "precision": 0.9978620635046322,
+      "recall": 0.9986923960851132,
+      "f1": 0.9982770571343698
+    },
+    "latency": {
+      "latency_total_ms": 11.100532624823245,
+      "latency_per_sample_ms": 0.011100532624823245,
+      "latency_std_ms": 0.04504249307284032,
+      "samples_per_second": 90085.76739496076
+    },
+    "constraints": {
+      "fpr_threshold": 0.02,
+      "latency_threshold_ms": 2.0,
+      "fpr_pass": true,
+      "latency_pass": 1,
+      "all_pass": 1
+    },
+    "score": 0.9977192619203852,
+    "status": "PASS",
+    "n_iter": 20,
+    "cv": 3,
+    "train_time": 14576.292173,
+    "fpr_estimated": true,
+    "intra_rank": 1,
+    "total_versions": 2
+  },
+  {
+    "full_id": "random_forest/cv2_iter1",
+    "model_type": "random_forest",
+    "version_id": "cv2_iter1",
+    "task": "binary",
+    "metrics": {
+      "accuracy": 0.9973847921702262,
+      "precision": 0.993768487477815,
+      "recall": 0.9984150255577129,
+      "f1": 0.9960863377609108,
+      "false_positive_rate": 0.003130324523517058,
+      "false_negative_rate": 0.001584974442287118,
+      "specificity": 0.996869675476483
+    },
+    "latency": {
+      "latency_total_ms": 11.534671375102334,
+      "latency_per_sample_ms": 0.011534671375102334,
+      "latency_std_ms": 0.0537120033291586,
+      "samples_per_second": 86695.14435916282
+    },
+    "constraints": {
+      "fpr_threshold": 0.02,
+      "latency_threshold_ms": 2.0,
+      "fpr_pass": true,
+      "latency_pass": 1,
+      "all_pass": 1
+    },
+    "score": 0.9968799469696195,
+    "status": "PASS",
+    "n_iter": 1,
+    "cv": 2,
+    "train_time": 20.647269,
+    "fpr_estimated": false,
+    "intra_rank": 2,
+    "total_versions": 2
+  },
+  {
+    "full_id": "xgboost/default",
+    "model_type": "xgboost",
+    "version_id": "default",
+    "task": "binary",
+    "metrics": {
+      "accuracy": 0.9982036956320746,
+      "precision": 0.9952450477468234,
+      "recall": 0.9993858224036137,
+      "f1": 0.9973111370331561
+    },
+    "latency": {
+      "latency_total_ms": 5.315112125344967,
+      "latency_per_sample_ms": 0.005315112125344967,
+      "latency_std_ms": 5.876032663263695,
+      "samples_per_second": 188142.78540456883
+    },
+    "constraints": {
+      "fpr_threshold": 0.02,
+      "latency_threshold_ms": 2.0,
+      "fpr_pass": true,
+      "latency_pass": 1,
+      "all_pass": 1
+    },
+    "score": 0.9983547410992192,
+    "status": "PASS",
+    "n_iter": 0,
+    "cv": 0,
+    "train_time": 2427.473133,
+    "fpr_estimated": true,
+    "intra_rank": 1,
+    "total_versions": 2
+  },
+  {
+    "full_id": "xgboost/cv2_iter1_gpu",
+    "model_type": "xgboost",
+    "version_id": "cv2_iter1_gpu",
+    "task": "binary",
+    "metrics": {
+      "accuracy": 0.9957007568252962,
+      "precision": 0.9916711074269248,
+      "recall": 0.9954630106589532,
+      "f1": 0.9935634411366311,
+      "false_positive_rate": 0.004180370091532274,
+      "false_negative_rate": 0.004536989341046876,
+      "specificity": 0.9958196299084677
+    },
+    "latency": {
+      "latency_total_ms": 5.608049124930403,
+      "latency_per_sample_ms": 0.005608049124930403,
+      "latency_std_ms": 0.025115368185739447,
+      "samples_per_second": 178315.1284382535
+    },
+    "constraints": {
+      "fpr_threshold": 0.02,
+      "latency_threshold_ms": 2.0,
+      "fpr_pass": true,
+      "latency_pass": 1,
+      "all_pass": 1
+    },
+    "score": 0.9952397327579728,
+    "status": "PASS",
+    "n_iter": 1,
+    "cv": 2,
+    "train_time": 36.692325,
+    "fpr_estimated": false,
+    "intra_rank": 2,
+    "total_versions": 2
+  }
+]

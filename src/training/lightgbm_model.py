@@ -208,11 +208,17 @@ def train_lightgbm(X_train: pd.DataFrame,
     y_val_pred = best_model.predict(X_val)
     
     if task == 'binary':
+        from sklearn.metrics import confusion_matrix
+        tn, fp, fn, tp = confusion_matrix(y_val, y_val_pred).ravel()
+        
         metrics = {
             'accuracy': float(accuracy_score(y_val, y_val_pred)),
             'precision': float(precision_score(y_val, y_val_pred, zero_division=0)),
             'recall': float(recall_score(y_val, y_val_pred, zero_division=0)),
-            'f1': float(f1_score(y_val, y_val_pred, zero_division=0))
+            'f1': float(f1_score(y_val, y_val_pred, zero_division=0)),
+            'false_positive_rate': float(fp / (fp + tn)) if (fp + tn) > 0 else 0.0,
+            'false_negative_rate': float(fn / (fn + tp)) if (fn + tp) > 0 else 0.0,
+            'specificity': float(tn / (tn + fp)) if (tn + fp) > 0 else 0.0
         }
     else:
         metrics = {
