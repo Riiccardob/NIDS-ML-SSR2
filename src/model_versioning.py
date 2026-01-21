@@ -162,6 +162,8 @@ def list_model_versions(model_type: str = None, task: str = 'binary') -> List[Di
     """
     Lista tutte le versioni disponibili per un tipo di modello.
     
+    Include sia versioni nelle sottocartelle che modelli "default" nella root.
+    
     Args:
         model_type: Tipo modello (None = tutti)
         task: 'binary' o 'multiclass'
@@ -179,6 +181,33 @@ def list_model_versions(model_type: str = None, task: str = 'binary') -> List[Di
         if not type_dir.exists():
             continue
         
+        # Prima cerca modello "default" direttamente nella root del tipo
+        root_model = type_dir / f"model_{task}.pkl"
+        root_results = type_dir / f"results_{task}.json"
+        
+        if root_model.exists():
+            version_info = {
+                'model_type': mtype,
+                'version_id': 'default',
+                'path': type_dir,
+                'model_path': root_model
+            }
+            
+            if root_results.exists():
+                try:
+                    with open(root_results) as f:
+                        results = json.load(f)
+                    version_info['results'] = results
+                    version_info['validation_metrics'] = results.get('validation_metrics', {})
+                    version_info['train_time'] = results.get('train_time_seconds', 0)
+                    version_info['n_iter'] = results.get('n_iter', 0)
+                    version_info['cv'] = results.get('cv_folds', results.get('cv', 0))
+                except Exception as e:
+                    logger.warning(f"Errore lettura results {root_results}: {e}")
+            
+            versions.append(version_info)
+        
+        # Poi cerca versioni nelle sottocartelle
         for version_dir in type_dir.iterdir():
             # Salta symlink e file
             if version_dir.is_symlink() or version_dir.is_file():

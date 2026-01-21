@@ -785,12 +785,15 @@ class NIDSSniffer:
                 self.selected_features = json.load(f)
             self.sniffer_logger.log_info(f"Caricate feature dal modello: {len(self.selected_features)}")
         
-        # Se scaler_columns non e disponibile (vecchi artifacts), usa selected_features
+        # Se scaler_columns non e disponibile (vecchi artifacts), ERRORE
         if self.scaler_columns is None:
-            self.sniffer_logger.log_warning(
-                "scaler_columns.json non trovato. Rieseguire feature_engineering.py"
+            error_msg = (
+                "scaler_columns.json non trovato negli artifacts.\n"
+                "Questo file e essenziale per la corretta trasformazione delle feature.\n"
+                "Soluzione: rieseguire python src/feature_engineering.py"
             )
-            self.scaler_columns = self.selected_features
+            self.sniffer_logger.log_error(error_msg)
+            raise RuntimeError(error_msg)
         
         # Flow manager
         self.flow_manager = FlowManager(timeout=timeout)
