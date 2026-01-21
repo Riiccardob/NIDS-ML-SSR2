@@ -386,3 +386,62 @@ def validate_dataframe(df, required_columns: list = None,
             raise ValueError(f"Colonne mancanti: {missing}")
     
     return True
+
+
+# ==============================================================================
+# BENCHMARK LATENZA MODELLO
+# ==============================================================================
+
+def benchmark_model_latency(model, n_features: int, n_samples: int = 1000, 
+                            n_iterations: int = 10) -> dict:
+    """
+    Benchmark latenza modello con procedura standardizzata.
+    
+    Questa funzione centralizza il benchmark di latenza per garantire
+    risultati consistenti tra evaluation.py e compare_models.py.
+    
+    Args:
+        model: Modello sklearn-like con metodo predict()
+        n_features: Numero feature attese dal modello
+        n_samples: Numero sample per ogni iterazione
+        n_iterations: Numero iterazioni benchmark
+    
+    Returns:
+        Dict con metriche latenza:
+        - latency_total_ms: Tempo totale medio in ms
+        - latency_per_sample_ms: Tempo per sample in ms
+        - latency_std_ms: Deviazione standard
+        - samples_per_second: Throughput
+    """
+    import numpy as np
+    import time
+    
+    np.random.seed(42)
+    X_dummy = np.random.randn(n_samples, n_features)
+    
+    # Warmup (3 iterazioni)
+    for _ in range(3):
+        _ = model.predict(X_dummy[:100])
+    
+    latencies = []
+    for _ in range(n_iterations):
+        start = time.perf_counter()
+        _ = model.predict(X_dummy)
+        end = time.perf_counter()
+        latencies.append((end - start) * 1000)  # ms
+    
+    # Rimuovi outlier (min e max) se abbiamo abbastanza iterazioni
+    latencies_sorted = sorted(latencies)
+    if len(latencies_sorted) > 4:
+        latencies_trimmed = latencies_sorted[1:-1]
+    else:
+        latencies_trimmed = latencies_sorted
+    
+    total_latency = np.mean(latencies_trimmed)
+    
+    return {
+        'latency_total_ms': float(total_latency),
+        'latency_per_sample_ms': float(total_latency / n_samples),
+        'latency_std_ms': float(np.std(latencies_trimmed)),
+        'samples_per_second': float(n_samples / (total_latency / 1000))
+    }

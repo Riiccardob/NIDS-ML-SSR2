@@ -681,10 +681,20 @@ class FlowManager:
         
         return None
     
-    def get_expired_flows(self) -> List[Flow]:
-        """Restituisce flussi scaduti."""
+    def get_expired_flows(self, reference_time: float = None) -> List[Flow]:
+        """
+        Restituisce flussi scaduti.
+        
+        Args:
+            reference_time: Tempo di riferimento per il controllo timeout.
+                           Se None, usa time.time() (per cattura live).
+                           Per analisi PCAP, passare il timestamp dell'ultimo pacchetto.
+        
+        Returns:
+            Lista di flussi scaduti
+        """
         expired = []
-        current_time = time.time()
+        current_time = reference_time if reference_time is not None else time.time()
         
         with self.lock:
             expired_keys = [
@@ -775,12 +785,15 @@ class NIDSSniffer:
                 self.selected_features = json.load(f)
             self.sniffer_logger.log_info(f"Caricate feature dal modello: {len(self.selected_features)}")
         
-        # Se scaler_columns non e disponibile (vecchi artifacts), usa selected_features
+        # Se scaler_columns non e disponibile (vecchi artifacts), ERRORE
         if self.scaler_columns is None:
-            self.sniffer_logger.log_warning(
-                "scaler_columns.json non trovato. Rieseguire feature_engineering.py"
+            error_msg = (
+                "scaler_columns.json non trovato negli artifacts.\n"
+                "Questo file e essenziale per la corretta trasformazione delle feature.\n"
+                "Soluzione: rieseguire python src/feature_engineering.py"
             )
-            self.scaler_columns = self.selected_features
+            self.sniffer_logger.log_error(error_msg)
+            raise RuntimeError(error_msg)
         
         # Flow manager
         self.flow_manager = FlowManager(timeout=timeout)
@@ -878,9 +891,16 @@ class NIDSSniffer:
             time.sleep(EXPIRE_CHECK_INTERVAL)
             self._process_expired_flows()
     
-    def _process_expired_flows(self):
-        """Processa flussi scaduti."""
-        expired = self.flow_manager.get_expired_flows()
+    def _process_expired_flows(self, reference_time: float = None):
+        """
+        Processa flussi scaduti.
+        
+        Args:
+            reference_time: Tempo di riferimento per il timeout.
+                           None = usa time.time() (live capture)
+                           float = usa timestamp pacchetto (PCAP analysis)
+        """
+        expired = self.flow_manager.get_expired_flows(reference_time=reference_time)
         for flow in expired:
             if flow.total_packets >= self.min_packets:
                 self._analyze_flow(flow)
@@ -1054,6 +1074,7 @@ class NIDSSniffer:
         
         print("Analisi in corso (streaming)...")
         processed = 0
+        last_packet_time = None  # Traccia timestamp ultimo pacchetto per PCAP
         
         try:
             with PcapReader(str(self.pcap_file)) as reader:
@@ -1066,6 +1087,8 @@ class NIDSSniffer:
                     
                     info = self._extract_packet_info(packet)
                     if info:
+                        last_packet_time = info['timestamp']  # Aggiorna timestamp
+                        
                         self.sniffer_logger.update_packet_stats(captured=1, processed=1)
                         self.sniffer_logger.add_ip(info['src_ip'], info['dst_ip'])
                         
@@ -1088,8 +1111,9 @@ class NIDSSniffer:
                         print(f"  Pacchetti: {processed:,} | Flussi: {flows:,} | Attacchi: {attacks}")
                         
                         # Cleanup flussi scaduti ogni 50k pacchetti
-                        if processed % 50000 == 0:
-                            self._process_expired_flows()
+                        # USA IL TIMESTAMP DEL PACCHETTO, non time.time()!
+                        if processed % 50000 == 0 and last_packet_time is not None:
+                            self._process_expired_flows(reference_time=last_packet_time)
         
         except Exception as e:
             print(f"ERRORE durante analisi PCAP: {e}")
@@ -1097,8 +1121,9 @@ class NIDSSniffer:
         
         print(f"\nPacchetti processati: {processed:,}")
         
-        # Processa flussi rimanenti
-        self._process_expired_flows()
+        # Processa flussi rimanenti usando timestamp PCAP
+        if last_packet_time is not None:
+            self._process_expired_flows(reference_time=last_packet_time)
         self._process_remaining_flows()
         
         self._finalize()
@@ -1118,6 +1143,320 @@ class NIDSSniffer:
         print(f"\n{self.sniffer_logger.get_stats_summary()}")
         print(f"\nLog directory: {self.sniffer_logger.log_dir}")
         print(f"Session ID: {self.session_id}")
+
+
+# ==============================================================================
+# FUNZIONE PER USO DA NOTEBOOK/SCRIPT
+# ==============================================================================
+
+def analyze_pcap_file(
+    pcap_path: str,
+    model_path: str = None,
+    threshold: float = 0.5,
+    timeout: int = 60,
+    min_packets: int = 2,
+    verbose: bool = False,
+    progress_interval: int = 10000,
+    show_progress: bool = True
+) -> Dict[str, Any]:
+    """
+    Analizza un file PCAP e restituisce i risultati.
+    
+    Questa funzione può essere importata e usata direttamente da notebook o script
+    senza dover passare per la CLI.
+    
+    Args:
+        pcap_path: Path al file PCAP
+        model_path: Path al modello (default: models/best_model/model_binary.pkl)
+        threshold: Soglia probabilità per classificare come attacco (default: 0.5)
+        timeout: Timeout flusso in secondi (default: 60)
+        min_packets: Minimo pacchetti per analizzare un flusso (default: 2)
+        verbose: Mostra dettagli flussi benigni (default: False)
+        progress_interval: Intervallo pacchetti per progress (default: 10000)
+        show_progress: Mostra progress bar con stima tempo (default: True)
+    
+    Returns:
+        Dict con risultati:
+            - pcap: nome file
+            - packets_processed: pacchetti totali processati
+            - flows_analyzed: flussi analizzati
+            - attacks_detected: attacchi rilevati
+            - benign_detected: flussi benigni
+            - attack_flows: lista top attacchi (max 100)
+            - detection_rate: percentuale attacchi
+            - stats: statistiche dettagliate
+    
+    Example:
+        >>> from src.sniffer import analyze_pcap_file
+        >>> results = analyze_pcap_file(
+        ...     "Friday-WorkingHours.pcap",
+        ...     threshold=0.3,
+        ...     min_packets=1
+        ... )
+        >>> print(f"Attacchi: {results['attacks_detected']}")
+    """
+    from scapy.all import PcapReader, IP, TCP, UDP
+    
+    pcap_path = Path(pcap_path)
+    if not pcap_path.exists():
+        raise FileNotFoundError(f"PCAP non trovato: {pcap_path}")
+    
+    # Carica modello
+    project_root = get_project_root()
+    if model_path is None:
+        model_path = project_root / "models" / "best_model" / "model_binary.pkl"
+    else:
+        model_path = Path(model_path)
+    
+    if not model_path.exists():
+        raise FileNotFoundError(f"Modello non trovato: {model_path}")
+    
+    print(f"Caricamento modello: {model_path.name}")
+    model = joblib.load(model_path)
+    
+    # Carica artifacts
+    scaler, selected_features, _, scaler_columns = load_artifacts()
+    
+    if scaler_columns is None:
+        raise RuntimeError(
+            "scaler_columns.json mancante. Rieseguire feature_engineering.py"
+        )
+    
+    # Carica feature specifiche del modello se presenti
+    model_features_path = model_path.parent / "features_binary.json"
+    if model_features_path.exists():
+        with open(model_features_path) as f:
+            selected_features = json.load(f)
+    
+    print(f"Feature: {len(selected_features)}")
+    print(f"Soglia: {threshold}")
+    print(f"Min packets: {min_packets}")
+    
+    # Risultati
+    results = {
+        'pcap': pcap_path.name,
+        'model_path': str(model_path),
+        'threshold': threshold,
+        'min_packets': min_packets,
+        'timeout': timeout,
+        'packets_processed': 0,
+        'flows_analyzed': 0,
+        'attacks_detected': 0,
+        'benign_detected': 0,
+        'attack_flows': [],
+        'benign_sample': [],
+        'probabilities': []
+    }
+    
+    # Flow tracking usando la stessa classe Flow di start_pcap
+    flows: Dict[str, Flow] = {}
+    
+    # Stima pacchetti
+    file_size = pcap_path.stat().st_size
+    estimated_packets = int(file_size / 200)
+    
+    print(f"\n{'='*60}")
+    print(f"Analisi: {pcap_path.name}")
+    print(f"Size: {file_size / (1024**2):.1f} MB")
+    print(f"Pacchetti stimati: ~{estimated_packets:,}")
+    print(f"{'='*60}")
+    
+    start_time = time.time()
+    
+    def predict_flow(flow: Flow):
+        """Predice se un flusso e' un attacco usando la classe Flow."""
+        features = flow.extract_features()
+        
+        # Crea DataFrame con colonne scaler
+        feature_dict = {col: features.get(col, 0) for col in scaler_columns}
+        df = pd.DataFrame([feature_dict])
+        
+        # Scala
+        df_scaled = pd.DataFrame(scaler.transform(df), columns=scaler_columns)
+        
+        # Seleziona feature modello
+        df_selected = df_scaled[selected_features]
+        
+        # Predici
+        pred = int(model.predict(df_selected)[0])
+        prob = float(model.predict_proba(df_selected)[0][1]) if hasattr(model, 'predict_proba') else 0.5
+        
+        return pred, prob
+    
+    def analyze_and_clear_flow(flow_key: str, flow: Flow):
+        """Analizza un flusso e aggiorna risultati."""
+        if flow.total_packets < min_packets:
+            return
+        
+        pred, prob = predict_flow(flow)
+        
+        results['flows_analyzed'] += 1
+        results['probabilities'].append(prob)
+        
+        is_attack = pred == 1 and prob >= threshold
+        
+        if is_attack:
+            results['attacks_detected'] += 1
+            if len(results['attack_flows']) < 100:
+                results['attack_flows'].append({
+                    'flow_id': flow.flow_id,
+                    'probability': prob,
+                    'packets': flow.total_packets,
+                    'duration': flow.duration,
+                    'bytes': flow.total_bytes
+                })
+            if verbose:
+                print(f"  [ATTACK] {flow.flow_id} | prob={prob:.3f} | pkts={flow.total_packets}")
+        else:
+            results['benign_detected'] += 1
+            if len(results['benign_sample']) < 10:
+                results['benign_sample'].append({
+                    'flow_id': flow.flow_id,
+                    'probability': prob,
+                    'packets': flow.total_packets
+                })
+    
+    def get_flow_key(src_ip, dst_ip, src_port, dst_port, protocol):
+        """Genera chiave flusso bidirezionale (stessa logica di FlowManager)."""
+        if (src_ip, src_port) < (dst_ip, dst_port):
+            return f"{src_ip}:{src_port}-{dst_ip}:{dst_port}-{protocol}", True
+        else:
+            return f"{dst_ip}:{dst_port}-{src_ip}:{src_port}-{protocol}", False
+    
+    # Processa PCAP in streaming
+    try:
+        with PcapReader(str(pcap_path)) as reader:
+            for pkt in reader:
+                if not pkt.haslayer(IP):
+                    continue
+                
+                ip = pkt[IP]
+                src_ip, dst_ip = ip.src, ip.dst
+                protocol = ip.proto
+                pkt_len = len(pkt)
+                timestamp = float(pkt.time)
+                
+                src_port = dst_port = 0
+                tcp_flags = {}
+                
+                if pkt.haslayer(TCP):
+                    tcp_layer = pkt[TCP]
+                    src_port = tcp_layer.sport
+                    dst_port = tcp_layer.dport
+                    # Estrai flags come dizionario (stessa logica di _extract_packet_info)
+                    flags = tcp_layer.flags
+                    tcp_flags = {
+                        'F': bool(flags & 0x01),  # FIN
+                        'S': bool(flags & 0x02),  # SYN
+                        'R': bool(flags & 0x04),  # RST
+                        'P': bool(flags & 0x08),  # PSH
+                        'A': bool(flags & 0x10),  # ACK
+                        'U': bool(flags & 0x20)   # URG
+                    }
+                elif pkt.haslayer(UDP):
+                    src_port = pkt[UDP].sport
+                    dst_port = pkt[UDP].dport
+                
+                # Chiave flusso bidirezionale
+                flow_key, is_forward = get_flow_key(src_ip, dst_ip, src_port, dst_port, protocol)
+                
+                # Crea o aggiorna flusso usando la classe Flow
+                if flow_key not in flows:
+                    if is_forward:
+                        flows[flow_key] = Flow(src_ip, dst_ip, src_port, dst_port, protocol)
+                    else:
+                        flows[flow_key] = Flow(dst_ip, src_ip, dst_port, src_port, protocol)
+                    # Imposta start_time dal pacchetto PCAP, non da time.time()
+                    flows[flow_key].start_time = timestamp
+                    flows[flow_key].last_time = timestamp
+                
+                flow = flows[flow_key]
+                flow.add_packet(pkt_len, is_forward, timestamp, tcp_flags)
+                
+                results['packets_processed'] += 1
+                
+                # Progress e cleanup periodico
+                if results['packets_processed'] % progress_interval == 0:
+                    elapsed = time.time() - start_time
+                    pps = results['packets_processed'] / elapsed if elapsed > 0 else 0
+                    
+                    if show_progress and estimated_packets > 0:
+                        progress_pct = min(100, results['packets_processed'] / estimated_packets * 100)
+                        remaining_pkts = max(0, estimated_packets - results['packets_processed'])
+                        eta_seconds = remaining_pkts / pps if pps > 0 else 0
+                        eta_str = f"{int(eta_seconds//60)}m{int(eta_seconds%60)}s" if eta_seconds > 0 else "???"
+                        
+                        print(f"  [{progress_pct:5.1f}%] Pkts: {results['packets_processed']:,} | "
+                              f"Flows: {len(flows):,} | Attacks: {results['attacks_detected']} | "
+                              f"Speed: {pps/1000:.1f}k/s | ETA: {eta_str}")
+                    else:
+                        print(f"  Packets: {results['packets_processed']:,} | Flows: {len(flows):,} | Attacks: {results['attacks_detected']}")
+                    
+                    # Cleanup flussi scaduti (usando timestamp PCAP, non time.time())
+                    expired_keys = [
+                        k for k, f in flows.items() 
+                        if (timestamp - f.last_time) > timeout
+                    ]
+                    
+                    for key in expired_keys:
+                        analyze_and_clear_flow(key, flows.pop(key))
+        
+        # Analizza flussi rimanenti
+        print(f"\nAnalisi flussi rimanenti: {len(flows):,}")
+        for key, flow in flows.items():
+            analyze_and_clear_flow(key, flow)
+        
+    except Exception as e:
+        print(f"ERRORE: {e}")
+        results['error'] = str(e)
+        raise
+    
+    # Calcola statistiche finali
+    if results['flows_analyzed'] > 0:
+        results['detection_rate'] = results['attacks_detected'] / results['flows_analyzed'] * 100
+    else:
+        results['detection_rate'] = 0
+    
+    # Statistiche probabilità
+    if results['probabilities']:
+        probs = np.array(results['probabilities'])
+        results['stats'] = {
+            'prob_mean': float(np.mean(probs)),
+            'prob_std': float(np.std(probs)),
+            'prob_min': float(np.min(probs)),
+            'prob_max': float(np.max(probs)),
+            'prob_median': float(np.median(probs)),
+            'above_threshold': int(np.sum(probs >= threshold)),
+            'below_threshold': int(np.sum(probs < threshold))
+        }
+    
+    # Rimuovi lista probabilità (troppo grande)
+    del results['probabilities']
+    
+    # Riepilogo
+    print(f"\n{'='*60}")
+    print(f"RISULTATI: {pcap_path.name}")
+    print(f"{'='*60}")
+    print(f"Pacchetti processati: {results['packets_processed']:,}")
+    print(f"Flussi analizzati:    {results['flows_analyzed']:,}")
+    print(f"Attacchi rilevati:    {results['attacks_detected']:,} ({results['detection_rate']:.1f}%)")
+    print(f"Benigni:              {results['benign_detected']:,}")
+    
+    if 'stats' in results:
+        print(f"\nDistribuzione probabilità:")
+        print(f"  Media:   {results['stats']['prob_mean']:.3f}")
+        print(f"  Mediana: {results['stats']['prob_median']:.3f}")
+        print(f"  Min:     {results['stats']['prob_min']:.3f}")
+        print(f"  Max:     {results['stats']['prob_max']:.3f}")
+        print(f"  >= {threshold}: {results['stats']['above_threshold']:,}")
+        print(f"  <  {threshold}: {results['stats']['below_threshold']:,}")
+    
+    if results['attack_flows']:
+        print(f"\nTop 5 attacchi (per probabilità):")
+        for att in sorted(results['attack_flows'], key=lambda x: x['probability'], reverse=True)[:5]:
+            print(f"  - {att['flow_id']}: {att['probability']:.3f} ({att['packets']} pkts)")
+    
+    return results
 
 
 # ==============================================================================
@@ -1245,5 +1584,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

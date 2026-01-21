@@ -190,11 +190,17 @@ def train_random_forest(X_train: pd.DataFrame,
     y_val_pred = best_model.predict(X_val)
     
     if task == 'binary':
+        from sklearn.metrics import confusion_matrix
+        tn, fp, fn, tp = confusion_matrix(y_val, y_val_pred).ravel()
+        
         metrics = {
             'accuracy': float(accuracy_score(y_val, y_val_pred)),
             'precision': float(precision_score(y_val, y_val_pred, zero_division=0)),
             'recall': float(recall_score(y_val, y_val_pred, zero_division=0)),
-            'f1': float(f1_score(y_val, y_val_pred, zero_division=0))
+            'f1': float(f1_score(y_val, y_val_pred, zero_division=0)),
+            'false_positive_rate': float(fp / (fp + tn)) if (fp + tn) > 0 else 0.0,
+            'false_negative_rate': float(fn / (fn + tp)) if (fn + tp) > 0 else 0.0,
+            'specificity': float(tn / (tn + fp)) if (tn + fp) > 0 else 0.0
         }
     else:
         metrics = {
@@ -231,14 +237,40 @@ def train_random_forest(X_train: pd.DataFrame,
 def save_model(model: RandomForestClassifier,
                results: Dict[str, Any],
                selected_features: List[str] = None,
-               output_dir: Path = None) -> Path:
-    """Salva modello, risultati e feature list in models/random_forest/."""
+               output_dir: Path = None,
+               n_iter: int = None,
+               cv: int = None,
+               extra_params: Dict = None) -> Path:
+    """
+    Salva modello con versionamento automatico.
+    
+    Se n_iter e cv sono specificati, salva in sottocartella versionata.
+    Altrimenti salva nella root di random_forest/ (backward compatibility).
+    """
+    from src.model_versioning import save_versioned_model
+    
+    task = results['task']
+    
+    # Se abbiamo parametri, usa versionamento
+    if n_iter is not None and cv is not None:
+        version_dir, version_id = save_versioned_model(
+            model=model,
+            results=results,
+            selected_features=selected_features or [],
+            model_type='random_forest',
+            n_iter=n_iter,
+            cv=cv,
+            extra_params=extra_params
+        )
+        logger.info(f"Modello versionato salvato: {version_dir}")
+        return version_dir / f"model_{task}.pkl"
+    
+    # Backward compatibility: salva nella root
     if output_dir is None:
         output_dir = get_project_root() / "models" / "random_forest"
     
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    task = results['task']
     model_path = output_dir / f"model_{task}.pkl"
     results_path = output_dir / f"results_{task}.json"
     
@@ -248,7 +280,6 @@ def save_model(model: RandomForestClassifier,
     with open(results_path, 'w') as f:
         json.dump(results, f, indent=2, default=str)
     
-    # Salva le feature usate per questo modello
     if selected_features is not None:
         features_path = output_dir / f"features_{task}.json"
         with open(features_path, 'w') as f:
@@ -372,7 +403,12 @@ def main():
         
         print("\n4. Salvataggio modello...")
         with timer.time_operation("salvataggio"):
-            model_path = save_model(model, results, selected_features=selected_features)
+            model_path = save_model(
+                model, results, 
+                selected_features=selected_features,
+                n_iter=args.n_iter,
+                cv=args.cv
+            )
         
         # Salva metriche timing
         timer.add_metric("train_samples", len(X_train_final))
