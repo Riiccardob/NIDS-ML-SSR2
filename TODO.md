@@ -24,4 +24,6 @@ SEMPRE:
 
 4 - README
 
-4- check fomrula score cone le foto su WA
+5- check fomrula score cone le foto su WA
+
+6- check scelta parametri random forest: magari creare un modulo per il testing dei parametri ottimale che random_forest.py richiama in base ad un flag
