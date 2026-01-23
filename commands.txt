@@ -14,9 +14,14 @@ python src/training/xgboost_model.py --n-iter 1 --cv 2 --n-jobs 10
 python src/training/lightgbm_model.py --n-iter 1 --cv 2 --n-jobs 10
 
 # 4. Evaluation
-python src/evaluation.py --model-path models/random_forest/model_binary.pkl
-python src/evaluation.py --model-path models/xgboost/model_binary.pkl
-python src/evaluation.py --model-path models/lightgbm/model_binary.pkl
+# Valuta SINGOLO modello
+python src/evaluation.py --model-path models/xgboost/cv5_iter200_gpu/model_binary.pkl
+# Valuta TUTTI i modelli XGBoost
+python src/evaluation.py --model-type xgboost
+# Valuta TUTTI i modelli LightGBM
+python src/evaluation.py --model-type lightgbm
+# Valuta TUTTI i modelli di TUTTI i tipi
+python src/evaluation.py --model-type all
 
 # 5. Confronto e selezione best model
 python src/compare_models.py --metric f1
@@ -34,6 +39,32 @@ python src/sniffer.py --pcap test.pcap --verbose
 
 # 7. Report timing
 python src/timing.py --report
+
+#8 ----- ANALISI PCAP -----
+
+# Analizza PCAP con UN modello
+python src/sniff_evaluation.py --pcap Friday.pcap --model-path models/xgboost/cv5_iter200_gpu/model_binary.pkl
+
+# Analizza PCAP con TUTTI i modelli XGBoost
+python src/sniff_evaluation.py --pcap Friday.pcap --model-type xgboost
+
+# Analizza PCAP con TUTTI i modelli (confronto completo)
+python src/sniff_evaluation.py --pcap Friday.pcap --model-type all
+
+# ----- ANALISI CSV (test su dati etichettati) -----
+# Questo è il modo MIGLIORE per verificare se il modello funziona
+# perché hai le label reali e puoi calcolare metriche precise
+
+# Analizza CSV con tutti i modelli
+python src/sniff_evaluation.py --csv Friday-WorkingHours.csv --model-type all
+
+# Analizza CSV con sample ridotto (veloce per test)
+python src/sniff_evaluation.py --csv Friday.csv --model-type all --sample 10000
+
+# ----- UTILITY -----
+
+# Mostra tutti i risultati salvati
+python src/sniff_evaluation.py --list-results
 
 -   -   -   -   -
 
