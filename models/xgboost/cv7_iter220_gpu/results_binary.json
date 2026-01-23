@@ -1,0 +1,43 @@
+{
+  "model_name": "XGBoost",
+  "task": "binary",
+  "best_params": {
+    "subsample": 0.9,
+    "reg_lambda": 1.5,
+    "reg_alpha": 0.01,
+    "n_estimators": 300,
+    "min_child_weight": 3,
+    "max_depth": 10,
+    "learning_rate": 0.1,
+    "gamma": 0.2,
+    "colsample_bytree": 0.8
+  },
+  "best_cv_score": 0.9972793656783806,
+  "validation_metrics": {
+    "accuracy": 0.9981640712710175,
+    "precision": 0.9951858574698129,
+    "recall": 0.9993263858620279,
+    "f1": 0.9972518238794756,
+    "false_positive_rate": 0.002417086024487855,
+    "false_negative_rate": 0.0006736141379720252,
+    "specificity": 0.9975829139755121
+  },
+  "train_time_seconds": 6861.255718,
+  "train_samples": 706632,
+  "n_features": 30,
+  "early_stopping_used": true,
+  "best_iteration": 351,
+  "n_jobs": 4,
+  "gpu_used": true,
+  "version": {
+    "version_id": "cv7_iter220_gpu",
+    "model_type": "xgboost",
+    "n_iter": 220,
+    "cv": 7,
+    "extra_params": {
+      "gpu": true,
+      "early_stopping": true
+    },
+    "created_at": "2026-01-22T17:14:19.529506"
+  }
+}

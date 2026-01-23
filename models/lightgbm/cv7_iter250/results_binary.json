@@ -1,0 +1,41 @@
+{
+  "model_name": "LightGBM",
+  "task": "binary",
+  "best_params": {
+    "subsample": 0.9,
+    "reg_lambda": 0.01,
+    "reg_alpha": 0.01,
+    "num_leaves": 50,
+    "n_estimators": 200,
+    "min_child_samples": 10,
+    "max_depth": 20,
+    "learning_rate": 0.1,
+    "colsample_bytree": 0.7
+  },
+  "best_cv_score": 0.9975627290353708,
+  "validation_metrics": {
+    "accuracy": 0.9985933351824702,
+    "precision": 0.9965030129408278,
+    "recall": 0.9992867615009708,
+    "f1": 0.99789294582002,
+    "false_positive_rate": 0.0017533779767801244,
+    "false_negative_rate": 0.0007132384990292032,
+    "specificity": 0.9982466220232199
+  },
+  "train_time_seconds": 17849.157715,
+  "train_samples": 706632,
+  "n_features": 30,
+  "early_stopping_used": true,
+  "best_iteration": 277,
+  "n_jobs": 4,
+  "version": {
+    "version_id": "cv7_iter250",
+    "model_type": "lightgbm",
+    "n_iter": 250,
+    "cv": 7,
+    "extra_params": {
+      "early_stopping": true
+    },
+    "created_at": "2026-01-22T05:55:18.764917"
+  }
+}
