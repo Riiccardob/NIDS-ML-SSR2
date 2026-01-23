@@ -1,0 +1,48 @@
+{
+  "model_type": "random_forest",
+  "task": "binary",
+  "tuning_timestamp": "2026-01-23T15:34:49.680983",
+  "tuning_method": "random_search",
+  "best_params": {
+    "n_estimators": 100,
+    "min_samples_split": 5,
+    "min_samples_leaf": 1,
+    "max_features": "log2",
+    "max_depth": 20,
+    "class_weight": "balanced_subsample"
+  },
+  "best_score": 0.9959716801782887,
+  "search_config": {
+    "n_iterations": 2,
+    "cv_folds": 5,
+    "search_time_seconds": 198.3842751979828
+  },
+  "all_results": [
+    {
+      "rank": 2,
+      "params": {
+        "n_estimators": 100,
+        "min_samples_split": 5,
+        "min_samples_leaf": 4,
+        "max_features": "sqrt",
+        "max_depth": 20,
+        "class_weight": "balanced"
+      },
+      "mean_score": 0.9957301935300619,
+      "std_score": 8.415673550242886e-05
+    },
+    {
+      "rank": 1,
+      "params": {
+        "n_estimators": 100,
+        "min_samples_split": 5,
+        "min_samples_leaf": 1,
+        "max_features": "log2",
+        "max_depth": 20,
+        "class_weight": "balanced_subsample"
+      },
+      "mean_score": 0.9959716801782887,
+      "std_score": 8.520417331254244e-05
+    }
+  ]
+}

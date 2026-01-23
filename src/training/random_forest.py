@@ -72,7 +72,7 @@ sys.path.insert(0, str(ROOT_DIR))
 
 import pandas as pd
 import numpy as np
-from typing import Tuple, Dict, Any, List
+from typing import Tuple, Dict, Any, List, Optional
 import joblib
 import json
 from datetime import datetime
@@ -122,6 +122,32 @@ DEFAULT_N_ITER = 20
 DEFAULT_CV_FOLDS = 3
 DEFAULT_MAX_RAM = 85
 
+# ==============================================================================
+# IMPORT PARAM
+# ==============================================================================
+
+def load_tuned_params(model_type: str = 'random_forest', task: str = 'binary') -> Optional[Dict]:
+    """Carica parametri da hyperparameter tuning se esistono."""
+    tuning_file = get_project_root() / "tuning_results" / f"{model_type}_best.json"
+    
+    if not tuning_file.exists():
+        return None
+    
+    with open(tuning_file) as f:
+        data = json.load(f)
+    
+    if data.get('task') != task:
+        logger.warning(
+            f"Task mismatch: tuning per {data.get('task')}, richiesto {task}. "
+            f"Ignorando parametri tuned."
+        )
+        return None
+    
+    logger.info(f"Parametri caricati da: {tuning_file}")
+    logger.info(f"Metodo tuning: {data.get('tuning_method')}")
+    logger.info(f"Best score tuning: {data.get('best_score'):.4f}")
+    
+    return data['best_params']
 
 # ==============================================================================
 # TRAINING CON PROGRESS BAR
@@ -135,11 +161,11 @@ def train_random_forest(X_train: pd.DataFrame,
                         n_iter: int = DEFAULT_N_ITER,
                         cv: int = DEFAULT_CV_FOLDS,
                         n_jobs: int = None,
-                        random_state: int = RANDOM_STATE
+                        random_state: int = RANDOM_STATE,
+                        use_tuned_params: bool = False  # NUOVO
                         ) -> Tuple[RandomForestClassifier, Dict[str, Any]]:
-    """
-    Training Random Forest con RandomizedSearchCV e progress bar.
-    """
+    """Training Random Forest."""
+    
     if n_jobs is None:
         n_jobs = int(os.environ.get('OMP_NUM_THREADS', _n_cores))
     
@@ -147,46 +173,70 @@ def train_random_forest(X_train: pd.DataFrame,
     logger.info(f"TRAINING RANDOM FOREST ({task})")
     logger.info("=" * 50)
     logger.info(f"Train: {X_train.shape[0]:,} x {X_train.shape[1]}")
-    logger.info(f"Config: n_iter={n_iter}, cv={cv}, n_jobs={n_jobs}")
     
-    scoring = 'f1' if task == 'binary' else 'f1_weighted'
+    # NUOVO: Usa parametri tuned se richiesto
+    if use_tuned_params:
+        tuned_params = load_tuned_params('random_forest', task)
+        
+        if tuned_params:
+            logger.info("Modalita: TRAINING CON PARAMETRI TUNED")
+            logger.info(f"Parametri: {tuned_params}")
+            
+            tuned_params['random_state'] = random_state
+            tuned_params['n_jobs'] = n_jobs
+            
+            best_model = RandomForestClassifier(**tuned_params)
+            
+            start_time = datetime.now()
+            best_model.fit(X_train, y_train)
+            train_time = (datetime.now() - start_time).total_seconds()
+            
+            best_params = tuned_params
+            best_cv_score = None
+            
+        else:
+            logger.warning("Parametri tuned non trovati, uso RandomizedSearchCV")
+            use_tuned_params = False
     
-    # Calcola totale fit per progress
-    total_fits = n_iter * cv
-    print(f"\n   RandomizedSearchCV: {n_iter} combinazioni x {cv} fold = {total_fits} fit totali")
-    print(f"   Questo richiede tempo, attendere...\n")
+    # Comportamento originale se non use_tuned_params
+    if not use_tuned_params:
+        logger.info(f"Config: n_iter={n_iter}, cv={cv}, n_jobs={n_jobs}")
+        
+        scoring = 'f1' if task == 'binary' else 'f1_weighted'
+        
+        base_rf = RandomForestClassifier(
+            random_state=random_state,
+            n_jobs=n_jobs,
+            verbose=0
+        )
+        
+        search = RandomizedSearchCV(
+            estimator=base_rf,
+            param_distributions=PARAM_DISTRIBUTIONS,
+            n_iter=n_iter,
+            cv=cv,
+            scoring=scoring,
+            random_state=random_state,
+            n_jobs=n_jobs,
+            verbose=2,
+            return_train_score=False
+        )
+        
+        start_time = datetime.now()
+        search.fit(X_train, y_train)
+        train_time = (datetime.now() - start_time).total_seconds()
+        
+        best_model = search.best_estimator_
+        best_params = search.best_params_
+        best_cv_score = float(search.best_score_)
+        
+        logger.info(f"Best CV score ({scoring}): {best_cv_score:.4f}")
+        logger.info(f"Best params: {best_params}")
+        
+        del search
+        gc.collect()
     
-    base_rf = RandomForestClassifier(
-        random_state=random_state,
-        n_jobs=n_jobs,
-        verbose=0
-    )
-    
-    # RandomizedSearchCV con verbose per vedere progresso
-    search = RandomizedSearchCV(
-        estimator=base_rf,
-        param_distributions=PARAM_DISTRIBUTIONS,
-        n_iter=n_iter,
-        cv=cv,
-        scoring=scoring,
-        random_state=random_state,
-        n_jobs=n_jobs,
-        verbose=2,  # Mostra progresso dettagliato
-        return_train_score=False
-    )
-    
-    start_time = datetime.now()
-    search.fit(X_train, y_train)
-    train_time = (datetime.now() - start_time).total_seconds()
-    
-    print(f"\n   Search completato in {train_time:.1f}s")
-    logger.info(f"Best CV score ({scoring}): {search.best_score_:.4f}")
-    logger.info(f"Best params: {search.best_params_}")
-    
-    best_model = search.best_estimator_
-    
-    # Valutazione
-    print("   Valutazione su validation set...")
+    # Validazione (comune)
     y_val_pred = best_model.predict(X_val)
     
     if task == 'binary':
@@ -217,19 +267,17 @@ def train_random_forest(X_train: pd.DataFrame,
     results = {
         'model_name': 'RandomForest',
         'task': task,
-        'best_params': search.best_params_,
-        'best_cv_score': float(search.best_score_),
+        'training_mode': 'tuned_params' if use_tuned_params else 'random_search',
+        'best_params': best_params,
+        'best_cv_score': best_cv_score,
         'validation_metrics': metrics,
         'train_time_seconds': train_time,
         'train_samples': len(X_train),
         'n_features': X_train.shape[1],
-        'n_iter': n_iter,
-        'cv_folds': cv,
+        'n_iter': n_iter if not use_tuned_params else None,
+        'cv_folds': cv if not use_tuned_params else None,
         'n_jobs': n_jobs
     }
-    
-    del search
-    gc.collect()
     
     return best_model, results
 
@@ -318,6 +366,8 @@ Esempi:
                         help='Limite RAM %')
     parser.add_argument('--random-state', type=int, default=RANDOM_STATE,
                         help='Seed random')
+    parser.add_argument('--use-tuned-params', action='store_true',
+                        help='Usa parametri da hyperparameter_tuning.py')
     
     return parser.parse_args()
 
@@ -398,7 +448,8 @@ def main():
                 n_iter=args.n_iter,
                 cv=args.cv,
                 n_jobs=n_jobs,
-                random_state=args.random_state
+                random_state=args.random_state,
+                use_tuned_params=args.use_tuned_params
             )
         
         print("\n4. Salvataggio modello...")
