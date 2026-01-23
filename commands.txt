@@ -55,11 +55,14 @@ python src/sniff_evaluation.py --pcap Friday.pcap --model-type all
 # Questo è il modo MIGLIORE per verificare se il modello funziona
 # perché hai le label reali e puoi calcolare metriche precise
 
-# Analizza CSV con tutti i modelli
-python src/sniff_evaluation.py --csv Friday-WorkingHours.csv --model-type all
+# Tutti i modelli XGBoost
+python src/sniff_evaluation.py --csv data/raw/Friday-WorkingHours.csv --model-type xgboost
 
-# Analizza CSV con sample ridotto (veloce per test)
-python src/sniff_evaluation.py --csv Friday.csv --model-type all --sample 10000
+# Tutti i modelli
+python src/sniff_evaluation.py --csv Friday.csv --model-type all
+
+# Test veloce con sample ridotto
+python src/sniff_evaluation.py --csv Friday.csv --model-type all --sample 50000
 
 # ----- UTILITY -----
 
