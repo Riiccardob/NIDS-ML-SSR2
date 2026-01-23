@@ -1,6 +1,7 @@
 {
   "model_name": "LightGBM",
   "task": "binary",
+  "training_mode": "tuned_params",
   "best_params": {
     "subsample": 0.7,
     "reg_lambda": 0.1,
@@ -12,17 +13,22 @@
     "learning_rate": 0.1,
     "colsample_bytree": 0.9
   },
-  "best_cv_score": 0.9975606031206813,
+  "best_cv_score": null,
   "validation_metrics": {
-    "accuracy": 0.9986263554833512,
-    "precision": 0.9965622159876714,
+    "accuracy": 0.9986395636037035,
+    "precision": 0.9966015964593377,
     "recall": 0.9993263858620279,
-    "f1": 0.9979423868312757
+    "f1": 0.9979621312545753,
+    "false_positive_rate": 0.001703847525458652,
+    "false_negative_rate": 0.0006736141379720252,
+    "specificity": 0.9982961524745414
   },
-  "train_time_seconds": 7385.725174,
+  "train_time_seconds": 6.360792,
   "train_samples": 706632,
   "n_features": 30,
   "early_stopping_used": true,
-  "best_iteration": 354,
-  "n_jobs": 4
+  "best_iteration": 332,
+  "n_iter": null,
+  "cv_folds": null,
+  "n_jobs": 14
 }

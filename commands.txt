@@ -1,3 +1,8 @@
+#0. Scaicare Dataset CIC-IDS-2017 dentro /data/raw
+#!/bin/bash
+curl -L -o ~/Downloads/network-intrusion-dataset.zip\
+  https://www.kaggle.com/api/v1/datasets/download/chethuhn/network-intrusion-dataset
+
 # 1. Preprocessing (se non gia fatto)
 python src/preprocessing.py
 o
