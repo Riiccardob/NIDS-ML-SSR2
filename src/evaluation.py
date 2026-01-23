@@ -153,7 +153,15 @@ def prepare_test_data(task: str = 'binary',
     
     # Applica trasformazioni
     X_test_scaled = transform_data(X_test, scaler)
-    X_test_final = apply_feature_selection(X_test_scaled, selected_features)
+    X_test_selected = apply_feature_selection(X_test_scaled, selected_features)
+    
+    # IMPORTANTE: Forza i nomi colonne per XGBoost
+    # XGBoost richiede che i nomi siano esattamente uguali al training
+    X_test_final = pd.DataFrame(
+        X_test_selected.values,
+        columns=list(selected_features),
+        index=X_test_selected.index
+    )
     
     logger.info(f"Test set preparato: {X_test_final.shape}")
     
