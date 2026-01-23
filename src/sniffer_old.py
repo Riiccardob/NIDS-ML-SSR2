@@ -1217,11 +1217,6 @@ def analyze_pcap_file(
     # Carica artifacts
     scaler, selected_features, _, scaler_columns = load_artifacts()
     
-    if scaler_columns is None:
-        raise RuntimeError(
-            "scaler_columns.json mancante. Rieseguire feature_engineering.py"
-        )
-    
     # Carica feature specifiche del modello se presenti
     model_features_path = model_path.parent / "features_binary.json"
     if model_features_path.exists():
@@ -1235,25 +1230,21 @@ def analyze_pcap_file(
     # Risultati
     results = {
         'pcap': pcap_path.name,
-        'model_path': str(model_path),
-        'threshold': threshold,
-        'min_packets': min_packets,
-        'timeout': timeout,
         'packets_processed': 0,
         'flows_analyzed': 0,
         'attacks_detected': 0,
         'benign_detected': 0,
         'attack_flows': [],
         'benign_sample': [],
-        'probabilities': []
+        'probabilities': []  # Per analisi distribuzione
     }
     
-    # Flow tracking usando la stessa classe Flow di start_pcap
-    flows: Dict[str, Flow] = {}
+    # Flow tracking
+    flows = {}
     
-    # Stima pacchetti
+    # Stima pacchetti (circa 200 bytes/pkt medi per PCAP di rete)
     file_size = pcap_path.stat().st_size
-    estimated_packets = int(file_size / 200)
+    estimated_packets = int(file_size / 200)  # Stima approssimativa
     
     print(f"\n{'='*60}")
     print(f"Analisi: {pcap_path.name}")
@@ -1261,11 +1252,101 @@ def analyze_pcap_file(
     print(f"Pacchetti stimati: ~{estimated_packets:,}")
     print(f"{'='*60}")
     
+    # Timing per stima
     start_time = time.time()
     
-    def predict_flow(flow: Flow):
-        """Predice se un flusso e' un attacco usando la classe Flow."""
-        features = flow.extract_features()
+    def extract_flow_features(flow_data):
+        """Estrae feature da un flusso."""
+        feat = {}
+        
+        fwd_lengths = flow_data['fwd_lengths']
+        bwd_lengths = flow_data['bwd_lengths']
+        fwd_times = flow_data['fwd_times']
+        bwd_times = flow_data['bwd_times']
+        tcp_flags = flow_data['tcp_flags']
+        
+        duration = flow_data['end_time'] - flow_data['start_time'] if flow_data['start_time'] else 0
+        feat['Flow Duration'] = duration * 1e6
+        
+        # Conteggi
+        feat['Total Fwd Packets'] = feat['Subflow Fwd Packets'] = len(fwd_lengths)
+        feat['Total Backward Packets'] = feat['Subflow Bwd Packets'] = len(bwd_lengths)
+        
+        # Forward
+        fwd = fwd_lengths if fwd_lengths else [0]
+        feat['Total Length of Fwd Packets'] = feat['Subflow Fwd Bytes'] = sum(fwd)
+        feat['Fwd Packet Length Max'] = max(fwd)
+        feat['Fwd Packet Length Min'] = min(fwd)
+        feat['Fwd Packet Length Mean'] = feat['Avg Fwd Segment Size'] = np.mean(fwd)
+        feat['Fwd Packet Length Std'] = np.std(fwd, ddof=0) if len(fwd) > 1 else 0
+        
+        # Backward
+        bwd = bwd_lengths if bwd_lengths else [0]
+        feat['Total Length of Bwd Packets'] = feat['Subflow Bwd Bytes'] = sum(bwd)
+        feat['Bwd Packet Length Max'] = max(bwd)
+        feat['Bwd Packet Length Min'] = min(bwd)
+        feat['Bwd Packet Length Mean'] = feat['Avg Bwd Segment Size'] = np.mean(bwd)
+        feat['Bwd Packet Length Std'] = np.std(bwd, ddof=0) if len(bwd) > 1 else 0
+        
+        # Combined
+        all_len = fwd + bwd
+        feat['Packet Length Mean'] = feat['Average Packet Size'] = np.mean(all_len)
+        feat['Packet Length Std'] = np.std(all_len, ddof=0) if len(all_len) > 1 else 0
+        feat['Packet Length Variance'] = np.var(all_len, ddof=0) if len(all_len) > 1 else 0
+        feat['Max Packet Length'] = max(all_len)
+        
+        # Rates
+        if duration > 0:
+            total_packets = len(fwd_lengths) + len(bwd_lengths)
+            feat['Flow Bytes/s'] = sum(all_len) / duration
+            feat['Flow Packets/s'] = total_packets / duration
+            feat['Fwd Packets/s'] = len(fwd_lengths) / duration
+            feat['Bwd Packets/s'] = len(bwd_lengths) / duration
+        else:
+            feat['Flow Bytes/s'] = feat['Flow Packets/s'] = 0
+            feat['Fwd Packets/s'] = feat['Bwd Packets/s'] = 0
+        
+        # IAT
+        def calc_iat(times):
+            if len(times) < 2:
+                return [0]
+            t = sorted(times)
+            return [t[i+1] - t[i] for i in range(len(t)-1)]
+        
+        all_times = sorted(fwd_times + bwd_times)
+        flow_iat = calc_iat(all_times)
+        fwd_iat = calc_iat(fwd_times)
+        bwd_iat = calc_iat(bwd_times)
+        
+        for prefix, iat_vals in [('Flow IAT', flow_iat), ('Fwd IAT', fwd_iat), ('Bwd IAT', bwd_iat)]:
+            feat[f'{prefix} Mean'] = np.mean(iat_vals) * 1e6 if iat_vals else 0
+            feat[f'{prefix} Std'] = np.std(iat_vals, ddof=0) * 1e6 if len(iat_vals) > 1 else 0
+            feat[f'{prefix} Max'] = max(iat_vals) * 1e6 if iat_vals else 0
+            feat[f'{prefix} Min'] = min(iat_vals) * 1e6 if iat_vals else 0
+            if 'Fwd' in prefix or 'Bwd' in prefix:
+                feat[f'{prefix} Total'] = sum(iat_vals) * 1e6
+        
+        # TCP Flags
+        flag_map = {'F': 'FIN', 'S': 'SYN', 'R': 'RST', 'P': 'PSH', 'A': 'ACK', 'U': 'URG'}
+        for short, full in flag_map.items():
+            feat[f'{full} Flag Count'] = tcp_flags.get(short, 0)
+        
+        # Headers
+        feat['Fwd Header Length'] = feat['Fwd Header Length.1'] = len(fwd_lengths) * 20
+        feat['Bwd Header Length'] = len(bwd_lengths) * 20
+        
+        # Init window (placeholder)
+        feat['Init_Win_bytes_forward'] = feat['Init_Win_bytes_backward'] = 65535
+        
+        # Active/Idle (placeholder)
+        for stat in ['Mean', 'Std', 'Max', 'Min']:
+            feat[f'Active {stat}'] = feat[f'Idle {stat}'] = 0
+        
+        return feat
+    
+    def predict_flow(flow_data):
+        """Predice se un flusso è un attacco."""
+        features = extract_flow_features(flow_data)
         
         # Crea DataFrame con colonne scaler
         feature_dict = {col: features.get(col, 0) for col in scaler_columns}
@@ -1283,15 +1364,19 @@ def analyze_pcap_file(
         
         return pred, prob
     
-    def analyze_and_clear_flow(flow_key: str, flow: Flow):
+    def analyze_and_clear_flow(flow_key, flow_data):
         """Analizza un flusso e aggiorna risultati."""
-        if flow.total_packets < min_packets:
+        total_packets = len(flow_data['fwd_lengths']) + len(flow_data['bwd_lengths'])
+        
+        if total_packets < min_packets:
             return
         
-        pred, prob = predict_flow(flow)
+        pred, prob = predict_flow(flow_data)
         
         results['flows_analyzed'] += 1
         results['probabilities'].append(prob)
+        
+        flow_id = f"{flow_data['src_ip']}:{flow_data['src_port']}->{flow_data['dst_ip']}:{flow_data['dst_port']}"
         
         is_attack = pred == 1 and prob >= threshold
         
@@ -1299,29 +1384,21 @@ def analyze_pcap_file(
             results['attacks_detected'] += 1
             if len(results['attack_flows']) < 100:
                 results['attack_flows'].append({
-                    'flow_id': flow.flow_id,
+                    'flow_id': flow_id,
                     'probability': prob,
-                    'packets': flow.total_packets,
-                    'duration': flow.duration,
-                    'bytes': flow.total_bytes
+                    'packets': total_packets,
+                    'duration': flow_data['end_time'] - flow_data['start_time']
                 })
             if verbose:
-                print(f"  [ATTACK] {flow.flow_id} | prob={prob:.3f} | pkts={flow.total_packets}")
+                print(f"  [ATTACK] {flow_id} | prob={prob:.3f} | pkts={total_packets}")
         else:
             results['benign_detected'] += 1
             if len(results['benign_sample']) < 10:
                 results['benign_sample'].append({
-                    'flow_id': flow.flow_id,
+                    'flow_id': flow_id,
                     'probability': prob,
-                    'packets': flow.total_packets
+                    'packets': total_packets
                 })
-    
-    def get_flow_key(src_ip, dst_ip, src_port, dst_port, protocol):
-        """Genera chiave flusso bidirezionale (stessa logica di FlowManager)."""
-        if (src_ip, src_port) < (dst_ip, dst_port):
-            return f"{src_ip}:{src_port}-{dst_ip}:{dst_port}-{protocol}", True
-        else:
-            return f"{dst_ip}:{dst_port}-{src_ip}:{src_port}-{protocol}", False
     
     # Processa PCAP in streaming
     try:
@@ -1337,46 +1414,62 @@ def analyze_pcap_file(
                 timestamp = float(pkt.time)
                 
                 src_port = dst_port = 0
-                tcp_flags = {}
+                tcp_flags_str = None
                 
                 if pkt.haslayer(TCP):
-                    tcp_layer = pkt[TCP]
-                    src_port = tcp_layer.sport
-                    dst_port = tcp_layer.dport
-                    # Estrai flags come dizionario (stessa logica di _extract_packet_info)
-                    flags = tcp_layer.flags
-                    tcp_flags = {
-                        'F': bool(flags & 0x01),  # FIN
-                        'S': bool(flags & 0x02),  # SYN
-                        'R': bool(flags & 0x04),  # RST
-                        'P': bool(flags & 0x08),  # PSH
-                        'A': bool(flags & 0x10),  # ACK
-                        'U': bool(flags & 0x20)   # URG
-                    }
+                    src_port = pkt[TCP].sport
+                    dst_port = pkt[TCP].dport
+                    tcp_flags_str = str(pkt[TCP].flags)
                 elif pkt.haslayer(UDP):
                     src_port = pkt[UDP].sport
                     dst_port = pkt[UDP].dport
                 
                 # Chiave flusso bidirezionale
-                flow_key, is_forward = get_flow_key(src_ip, dst_ip, src_port, dst_port, protocol)
+                if (src_ip, src_port) < (dst_ip, dst_port):
+                    flow_key = (src_ip, dst_ip, src_port, dst_port, protocol)
+                    is_fwd = True
+                else:
+                    flow_key = (dst_ip, src_ip, dst_port, src_port, protocol)
+                    is_fwd = False
                 
-                # Crea o aggiorna flusso usando la classe Flow
+                # Crea o aggiorna flusso
                 if flow_key not in flows:
-                    if is_forward:
-                        flows[flow_key] = Flow(src_ip, dst_ip, src_port, dst_port, protocol)
-                    else:
-                        flows[flow_key] = Flow(dst_ip, src_ip, dst_port, src_port, protocol)
-                    # Imposta start_time dal pacchetto PCAP, non da time.time()
-                    flows[flow_key].start_time = timestamp
-                    flows[flow_key].last_time = timestamp
+                    flows[flow_key] = {
+                        'src_ip': flow_key[0],
+                        'dst_ip': flow_key[1],
+                        'src_port': flow_key[2],
+                        'dst_port': flow_key[3],
+                        'protocol': flow_key[4],
+                        'fwd_lengths': [],
+                        'bwd_lengths': [],
+                        'fwd_times': [],
+                        'bwd_times': [],
+                        'tcp_flags': defaultdict(int),
+                        'start_time': timestamp,
+                        'end_time': timestamp
+                    }
                 
                 flow = flows[flow_key]
-                flow.add_packet(pkt_len, is_forward, timestamp, tcp_flags)
+                
+                if is_fwd:
+                    flow['fwd_lengths'].append(pkt_len)
+                    flow['fwd_times'].append(timestamp)
+                else:
+                    flow['bwd_lengths'].append(pkt_len)
+                    flow['bwd_times'].append(timestamp)
+                
+                flow['end_time'] = timestamp
+                
+                if tcp_flags_str:
+                    for flag in 'FSRPAU':
+                        if flag in tcp_flags_str:
+                            flow['tcp_flags'][flag] += 1
                 
                 results['packets_processed'] += 1
                 
                 # Progress e cleanup periodico
                 if results['packets_processed'] % progress_interval == 0:
+                    # Calcola stima tempo
                     elapsed = time.time() - start_time
                     pps = results['packets_processed'] / elapsed if elapsed > 0 else 0
                     
@@ -1392,19 +1485,17 @@ def analyze_pcap_file(
                     else:
                         print(f"  Packets: {results['packets_processed']:,} | Flows: {len(flows):,} | Attacks: {results['attacks_detected']}")
                     
-                    # Cleanup flussi scaduti (usando timestamp PCAP, non time.time())
-                    expired_keys = [
-                        k for k, f in flows.items() 
-                        if (timestamp - f.last_time) > timeout
-                    ]
+                    # Cleanup flussi scaduti
+                    expired_keys = [k for k, f in flows.items() 
+                                   if f['end_time'] and (timestamp - f['end_time']) > timeout]
                     
                     for key in expired_keys:
                         analyze_and_clear_flow(key, flows.pop(key))
         
         # Analizza flussi rimanenti
         print(f"\nAnalisi flussi rimanenti: {len(flows):,}")
-        for key, flow in flows.items():
-            analyze_and_clear_flow(key, flow)
+        for key, flow_data in flows.items():
+            analyze_and_clear_flow(key, flow_data)
         
     except Exception as e:
         print(f"ERRORE: {e}")

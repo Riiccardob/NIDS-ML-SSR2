@@ -1,30 +1,30 @@
 {
-  "best_model": "lightgbm/cv2_iter1",
-  "model_type": "lightgbm",
-  "version_id": "cv2_iter1",
+  "best_model": "xgboost/cv5_iter200_gpu",
+  "model_type": "xgboost",
+  "version_id": "cv5_iter200_gpu",
   "task": "binary",
-  "selected_at": "2026-01-21T20:35:08.120152",
+  "selected_at": "2026-01-23T12:02:26.303618",
   "constraints": {
-    "fpr_threshold": 0.02,
-    "latency_threshold_ms": 2.0,
+    "fpr_threshold": 0.01,
+    "latency_threshold_ms": 1.0,
     "fpr_pass": true,
     "latency_pass": "True",
     "all_pass": "True"
   },
   "metrics": {
-    "accuracy": 0.9986131473629988,
-    "precision": 0.9965032201983484,
-    "recall": 0.9993461980425565,
-    "f1": 0.9979226842875796,
-    "false_positive_rate": 0.0017533779767801244,
-    "false_negative_rate": 0.0006538019574434362,
-    "specificity": 0.9982466220232199
+    "accuracy": 0.9981772793913698,
+    "precision": 0.9951860474292704,
+    "recall": 0.9993660102230851,
+    "f1": 0.9972716488730724,
+    "false_positive_rate": 0.002417086024487855,
+    "false_negative_rate": 0.0006339897769148473,
+    "specificity": 0.9975829139755121
   },
   "latency": {
-    "latency_total_ms": 2.566367875033393,
-    "latency_per_sample_ms": 0.002566367875033393,
-    "latency_std_ms": 0.12377186512584586,
-    "samples_per_second": 389655.750342101
+    "latency_total_ms": 1.1944607500069537,
+    "latency_per_sample_ms": 0.0011944607500069537,
+    "latency_std_ms": 0.05136131452681698,
+    "samples_per_second": 837197.8735962469
   },
-  "score": 0.9987932675200487
+  "score": 0.998625607623463
 }

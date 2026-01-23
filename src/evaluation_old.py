@@ -634,28 +634,14 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Esempi:
-  # Valuta singolo modello
   python src/evaluation.py --model-path models/random_forest/model_binary.pkl
-  
-  # Valuta TUTTI i modelli XGBoost
-  python src/evaluation.py --model-type xgboost
-  
-  # Valuta tutti i modelli di tutti i tipi
-  python src/evaluation.py --model-type all
-  
-  # Valuta multiclass
-  python src/evaluation.py --model-path models/xgboost/model_multiclass.pkl --task multiclass
+  python src/evaluation.py --model-path models/xgboost/model_binary.pkl
+  python src/evaluation.py --model-path models/lightgbm/model_multiclass.pkl --task multiclass
         """
     )
     
-    # Gruppo mutualmente esclusivo: o singolo modello o tipo
-    source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument('--model-path', type=Path, default=None,
-                        help='Path al singolo modello .pkl')
-    source.add_argument('--model-type', type=str, 
-                        choices=['xgboost', 'lightgbm', 'random_forest', 'all'],
-                        help='Valuta tutti i modelli di questo tipo')
-    
+    parser.add_argument('--model-path', type=Path, required=True,
+                        help='Path al modello .pkl')
     parser.add_argument('--task', type=str, choices=['binary', 'multiclass'],
                         default='binary', help='Tipo classificazione')
     parser.add_argument('--output-dir', type=Path, default=None,
@@ -664,69 +650,6 @@ Esempi:
                         help='Core CPU')
     
     return parser.parse_args()
-
-
-def evaluate_all_versions(model_type: str, task: str = 'binary') -> List[Dict]:
-    """
-    Valuta tutte le versioni di un tipo di modello.
-    
-    Args:
-        model_type: 'xgboost', 'lightgbm', 'random_forest', o 'all'
-        task: 'binary' o 'multiclass'
-    
-    Returns:
-        Lista di risultati evaluation
-    """
-    from src.model_versioning import list_model_versions
-    
-    if model_type == 'all':
-        model_types = ['xgboost', 'lightgbm', 'random_forest']
-    else:
-        model_types = [model_type]
-    
-    all_results = []
-    
-    for mtype in model_types:
-        versions = list_model_versions(model_type=mtype, task=task)
-        
-        if not versions:
-            print(f"\nNessun modello {mtype} trovato")
-            continue
-        
-        print(f"\n{'#' * 60}")
-        print(f"# {mtype.upper()}: {len(versions)} versioni")
-        print(f"{'#' * 60}")
-        
-        for i, v in enumerate(versions, 1):
-            version_id = v['version_id']
-            model_path = v['model_path']
-            
-            print(f"\n[{i}/{len(versions)}] {mtype}/{version_id}")
-            print("-" * 40)
-            
-            try:
-                result = evaluate_model(model_path, task)
-                result['model_type'] = mtype
-                result['version_id'] = version_id
-                all_results.append(result)
-                
-                # Stampa metriche principali
-                metrics = result.get('metrics', {})
-                print(f"  F1:        {metrics.get('f1', metrics.get('f1_weighted', 0)):.4f}")
-                print(f"  Recall:    {metrics.get('recall', metrics.get('recall_weighted', 0)):.4f}")
-                print(f"  Precision: {metrics.get('precision', metrics.get('precision_weighted', 0)):.4f}")
-                if 'false_positive_rate' in metrics:
-                    print(f"  FPR:       {metrics.get('false_positive_rate', 0):.4f}")
-                
-            except Exception as e:
-                print(f"  ERRORE: {e}")
-                all_results.append({
-                    'model_type': mtype,
-                    'version_id': version_id,
-                    'error': str(e)
-                })
-    
-    return all_results
 
 
 # ==============================================================================
@@ -739,49 +662,6 @@ def main():
     print("\n" + "=" * 60)
     print("MODEL EVALUATION")
     print("=" * 60)
-    
-    # Modalita: tutti i modelli di un tipo
-    if args.model_type:
-        print(f"\nModalita: Valutazione multipla")
-        print(f"Tipo:     {args.model_type}")
-        print(f"Task:     {args.task}")
-        
-        results = evaluate_all_versions(args.model_type, args.task)
-        
-        # Riepilogo finale
-        print("\n" + "=" * 60)
-        print("RIEPILOGO VALUTAZIONE")
-        print("=" * 60)
-        
-        successful = [r for r in results if 'error' not in r]
-        failed = [r for r in results if 'error' in r]
-        
-        print(f"\nModelli valutati: {len(successful)}/{len(results)}")
-        
-        if successful:
-            print(f"\n{'Modello':<35} {'F1':>8} {'Recall':>8} {'FPR':>8}")
-            print("-" * 65)
-            
-            # Ordina per F1
-            successful.sort(key=lambda x: x.get('metrics', {}).get('f1', 0), reverse=True)
-            
-            for r in successful:
-                name = f"{r['model_type']}/{r['version_id']}"
-                m = r.get('metrics', {})
-                f1 = m.get('f1', m.get('f1_weighted', 0))
-                recall = m.get('recall', m.get('recall_weighted', 0))
-                fpr = m.get('false_positive_rate', 'N/A')
-                fpr_str = f"{fpr:.4f}" if isinstance(fpr, float) else fpr
-                print(f"{name:<35} {f1:>8.4f} {recall:>8.4f} {fpr_str:>8}")
-        
-        if failed:
-            print(f"\nModelli con errori:")
-            for r in failed:
-                print(f"  - {r['model_type']}/{r['version_id']}: {r['error']}")
-        
-        return
-    
-    # Modalita: singolo modello
     print(f"\nModello: {args.model_path}")
     print(f"Task:    {args.task}")
     print()
