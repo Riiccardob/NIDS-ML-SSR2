@@ -1,0 +1,79 @@
+{
+  "model_type": "xgboost",
+  "task": "binary",
+  "tuning_timestamp": "2026-01-24T20:02:55.817268",
+  "tuning_method": "random_search",
+  "scoring_metric": "f2_latency_composite",
+  "best_params": {
+    "colsample_bytree": 0.762378215816119,
+    "gamma": 2.1597250932105787,
+    "learning_rate": 0.005265139631677754,
+    "max_depth": 12,
+    "min_child_weight": 3,
+    "n_estimators": 2099,
+    "reg_alpha": 0.00042472707398058225,
+    "reg_lambda": 0.0021465011216654484,
+    "subsample": 0.5232252063599989
+  },
+  "best_score": 0.9967625374820426,
+  "best_f2_score": 0.997725169975639,
+  "best_latency_ms": 0.0036569388190737036,
+  "search_config": {
+    "n_iterations": 3,
+    "cv_folds": 2,
+    "search_time_seconds": 108.72406911849976,
+    "max_latency_constraint": 1.0,
+    "f2_weight": 0.7,
+    "latency_weight": 0.3
+  },
+  "all_results": [
+    {
+      "rank": 2,
+      "params": {
+        "colsample_bytree": 0.6872700594236812,
+        "gamma": 4.75357153204958,
+        "learning_rate": 0.06504856968981275,
+        "max_depth": 9,
+        "min_child_weight": 10,
+        "n_estimators": 666,
+        "reg_alpha": 7.939154294216456e-08,
+        "reg_lambda": 0.0001359064372443865,
+        "subsample": 0.6668543055695109
+      },
+      "mean_score": 0.9966700639267888,
+      "std_score": 5.111814571856499e-06
+    },
+    {
+      "rank": 3,
+      "params": {
+        "colsample_bytree": 0.5714334089609704,
+        "gamma": 3.254442364744264,
+        "learning_rate": 0.0013795527822623858,
+        "max_depth": 14,
+        "min_child_weight": 6,
+        "n_estimators": 2633,
+        "reg_alpha": 4.329370014459266e-07,
+        "reg_lambda": 4.4734294104626844e-07,
+        "subsample": 0.6521211214797689
+      },
+      "mean_score": 0.9948948643758484,
+      "std_score": 6.304755836089582e-05
+    },
+    {
+      "rank": 1,
+      "params": {
+        "colsample_bytree": 0.762378215816119,
+        "gamma": 2.1597250932105787,
+        "learning_rate": 0.005265139631677754,
+        "max_depth": 12,
+        "min_child_weight": 3,
+        "n_estimators": 2099,
+        "reg_alpha": 0.00042472707398058225,
+        "reg_lambda": 0.0021465011216654484,
+        "subsample": 0.5232252063599989
+      },
+      "mean_score": 0.9967625374820426,
+      "std_score": 0.00014663388901481333
+    }
+  ]
+}

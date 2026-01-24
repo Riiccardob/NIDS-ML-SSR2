@@ -1,0 +1,79 @@
+{
+  "model_type": "lightgbm",
+  "task": "binary",
+  "tuning_timestamp": "2026-01-24T20:00:27.048580",
+  "tuning_method": "random_search",
+  "scoring_metric": "f2_latency_composite",
+  "best_params": {
+    "colsample_bytree": 0.8005575058716043,
+    "learning_rate": 0.05675206026988748,
+    "max_depth": 20,
+    "min_child_samples": 62,
+    "n_estimators": 969,
+    "num_leaves": 211,
+    "reg_alpha": 8.509499823666633,
+    "reg_lambda": 0.0036085571407386235,
+    "subsample": 0.8058265802441404
+  },
+  "best_score": 0.9977271563907333,
+  "best_f2_score": 0.9982506264132494,
+  "best_latency_ms": 0.002014844071596473,
+  "search_config": {
+    "n_iterations": 3,
+    "cv_folds": 2,
+    "search_time_seconds": 143.4117410182953,
+    "max_latency_constraint": 1.0,
+    "f2_weight": 0.7,
+    "latency_weight": 0.3
+  },
+  "all_results": [
+    {
+      "rank": 2,
+      "params": {
+        "colsample_bytree": 0.6872700594236812,
+        "learning_rate": 0.22648248189516848,
+        "max_depth": 9,
+        "min_child_samples": 81,
+        "n_estimators": 1838,
+        "num_leaves": 141,
+        "reg_alpha": 2.5348407664333426e-07,
+        "reg_lambda": 3.3323645788192616e-08,
+        "subsample": 0.9330880728874675
+      },
+      "mean_score": 0.9956758215243947,
+      "std_score": 5.2734182187985645e-05
+    },
+    {
+      "rank": 1,
+      "params": {
+        "colsample_bytree": 0.8005575058716043,
+        "learning_rate": 0.05675206026988748,
+        "max_depth": 20,
+        "min_child_samples": 62,
+        "n_estimators": 969,
+        "num_leaves": 211,
+        "reg_alpha": 8.509499823666633,
+        "reg_lambda": 0.0036085571407386235,
+        "subsample": 0.8058265802441404
+      },
+      "mean_score": 0.9977271563907333,
+      "std_score": 0.0001575264060103554
+    },
+    {
+      "rank": 3,
+      "params": {
+        "colsample_bytree": 0.5035331526098588,
+        "learning_rate": 0.0011405870155222861,
+        "max_depth": 25,
+        "min_child_samples": 68,
+        "n_estimators": 2758,
+        "num_leaves": 189,
+        "reg_alpha": 2.630213296503227e-08,
+        "reg_lambda": 5.804965855340144,
+        "subsample": 0.6163856702151521
+      },
+      "mean_score": 0.9912921837991385,
+      "std_score": 5.379296179397475e-05
+    }
+  ]
+}
