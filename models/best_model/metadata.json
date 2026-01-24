@@ -3,7 +3,7 @@
   "model_type": "xgboost",
   "version_id": "cv5_iter50_gpu",
   "task": "binary",
-  "selected_at": "2026-01-23T13:09:03.867771",
+  "selected_at": "2026-01-24T12:21:36.940826",
   "constraints": {
     "fpr_threshold": 0.01,
     "latency_threshold_ms": 1.0,
@@ -18,10 +18,10 @@
     "f1": 0.9972914730827781
   },
   "latency": {
-    "latency_total_ms": 1.098458750000475,
-    "latency_per_sample_ms": 0.001098458750000475,
-    "latency_std_ms": 0.06731101429500758,
-    "samples_per_second": 910366.456637145
+    "latency_total_ms": 1.6601209999862476,
+    "latency_per_sample_ms": 0.0016601209999862476,
+    "latency_std_ms": 0.17697562924678664,
+    "samples_per_second": 602365.7311775973
   },
-  "score": 0.9986705674669045
+  "score": 0.9985582350169073
 }
