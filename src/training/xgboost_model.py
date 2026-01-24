@@ -10,6 +10,9 @@ GUIDA PARAMETRI:
 Opzioni:
     --task STR              'binary' o 'multiclass' (default: binary)
     --use-tuned-params      Usa parametri da hyperparameter_tuning.py
+    --tuning-config FILE    Config specifica (default: più recente)
+    --tuning-timestamp TS   Timestamp config (es: 2026-01-24_20.02)
+    --list-configs          Mostra config disponibili ed esci
     --n-iter INT            Iterazioni random search (default: 20)
     --cv INT                Fold CV (default: 3)
     --early-stopping        Abilita early stopping (default)
@@ -20,9 +23,20 @@ Opzioni:
 
 ESEMPI:
 -------
+# Parametri tuned (più recente)
 python src/training/xgboost_model.py --use-tuned-params
+
+# Config specifica
+python src/training/xgboost_model.py --use-tuned-params --tuning-config random_iter50_cv5_2026-01-24_20.02.json
+
+# Lista config
+python src/training/xgboost_model.py --list-configs
+
+# Random search
 python src/training/xgboost_model.py --n-iter 5 --cv 2
-python src/training/xgboost_model.py --gpu
+
+# Con GPU
+python src/training/xgboost_model.py --use-tuned-params --gpu
 
 ================================================================================
 """
@@ -124,28 +138,117 @@ DEFAULT_N_ITER = 20
 DEFAULT_CV_FOLDS = 3
 
 
-def load_tuned_params(model_type: str = 'xgboost', task: str = 'binary') -> Optional[Dict]:
-    """Carica parametri da hyperparameter tuning se esistono."""
-    tuning_file = get_project_root() / "tuning_results" / f"{model_type}_best.json"
+def load_tuned_params(
+    model_type: str = 'xgboost',
+    task: str = 'binary',
+    config_file: str = None,
+    timestamp: str = None
+) -> Tuple[Optional[Dict], Optional[Path]]:
+    """Carica parametri da hyperparameter tuning."""
+    tuning_dir = get_project_root() / "tuning_results" / model_type
     
-    if not tuning_file.exists():
-        return None
+    if not tuning_dir.exists():
+        return None, None
     
-    with open(tuning_file) as f:
+    configs = []
+    for json_file in tuning_dir.glob("*.json"):
+        try:
+            with open(json_file) as f:
+                data = json.load(f)
+            configs.append({
+                'filepath': json_file,
+                'filename': json_file.name,
+                'timestamp': data.get('tuning_timestamp'),
+            })
+        except Exception:
+            continue
+    
+    if not configs:
+        return None, None
+    
+    configs.sort(key=lambda x: x['timestamp'], reverse=True)
+    
+    if config_file:
+        config_path = Path(config_file)
+        if not config_path.is_absolute():
+            config_path = tuning_dir / config_path.name
+        
+        if not config_path.exists():
+            logger.warning(f"Config file non trovato: {config_path}")
+            return None, None
+        
+        tuning_filepath = config_path
+    
+    elif timestamp:
+        found = None
+        for cfg in configs:
+            if timestamp in cfg['filename']:
+                found = cfg['filepath']
+                break
+        
+        if not found:
+            logger.warning(f"Nessuna config trovata con timestamp '{timestamp}'")
+            return None, None
+        
+        tuning_filepath = found
+    
+    else:
+        tuning_filepath = configs[0]['filepath']
+    
+    with open(tuning_filepath) as f:
         data = json.load(f)
     
     if data.get('task') != task:
         logger.warning(
-            f"Task mismatch: tuning per {data.get('task')}, richiesto {task}. "
-            f"Ignorando parametri tuned."
+            f"Task mismatch: config per {data.get('task')}, richiesto {task}"
         )
-        return None
+        return None, None
     
-    logger.info(f"Parametri caricati da: {tuning_file}")
+    logger.info(f"Parametri caricati da: {tuning_filepath.name}")
     logger.info(f"Metodo tuning: {data.get('tuning_method')}")
     logger.info(f"Best score tuning: {data.get('best_score'):.4f}")
     
-    return data['best_params']
+    return data['best_params'], tuning_filepath
+
+
+def print_available_configs(model_type: str):
+    """Stampa lista configurazioni disponibili."""
+    tuning_dir = get_project_root() / "tuning_results" / model_type
+    
+    if not tuning_dir.exists():
+        print(f"Nessuna configurazione tuning trovata per {model_type}")
+        return
+    
+    configs = []
+    for json_file in tuning_dir.glob("*.json"):
+        try:
+            with open(json_file) as f:
+                data = json.load(f)
+            configs.append({
+                'filename': json_file.name,
+                'timestamp': data.get('tuning_timestamp'),
+                'method': data.get('tuning_method'),
+                'score': data.get('best_score')
+            })
+        except Exception:
+            continue
+    
+    if not configs:
+        print(f"Nessuna configurazione tuning trovata per {model_type}")
+        return
+    
+    configs.sort(key=lambda x: x['timestamp'], reverse=True)
+    
+    print(f"\n{'='*70}")
+    print(f"CONFIGURAZIONI TUNING DISPONIBILI - {model_type.upper()}")
+    print(f"{'='*70}")
+    print(f"\n{'#':<3} {'Filename':<45} {'Score':>8} {'Method':<10}")
+    print("-"*70)
+    
+    for i, cfg in enumerate(configs, 1):
+        print(f"{i:<3} {cfg['filename']:<45} {cfg['score']:>8.4f} {cfg['method']:<10}")
+    
+    print(f"\nTotale: {len(configs)} configurazioni")
 
 
 def train_xgboost(X_train: pd.DataFrame,
@@ -159,7 +262,8 @@ def train_xgboost(X_train: pd.DataFrame,
                   n_jobs: int = None,
                   use_gpu: bool = False,
                   random_state: int = RANDOM_STATE,
-                  use_tuned_params: bool = False
+                  use_tuned_params: bool = False,
+                  tuned_params: Dict = None
                   ) -> Tuple[XGBClassifier, Dict[str, Any]]:
     """Training XGBoost con RandomizedSearchCV e supporto GPU."""
     
@@ -180,57 +284,50 @@ def train_xgboost(X_train: pd.DataFrame,
         n_pos = (y_train == 1).sum()
         scale_pos_weight = n_neg / n_pos if n_pos > 0 else 1.0
     
-    if use_tuned_params:
-        tuned_params = load_tuned_params('xgboost', task)
+    if use_tuned_params and tuned_params:
+        logger.info("Modalita: TRAINING CON PARAMETRI TUNED")
+        logger.info(f"Parametri: {tuned_params}")
         
-        if tuned_params:
-            logger.info("Modalita: TRAINING CON PARAMETRI TUNED")
-            logger.info(f"Parametri: {tuned_params}")
-            
-            final_params = tuned_params.copy()
-            final_params['objective'] = objective
-            final_params['random_state'] = random_state
-            final_params['use_label_encoder'] = False
-            final_params['tree_method'] = 'hist'
-            
-            if use_gpu:
-                final_params['device'] = 'cuda'
-                final_params['n_jobs'] = 1
-            else:
-                final_params['n_jobs'] = n_jobs
-            
-            if scale_pos_weight:
-                final_params['scale_pos_weight'] = scale_pos_weight
-            
-            if task == 'multiclass' and 'num_class' not in final_params:
-                final_params['num_class'] = len(y_train.unique())
-            
-            best_model = XGBClassifier(**final_params)
-            
-            start_time = datetime.now()
-            
-            if use_early_stopping:
-                best_model.set_params(n_estimators=500, early_stopping_rounds=20)
-                best_model.fit(
-                    X_train, y_train,
-                    eval_set=[(X_val, y_val)],
-                    verbose=False
-                )
-                best_iteration = best_model.best_iteration
-            else:
-                best_model.fit(X_train, y_train)
-                best_iteration = None
-            
-            train_time = (datetime.now() - start_time).total_seconds()
-            
-            best_params = tuned_params
-            best_cv_score = None
-            
+        final_params = tuned_params.copy()
+        final_params['objective'] = objective
+        final_params['random_state'] = random_state
+        final_params['use_label_encoder'] = False
+        final_params['tree_method'] = 'hist'
+        
+        if use_gpu:
+            final_params['device'] = 'cuda'
+            final_params['n_jobs'] = 1
         else:
-            logger.warning("Parametri tuned non trovati, uso RandomizedSearchCV")
-            use_tuned_params = False
+            final_params['n_jobs'] = n_jobs
+        
+        if scale_pos_weight:
+            final_params['scale_pos_weight'] = scale_pos_weight
+        
+        if task == 'multiclass' and 'num_class' not in final_params:
+            final_params['num_class'] = len(y_train.unique())
+        
+        best_model = XGBClassifier(**final_params)
+        
+        start_time = datetime.now()
+        
+        if use_early_stopping:
+            best_model.set_params(n_estimators=500, early_stopping_rounds=20)
+            best_model.fit(
+                X_train, y_train,
+                eval_set=[(X_val, y_val)],
+                verbose=False
+            )
+            best_iteration = best_model.best_iteration
+        else:
+            best_model.fit(X_train, y_train)
+            best_iteration = None
+        
+        train_time = (datetime.now() - start_time).total_seconds()
+        
+        best_params = tuned_params
+        best_cv_score = None
     
-    if not use_tuned_params:
+    else:
         logger.info(f"Config: n_iter={n_iter}, cv={cv}, n_jobs={n_jobs}, GPU={use_gpu}")
         
         base_params = {
@@ -352,52 +449,17 @@ def train_xgboost(X_train: pd.DataFrame,
     return best_model, results
 
 
-def save_model(model, results, selected_features=None, output_dir=None,
-               n_iter=None, cv=None, extra_params=None):
-    """Salva modello con versionamento automatico."""
-    from src.model_versioning import save_versioned_model
-    
-    task = results['task']
-    
-    if n_iter is not None and cv is not None:
-        version_dir, version_id = save_versioned_model(
-            model=model,
-            results=results,
-            selected_features=selected_features or [],
-            model_type='xgboost',
-            n_iter=n_iter,
-            cv=cv,
-            extra_params=extra_params
-        )
-        logger.info(f"Modello versionato salvato: {version_dir}")
-        return version_dir / f"model_{task}.pkl"
-    
-    if output_dir is None:
-        output_dir = get_project_root() / "models" / "xgboost"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    model_path = output_dir / f"model_{task}.pkl"
-    results_path = output_dir / f"results_{task}.json"
-    
-    joblib.dump(model, model_path)
-    with open(results_path, 'w') as f:
-        json.dump(results, f, indent=2, default=str)
-    
-    if selected_features is not None:
-        features_path = output_dir / f"features_{task}.json"
-        with open(features_path, 'w') as f:
-            json.dump(selected_features, f, indent=2)
-        logger.info(f"Feature salvate: {features_path}")
-    
-    logger.info(f"Modello salvato: {model_path}")
-    return model_path
-
-
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Training XGBoost per NIDS')
     parser.add_argument('--task', type=str, choices=['binary', 'multiclass'], default='binary')
     parser.add_argument('--use-tuned-params', action='store_true',
                         help='Usa parametri da hyperparameter_tuning.py')
+    parser.add_argument('--tuning-config', type=str, default=None,
+                        help='File config specifico (default: più recente)')
+    parser.add_argument('--tuning-timestamp', type=str, default=None,
+                        help='Timestamp config da usare (es: 2026-01-24_20.02)')
+    parser.add_argument('--list-configs', action='store_true',
+                        help='Mostra configurazioni tuning disponibili ed esci')
     parser.add_argument('--n-iter', type=int, default=DEFAULT_N_ITER)
     parser.add_argument('--cv', type=int, default=DEFAULT_CV_FOLDS)
     parser.add_argument('--early-stopping', dest='early_stopping', action='store_true', default=True)
@@ -414,6 +476,11 @@ def parse_arguments():
 
 def main():
     args = parse_arguments()
+    
+    if args.list_configs:
+        print_available_configs('xgboost')
+        return
+    
     n_jobs = args.n_jobs if args.n_jobs else _n_cores
     limiter = ResourceLimiter(n_cores=n_jobs, max_ram_percent=args.max_ram)
     label_col = 'Label_Binary' if args.task == 'binary' else 'Label_Multiclass'
@@ -428,10 +495,29 @@ def main():
     print("=" * 60)
     print(f"\nParametri:")
     print(f"  Task:           {args.task}")
-    print(f"  Tuned params:   {args.use_tuned_params}")
-    if not args.use_tuned_params:
+    
+    tuned_params = None
+    tuning_filepath = None
+    
+    if args.use_tuned_params:
+        print(f"  Mode:           Tuned parameters")
+        tuned_params, tuning_filepath = load_tuned_params(
+            'xgboost',
+            args.task,
+            config_file=args.tuning_config,
+            timestamp=args.tuning_timestamp
+        )
+        
+        if not tuned_params:
+            print("\n⚠️  Parametri tuned non trovati, uso random search")
+            args.use_tuned_params = False
+        else:
+            print(f"  Config:         {tuning_filepath.name}")
+    else:
+        print(f"  Mode:           Random search")
         print(f"  N iter:         {args.n_iter}")
         print(f"  CV folds:       {args.cv}")
+    
     print(f"  Early stopping: {args.early_stopping}")
     print(f"  CPU cores:      {n_jobs}/{os.cpu_count()}")
     print(f"  GPU:            {'ABILITATA' if use_gpu else 'Disabilitata'}")
@@ -474,22 +560,39 @@ def main():
             task=args.task, n_iter=args.n_iter, cv=args.cv,
             use_early_stopping=args.early_stopping,
             n_jobs=n_jobs, use_gpu=use_gpu, random_state=args.random_state,
-            use_tuned_params=args.use_tuned_params
+            use_tuned_params=args.use_tuned_params,
+            tuned_params=tuned_params
         )
         
         print("\n4. Salvataggio...")
-        extra_params = {'gpu': use_gpu, 'early_stopping': args.early_stopping}
-        
-        if args.use_tuned_params:
-            model_path = save_model(model, results, selected_features=selected_features)
-        else:
-            model_path = save_model(
-                model, results,
+        if args.use_tuned_params and tuning_filepath:
+            from src.model_versioning import save_tuned_model
+            
+            version_dir, version_id = save_tuned_model(
+                model=model,
+                results=results,
                 selected_features=selected_features,
-                n_iter=args.n_iter,
-                cv=args.cv,
-                extra_params=extra_params
+                model_type='xgboost',
+                tuning_filepath=tuning_filepath
             )
+            
+            model_path = version_dir / f"model_{args.task}.pkl"
+            print(f"   Versione: {version_id}")
+        else:
+            output_dir = get_project_root() / "models" / "xgboost"
+            output_dir.mkdir(parents=True, exist_ok=True)
+            
+            model_path = output_dir / f"model_{args.task}.pkl"
+            results_path = output_dir / f"results_{args.task}.json"
+            
+            joblib.dump(model, model_path)
+            with open(results_path, 'w') as f:
+                json.dump(results, f, indent=2, default=str)
+            
+            if selected_features is not None:
+                features_path = output_dir / f"features_{args.task}.json"
+                with open(features_path, 'w') as f:
+                    json.dump(selected_features, f, indent=2)
         
         print("\n" + "=" * 60)
         print("TRAINING COMPLETATO")

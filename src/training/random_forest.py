@@ -9,6 +9,10 @@ GUIDA PARAMETRI:
 
 Opzioni disponibili:
     --task STR            'binary' o 'multiclass' (default: binary)
+    --use-tuned-params    Usa parametri da hyperparameter_tuning.py
+    --tuning-config FILE  Config specifica (default: più recente)
+    --tuning-timestamp TS Timestamp config (es: 2026-01-24_20.02)
+    --list-configs        Mostra config disponibili ed esci
     --n-iter INT          Iterazioni random search (default: 20)
     --cv INT              Fold cross-validation (default: 3)
     --n-jobs INT          Core CPU (default: auto, totale - 2)
@@ -17,14 +21,23 @@ Opzioni disponibili:
 
 ESEMPI:
 -------
-# Training standard
+# Training con parametri tuned (più recente)
+python src/training/random_forest.py --use-tuned-params
+
+# Training con config specifica
+python src/training/random_forest.py --use-tuned-params --tuning-config random_iter50_cv5_2026-01-24_20.02.json
+
+# Training con timestamp
+python src/training/random_forest.py --use-tuned-params --tuning-timestamp 2026-01-24_20.02
+
+# Mostra config disponibili
+python src/training/random_forest.py --list-configs
+
+# Training standard (random search)
 python src/training/random_forest.py
 
-# Test veloce (poche iterazioni)
+# Test veloce
 python src/training/random_forest.py --n-iter 5 --cv 2
-
-# Limita a 4 core
-python src/training/random_forest.py --n-jobs 4
 
 ================================================================================
 """
@@ -47,7 +60,6 @@ def _get_arg(name, default=None):
                 return sys.argv[i + 1]
     return default
 
-# Configura limiti PRIMA di importare sklearn
 _n_jobs_arg = _get_arg('n-jobs')
 _n_cores = _n_jobs_arg if _n_jobs_arg else max(1, (os.cpu_count() or 4) - 2)
 
@@ -57,7 +69,6 @@ os.environ['OPENBLAS_NUM_THREADS'] = str(_n_cores)
 os.environ['NUMEXPR_NUM_THREADS'] = str(_n_cores)
 os.environ['LOKY_MAX_CPU_COUNT'] = str(_n_cores)
 
-# Applica affinity CPU
 import psutil
 try:
     p = psutil.Process()
@@ -66,7 +77,6 @@ try:
 except Exception:
     pass
 
-# Ora importa il resto
 ROOT_DIR = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
@@ -123,31 +133,128 @@ DEFAULT_CV_FOLDS = 3
 DEFAULT_MAX_RAM = 85
 
 # ==============================================================================
-# IMPORT PARAM
+# IMPORT PARAM DA TUNING
 # ==============================================================================
 
-def load_tuned_params(model_type: str = 'random_forest', task: str = 'binary') -> Optional[Dict]:
-    """Carica parametri da hyperparameter tuning se esistono."""
-    tuning_file = get_project_root() / "tuning_results" / f"{model_type}_best.json"
+def load_tuned_params(
+    model_type: str = 'random_forest',
+    task: str = 'binary',
+    config_file: str = None,
+    timestamp: str = None
+) -> Tuple[Optional[Dict], Optional[Path]]:
+    """
+    Carica parametri da hyperparameter tuning.
     
-    if not tuning_file.exists():
-        return None
+    Returns:
+        Tuple (params, tuning_filepath)
+    """
+    tuning_dir = get_project_root() / "tuning_results" / model_type
     
-    with open(tuning_file) as f:
+    if not tuning_dir.exists():
+        return None, None
+    
+    # Lista config disponibili
+    configs = []
+    for json_file in tuning_dir.glob("*.json"):
+        try:
+            with open(json_file) as f:
+                data = json.load(f)
+            configs.append({
+                'filepath': json_file,
+                'filename': json_file.name,
+                'timestamp': data.get('tuning_timestamp'),
+            })
+        except Exception:
+            continue
+    
+    if not configs:
+        return None, None
+    
+    configs.sort(key=lambda x: x['timestamp'], reverse=True)
+    
+    # Trova il file tuning
+    if config_file:
+        config_path = Path(config_file)
+        if not config_path.is_absolute():
+            config_path = tuning_dir / config_path.name
+        
+        if not config_path.exists():
+            logger.warning(f"Config file non trovato: {config_path}")
+            return None, None
+        
+        tuning_filepath = config_path
+    
+    elif timestamp:
+        found = None
+        for cfg in configs:
+            if timestamp in cfg['filename']:
+                found = cfg['filepath']
+                break
+        
+        if not found:
+            logger.warning(f"Nessuna config trovata con timestamp '{timestamp}'")
+            return None, None
+        
+        tuning_filepath = found
+    
+    else:
+        tuning_filepath = configs[0]['filepath']
+    
+    with open(tuning_filepath) as f:
         data = json.load(f)
     
     if data.get('task') != task:
         logger.warning(
-            f"Task mismatch: tuning per {data.get('task')}, richiesto {task}. "
-            f"Ignorando parametri tuned."
+            f"Task mismatch: config per {data.get('task')}, richiesto {task}"
         )
-        return None
+        return None, None
     
-    logger.info(f"Parametri caricati da: {tuning_file}")
+    logger.info(f"Parametri caricati da: {tuning_filepath.name}")
     logger.info(f"Metodo tuning: {data.get('tuning_method')}")
     logger.info(f"Best score tuning: {data.get('best_score'):.4f}")
     
-    return data['best_params']
+    return data['best_params'], tuning_filepath
+
+
+def print_available_configs(model_type: str):
+    """Stampa lista configurazioni disponibili."""
+    tuning_dir = get_project_root() / "tuning_results" / model_type
+    
+    if not tuning_dir.exists():
+        print(f"Nessuna configurazione tuning trovata per {model_type}")
+        return
+    
+    configs = []
+    for json_file in tuning_dir.glob("*.json"):
+        try:
+            with open(json_file) as f:
+                data = json.load(f)
+            configs.append({
+                'filename': json_file.name,
+                'timestamp': data.get('tuning_timestamp'),
+                'method': data.get('tuning_method'),
+                'score': data.get('best_score')
+            })
+        except Exception:
+            continue
+    
+    if not configs:
+        print(f"Nessuna configurazione tuning trovata per {model_type}")
+        return
+    
+    configs.sort(key=lambda x: x['timestamp'], reverse=True)
+    
+    print(f"\n{'='*70}")
+    print(f"CONFIGURAZIONI TUNING DISPONIBILI - {model_type.upper()}")
+    print(f"{'='*70}")
+    print(f"\n{'#':<3} {'Filename':<45} {'Score':>8} {'Method':<10}")
+    print("-"*70)
+    
+    for i, cfg in enumerate(configs, 1):
+        print(f"{i:<3} {cfg['filename']:<45} {cfg['score']:>8.4f} {cfg['method']:<10}")
+    
+    print(f"\nTotale: {len(configs)} configurazioni")
+
 
 # ==============================================================================
 # TRAINING CON PROGRESS BAR
@@ -162,7 +269,8 @@ def train_random_forest(X_train: pd.DataFrame,
                         cv: int = DEFAULT_CV_FOLDS,
                         n_jobs: int = None,
                         random_state: int = RANDOM_STATE,
-                        use_tuned_params: bool = False  # NUOVO
+                        use_tuned_params: bool = False,
+                        tuned_params: Dict = None
                         ) -> Tuple[RandomForestClassifier, Dict[str, Any]]:
     """Training Random Forest."""
     
@@ -174,32 +282,24 @@ def train_random_forest(X_train: pd.DataFrame,
     logger.info("=" * 50)
     logger.info(f"Train: {X_train.shape[0]:,} x {X_train.shape[1]}")
     
-    # NUOVO: Usa parametri tuned se richiesto
-    if use_tuned_params:
-        tuned_params = load_tuned_params('random_forest', task)
+    if use_tuned_params and tuned_params:
+        logger.info("Modalita: TRAINING CON PARAMETRI TUNED")
+        logger.info(f"Parametri: {tuned_params}")
         
-        if tuned_params:
-            logger.info("Modalita: TRAINING CON PARAMETRI TUNED")
-            logger.info(f"Parametri: {tuned_params}")
-            
-            tuned_params['random_state'] = random_state
-            tuned_params['n_jobs'] = n_jobs
-            
-            best_model = RandomForestClassifier(**tuned_params)
-            
-            start_time = datetime.now()
-            best_model.fit(X_train, y_train)
-            train_time = (datetime.now() - start_time).total_seconds()
-            
-            best_params = tuned_params
-            best_cv_score = None
-            
-        else:
-            logger.warning("Parametri tuned non trovati, uso RandomizedSearchCV")
-            use_tuned_params = False
+        final_params = tuned_params.copy()
+        final_params['random_state'] = random_state
+        final_params['n_jobs'] = n_jobs
+        
+        best_model = RandomForestClassifier(**final_params)
+        
+        start_time = datetime.now()
+        best_model.fit(X_train, y_train)
+        train_time = (datetime.now() - start_time).total_seconds()
+        
+        best_params = tuned_params
+        best_cv_score = None
     
-    # Comportamento originale se non use_tuned_params
-    if not use_tuned_params:
+    else:
         logger.info(f"Config: n_iter={n_iter}, cv={cv}, n_jobs={n_jobs}")
         
         scoring = 'f1' if task == 'binary' else 'f1_weighted'
@@ -236,7 +336,6 @@ def train_random_forest(X_train: pd.DataFrame,
         del search
         gc.collect()
     
-    # Validazione (comune)
     y_val_pred = best_model.predict(X_val)
     
     if task == 'binary':
@@ -282,61 +381,6 @@ def train_random_forest(X_train: pd.DataFrame,
     return best_model, results
 
 
-def save_model(model: RandomForestClassifier,
-               results: Dict[str, Any],
-               selected_features: List[str] = None,
-               output_dir: Path = None,
-               n_iter: int = None,
-               cv: int = None,
-               extra_params: Dict = None) -> Path:
-    """
-    Salva modello con versionamento automatico.
-    
-    Se n_iter e cv sono specificati, salva in sottocartella versionata.
-    Altrimenti salva nella root di random_forest/ (backward compatibility).
-    """
-    from src.model_versioning import save_versioned_model
-    
-    task = results['task']
-    
-    # Se abbiamo parametri, usa versionamento
-    if n_iter is not None and cv is not None:
-        version_dir, version_id = save_versioned_model(
-            model=model,
-            results=results,
-            selected_features=selected_features or [],
-            model_type='random_forest',
-            n_iter=n_iter,
-            cv=cv,
-            extra_params=extra_params
-        )
-        logger.info(f"Modello versionato salvato: {version_dir}")
-        return version_dir / f"model_{task}.pkl"
-    
-    # Backward compatibility: salva nella root
-    if output_dir is None:
-        output_dir = get_project_root() / "models" / "random_forest"
-    
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    model_path = output_dir / f"model_{task}.pkl"
-    results_path = output_dir / f"results_{task}.json"
-    
-    joblib.dump(model, model_path)
-    logger.info(f"Modello salvato: {model_path}")
-    
-    with open(results_path, 'w') as f:
-        json.dump(results, f, indent=2, default=str)
-    
-    if selected_features is not None:
-        features_path = output_dir / f"features_{task}.json"
-        with open(features_path, 'w') as f:
-            json.dump(selected_features, f, indent=2)
-        logger.info(f"Feature salvate: {features_path}")
-    
-    return model_path
-
-
 # ==============================================================================
 # ARGUMENT PARSER
 # ==============================================================================
@@ -348,14 +392,33 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Esempi:
-  python src/training/random_forest.py
-  python src/training/random_forest.py --n-iter 5 --cv 2  # Test veloce
-  python src/training/random_forest.py --n-jobs 4
+  # Parametri tuned (più recente)
+  python src/training/random_forest.py --use-tuned-params
+  
+  # Config specifica
+  python src/training/random_forest.py --use-tuned-params --tuning-config random_iter50_cv5_2026-01-24_20.02.json
+  
+  # Per timestamp
+  python src/training/random_forest.py --use-tuned-params --tuning-timestamp 2026-01-24_20.02
+  
+  # Lista config
+  python src/training/random_forest.py --list-configs
+  
+  # Random search
+  python src/training/random_forest.py --n-iter 20 --cv 3
         """
     )
     
     parser.add_argument('--task', type=str, choices=['binary', 'multiclass'],
                         default='binary', help='Tipo classificazione')
+    parser.add_argument('--use-tuned-params', action='store_true',
+                        help='Usa parametri da hyperparameter_tuning.py')
+    parser.add_argument('--tuning-config', type=str, default=None,
+                        help='File config specifico (default: più recente)')
+    parser.add_argument('--tuning-timestamp', type=str, default=None,
+                        help='Timestamp config da usare (es: 2026-01-24_20.02)')
+    parser.add_argument('--list-configs', action='store_true',
+                        help='Mostra configurazioni tuning disponibili ed esci')
     parser.add_argument('--n-iter', type=int, default=DEFAULT_N_ITER,
                         help=f'Iterazioni random search (default: {DEFAULT_N_ITER})')
     parser.add_argument('--cv', type=int, default=DEFAULT_CV_FOLDS,
@@ -363,11 +426,9 @@ Esempi:
     parser.add_argument('--n-jobs', type=int, default=None,
                         help='Core CPU (default: auto)')
     parser.add_argument('--max-ram', type=int, default=DEFAULT_MAX_RAM,
-                        help='Limite RAM %')
+                        help='Limite RAM %%')
     parser.add_argument('--random-state', type=int, default=RANDOM_STATE,
                         help='Seed random')
-    parser.add_argument('--use-tuned-params', action='store_true',
-                        help='Usa parametri da hyperparameter_tuning.py')
     
     return parser.parse_args()
 
@@ -380,13 +441,17 @@ def main():
     """Funzione principale."""
     args = parse_arguments()
     
+    if args.list_configs:
+        print_available_configs('random_forest')
+        return
+    
     n_jobs = args.n_jobs if args.n_jobs else _n_cores
     limiter = ResourceLimiter(n_cores=n_jobs, max_ram_percent=args.max_ram)
     label_col = 'Label_Binary' if args.task == 'binary' else 'Label_Multiclass'
     
-    # Inizializza timing logger
     timer = TimingLogger("training_random_forest", parameters={
         'task': args.task,
+        'use_tuned_params': args.use_tuned_params,
         'n_iter': args.n_iter,
         'cv': args.cv,
         'n_jobs': n_jobs,
@@ -399,8 +464,29 @@ def main():
     print("=" * 60)
     print(f"\nParametri:")
     print(f"  Task:         {args.task}")
-    print(f"  N iter:       {args.n_iter}")
-    print(f"  CV folds:     {args.cv}")
+    
+    tuned_params = None
+    tuning_filepath = None
+    
+    if args.use_tuned_params:
+        print(f"  Mode:         Tuned parameters")
+        tuned_params, tuning_filepath = load_tuned_params(
+            'random_forest',
+            args.task,
+            config_file=args.tuning_config,
+            timestamp=args.tuning_timestamp
+        )
+        
+        if not tuned_params:
+            print("\n⚠️  Parametri tuned non trovati, uso random search")
+            args.use_tuned_params = False
+        else:
+            print(f"  Config:       {tuning_filepath.name}")
+    else:
+        print(f"  Mode:         Random search")
+        print(f"  N iter:       {args.n_iter}")
+        print(f"  CV folds:     {args.cv}")
+    
     print(f"  CPU cores:    {n_jobs}/{os.cpu_count()}")
     print(f"  Max RAM:      {args.max_ram}%")
     print()
@@ -449,19 +535,41 @@ def main():
                 cv=args.cv,
                 n_jobs=n_jobs,
                 random_state=args.random_state,
-                use_tuned_params=args.use_tuned_params
+                use_tuned_params=args.use_tuned_params,
+                tuned_params=tuned_params
             )
         
         print("\n4. Salvataggio modello...")
         with timer.time_operation("salvataggio"):
-            model_path = save_model(
-                model, results, 
-                selected_features=selected_features,
-                n_iter=args.n_iter,
-                cv=args.cv
-            )
+            if args.use_tuned_params and tuning_filepath:
+                from src.model_versioning import save_tuned_model
+                
+                version_dir, version_id = save_tuned_model(
+                    model=model,
+                    results=results,
+                    selected_features=selected_features,
+                    model_type='random_forest',
+                    tuning_filepath=tuning_filepath
+                )
+                
+                model_path = version_dir / f"model_{args.task}.pkl"
+                print(f"   Versione: {version_id}")
+            else:
+                output_dir = get_project_root() / "models" / "random_forest"
+                output_dir.mkdir(parents=True, exist_ok=True)
+                
+                model_path = output_dir / f"model_{args.task}.pkl"
+                results_path = output_dir / f"results_{args.task}.json"
+                
+                joblib.dump(model, model_path)
+                with open(results_path, 'w') as f:
+                    json.dump(results, f, indent=2, default=str)
+                
+                if selected_features is not None:
+                    features_path = output_dir / f"features_{args.task}.json"
+                    with open(features_path, 'w') as f:
+                        json.dump(selected_features, f, indent=2)
         
-        # Salva metriche timing
         timer.add_metric("train_samples", len(X_train_final))
         timer.add_metric("accuracy", results['validation_metrics'].get('accuracy', 0))
         timer.add_metric("f1", results['validation_metrics'].get('f1', 0))

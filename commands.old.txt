@@ -1,0 +1,163 @@
+#0. Scaicare Dataset CIC-IDS-2017 dentro /data/raw
+#!/bin/bash
+curl -L -o ~/Downloads/network-intrusion-dataset.zip\
+  https://www.kaggle.com/api/v1/datasets/download/chethuhn/network-intrusion-dataset
+
+# 1. Preprocessing (se non gia fatto)
+python src/preprocessing.py
+o
+python src/preprocessing.py --n-jobs 10
+
+# 2. Feature Engineering
+python src/feature_engineering.py
+o
+python src/feature_engineering.py --rf-estimators 20 --n-jobs 10
+
+# 2./3. Hyperparameter tuning
+
+
+# 3. Training (test veloce)
+python src/training/random_forest.py --n-iter 1 --cv 2 --n-jobs 10
+python src/training/xgboost_model.py --n-iter 1 --cv 2 --n-jobs 10
+python src/training/lightgbm_model.py --n-iter 1 --cv 2 --n-jobs 10
+
+# 4. Evaluation
+# Valuta SINGOLO modello
+python src/evaluation.py --model-path models/xgboost/cv5_iter200_gpu/model_binary.pkl
+# Valuta TUTTI i modelli XGBoost
+python src/evaluation.py --model-type xgboost
+# Valuta TUTTI i modelli LightGBM
+python src/evaluation.py --model-type lightgbm
+# Valuta TUTTI i modelli di TUTTI i tipi
+python src/evaluation.py --model-type all
+
+# 5. Confronto e selezione best model
+python src/compare_models.py --metric f1
+
+# 6. Sniffer con best model
+# Live capture (detection)
+||| sudo $(which python) src/sniffer.py |||
+sudo python src/sniffer.py --interface eth0
+
+# Live capture (prevention - blocca IP)
+sudo python src/sniffer.py --interface eth0 --mode prevention
+
+# Analisi PCAP
+python src/sniffer.py --pcap test.pcap --verbose
+
+# 7. Report timing
+python src/timing.py --report
+
+#8 ----- ANALISI PCAP -----
+
+# Analizza PCAP con UN modello
+python src/sniff_evaluation.py --pcap Friday.pcap --model-path models/xgboost/cv5_iter200_gpu/model_binary.pkl
+
+# Analizza PCAP con TUTTI i modelli XGBoost
+python src/sniff_evaluation.py --pcap Friday.pcap --model-type xgboost
+
+# Analizza PCAP con TUTTI i modelli (confronto completo)
+python src/sniff_evaluation.py --pcap Friday.pcap --model-type all
+
+# ----- ANALISI CSV (test su dati etichettati) -----
+# Questo è il modo MIGLIORE per verificare se il modello funziona
+# perché hai le label reali e puoi calcolare metriche precise
+
+# Tutti i modelli XGBoost
+python src/sniff_evaluation.py --csv data/raw/Friday-WorkingHours.csv --model-type xgboost
+
+# Tutti i modelli
+python src/sniff_evaluation.py --csv Friday.csv --model-type all
+
+# Test veloce con sample ridotto
+python src/sniff_evaluation.py --csv Friday.csv --model-type all --sample 50000
+
+# ----- UTILITY -----
+
+# Mostra tutti i risultati salvati
+python src/sniff_evaluation.py --list-results
+
+-   -   -   -   -
+
+Cosa fanno --n-iter e --cv?
+
+--n-iter 5: Numero di combinazioni random di iperparametri da testare
+    Default 20 = testa 20 combinazioni diverse di (n_estimators, max_depth, learning_rate, etc.)
+    Con 5 = testa solo 5 combinazioni (piu veloce, meno ottimale)
+
+--cv 2: Numero di fold per cross-validation
+    Default 3 = divide il training in 3 parti, allena su 2 e valida su 1, ripete 3 volte
+    Con 2 = solo 2 fold (piu veloce, stima meno robusta)
+
+Totale fit = n_iter * cv
+    Default: 20 * 3 = 60 training
+    Test: 5 * 2 = 10 training (6x piu veloce)
+
+Per produzione usa almeno --n-iter 20 --cv 3 o meglio --n-iter 30 --cv 5.
+
+-   -   -   -   -
+
+Come Funziona il Sistema Timing1. Raccolta Dati
+Ogni modulo (preprocessing, feature_engineering, training, etc.) crea un TimingLogger che traccia:
+    Durata di ogni operazione
+    Parametri utilizzati
+    Metriche finali
+
+2. Salvataggio
+Ogni esecuzione salva un file JSON in logs/timing/:
+logs/timing/
+├── preprocessing_20260117_173000.json
+├── feature_engineering_20260117_173500.json
+├── training_random_forest_20260117_174000.json
+└── ...
+
+3. Report
+Per generare il report finale:
+bashpython src/timing.py --report
+
+Questo analizza tutti i file JSON e genera:
+    reports/timing/timing_report_XXXXXX.txt - Report leggibile
+    reports/timing/timing_report_XXXXXX.json - Dati per analisi
+
+
+Il report mostra:
+    Tempo medio/min/max per ogni modulo
+    Tempo per ogni operazione (caricamento, training, etc.)
+    Confronto tra esecuzioni con parametri diversi
+
+-   -   -   -   -
+
+Cosa significano --max-fpr 0.02 --max-latency-ms 1.0 nell'evaluation?
+Sono vincoli di produzione per la selezione del modello:
+Parametro               Significato                     Valore
+--max-fpr 0.0           False Positive Rate massimo     2%
+--max-latency-ms 1.0    Latenza massima per predizione  1 millisecondo
+
+Come funziona la scorecard:
+    Elimina modelli che NON rispettano i vincoli:
+        FPR > 2% → scartato (troppi falsi allarmi in produzione)
+        Latenza > 1ms → scartato (troppo lento per real-time)
+    Classifica i modelli rimanenti per score complessivo (F1, accuracy, etc.)
+
+FPR 2%: In produzione, se analizzi 1 milione di flussi benigni al giorno, 2% = 20,000 falsi allarmi. È già tanto. Idealmente vuoi <1%.
+Latenza 1ms: Per analisi real-time a 10,000 pacchetti/secondo, hai ~0.1ms per pacchetto. 1ms è già generoso.
+
+-   -   -   -   -
+
+sudo python src/sniffer.py --pcap Friday-WorkingHours.pcap --threshold 0.3 --min-packets 1 --verbose
+Parametro:
+--threshold 
+    Soglia probabilità per considerare un flusso "attacco". Se il modello dice "70% attacco", con threshold 0.5 è attacco, con threshold 0.8 no 
+    default: 0.5
+    comando: 0.3 (più sensibile)
+--min-packets
+    Minimo pacchetti per analizzare un flusso. Flussi con meno pacchetti vengono ignorati
+    default: 3
+    comando: 1 (analizza tutto)
+--verbose
+
+ESEMPIO --> Un flusso con 2 pacchetti e probabilità attacco 0.4:
+    Con --min-packets 3 --threshold 0.5: IGNORATO (troppi pochi pacchetti)
+    Con --min-packets 1 --threshold 0.5: BENIGNO (prob 0.4 < 0.5)
+    Con --min-packets 1 --threshold 0.3: ATTACCO (prob 0.4 > 0.3)
+

@@ -20,8 +20,9 @@ import os
 import psutil
 from pathlib import Path
 from datetime import datetime
-from typing import Optional
 import warnings
+import json
+from typing import Optional, Dict, List
 
 # ==============================================================================
 # COSTANTI GLOBALI
@@ -445,3 +446,156 @@ def benchmark_model_latency(model, n_features: int, n_samples: int = 1000,
         'latency_std_ms': float(np.std(latencies_trimmed)),
         'samples_per_second': float(n_samples / (total_latency / 1000))
     }
+
+# ==============================================================================
+# Funzioni per gestire selezione parametri da hyperparameter tuning.
+# ==============================================================================
+
+def list_tuning_configs(model_type: str) -> List[Dict]:
+    """
+    Lista tutte le configurazioni tuning disponibili per un modello.
+    
+    Args:
+        model_type: 'random_forest', 'xgboost', 'lightgbm'
+    
+    Returns:
+        Lista di dict con info su ogni config, ordinata per data (più recente prima)
+    """
+    tuning_dir = get_project_root() / "tuning_results" / model_type
+    
+    if not tuning_dir.exists():
+        return []
+    
+    configs = []
+    for json_file in tuning_dir.glob("*.json"):
+        try:
+            with open(json_file) as f:
+                data = json.load(f)
+            
+            configs.append({
+                'filepath': json_file,
+                'filename': json_file.name,
+                'timestamp': data.get('tuning_timestamp'),
+                'method': data.get('tuning_method'),
+                'best_score': data.get('best_score'),
+                'n_iterations': data.get('search_config', {}).get('n_iterations'),
+                'cv_folds': data.get('search_config', {}).get('cv_folds'),
+            })
+        except Exception:
+            continue
+    
+    # Ordina per timestamp (più recente prima)
+    configs.sort(key=lambda x: x['timestamp'], reverse=True)
+    
+    return configs
+
+
+def select_tuning_config(
+    model_type: str,
+    config_file: Optional[str] = None,
+    timestamp: Optional[str] = None,
+    task: str = 'binary'
+) -> Optional[Dict]:
+    """
+    Seleziona una configurazione tuning con logica flessibile.
+    
+    Priorità:
+    1. Se `config_file` specificato → usa quello
+    2. Se `timestamp` specificato → cerca per timestamp
+    3. Altrimenti → usa il più recente
+    
+    Args:
+        model_type: Tipo modello
+        config_file: Path o nome file specifico (es. "random_iter50_cv5_2026-01-24_20.02.json")
+        timestamp: Timestamp parziale da cercare (es. "2026-01-24_20.02")
+        task: Task (per validazione)
+    
+    Returns:
+        Dict con best_params oppure None
+    """
+    configs = list_tuning_configs(model_type)
+    
+    if not configs:
+        return None
+    
+    # Caso 1: File specifico
+    if config_file:
+        config_path = Path(config_file)
+        
+        # Se è path assoluto
+        if config_path.is_absolute() and config_path.exists():
+            target = config_path
+        # Se è solo nome file
+        else:
+            tuning_dir = get_project_root() / "tuning_results" / model_type
+            target = tuning_dir / config_path.name
+        
+        if not target.exists():
+            print(f"⚠️  Config file non trovato: {target}")
+            return None
+        
+        with open(target) as f:
+            data = json.load(f)
+        
+        if data.get('task') != task:
+            print(f"⚠️  Task mismatch: config per {data.get('task')}, richiesto {task}")
+            return None
+        
+        print(f"✓ Config selezionata: {target.name}")
+        return data['best_params']
+    
+    # Caso 2: Timestamp parziale
+    if timestamp:
+        for cfg in configs:
+            if timestamp in cfg['filename']:
+                with open(cfg['filepath']) as f:
+                    data = json.load(f)
+                
+                if data.get('task') != task:
+                    print(f"⚠️  Task mismatch: config per {data.get('task')}, richiesto {task}")
+                    continue
+                
+                print(f"✓ Config selezionata (timestamp): {cfg['filename']}")
+                return data['best_params']
+        
+        print(f"⚠️  Nessuna config trovata con timestamp '{timestamp}'")
+        return None
+    
+    # Caso 3: Più recente (default)
+    most_recent = configs[0]
+    with open(most_recent['filepath']) as f:
+        data = json.load(f)
+    
+    if data.get('task') != task:
+        print(f"⚠️  Config più recente è per task {data.get('task')}, richiesto {task}")
+        # Cerca il più recente con task corretto
+        for cfg in configs:
+            with open(cfg['filepath']) as f:
+                d = json.load(f)
+            if d.get('task') == task:
+                print(f"✓ Config selezionata (più recente, task={task}): {cfg['filename']}")
+                return d['best_params']
+        return None
+    
+    print(f"✓ Config selezionata (più recente): {most_recent['filename']}")
+    return data['best_params']
+
+
+def print_available_configs(model_type: str):
+    """Stampa lista configurazioni disponibili."""
+    configs = list_tuning_configs(model_type)
+    
+    if not configs:
+        print(f"Nessuna configurazione tuning trovata per {model_type}")
+        return
+    
+    print(f"\n{'='*70}")
+    print(f"CONFIGURAZIONI TUNING DISPONIBILI - {model_type.upper()}")
+    print(f"{'='*70}")
+    print(f"\n{'#':<3} {'Filename':<45} {'Score':>8} {'Method':<10}")
+    print("-"*70)
+    
+    for i, cfg in enumerate(configs, 1):
+        print(f"{i:<3} {cfg['filename']:<45} {cfg['best_score']:>8.4f} {cfg['method']:<10}")
+    
+    print(f"\nTotale: {len(configs)} configurazioni")
