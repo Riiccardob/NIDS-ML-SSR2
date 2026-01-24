@@ -148,7 +148,7 @@ def evaluate_version_scorecard(version: Dict,
                                task: str,
                                max_fpr: float,
                                max_latency_ms: float) -> Dict[str, Any]:
-    """Valuta una singola versione con approccio scorecard."""
+    """Valuta una singola versione con approccio scorecard (F2-Score based)."""
     
     full_id = f"{version['model_type']}/{version['version_id']}"
     
@@ -168,12 +168,9 @@ def evaluate_version_scorecard(version: Dict,
         },
         'score': 0.0,
         'status': 'FAIL',
-        'n_iter': version.get('n_iter', 0),
-        'cv': version.get('cv', 0),
-        'train_time': version.get('train_time', 0)
+        'training_mode': version.get('training_mode', 'unknown')
     }
     
-    # Usa metriche già calcolate
     metrics = version.get('validation_metrics', {})
     if not metrics:
         result['error'] = "No validation metrics found"
@@ -181,7 +178,6 @@ def evaluate_version_scorecard(version: Dict,
     
     result['metrics'] = metrics
     
-    # Carica modello per benchmark latenza
     model_path = version.get('model_path')
     if not model_path or not Path(model_path).exists():
         result['error'] = "Model file not found"
@@ -195,11 +191,8 @@ def evaluate_version_scorecard(version: Dict,
         result['error'] = f"Error loading model: {e}"
         return result
     
-    # Verifica constraints
-    # Usa FPR reale se presente, altrimenti stima con warning
     fpr = metrics.get('false_positive_rate')
     if fpr is None:
-        # Stima FPR da precision con warning
         precision = metrics.get('precision', 0.99)
         if precision >= 0.98:
             fpr = 0.005
@@ -208,7 +201,6 @@ def evaluate_version_scorecard(version: Dict,
         else:
             fpr = 1 - precision
         result['fpr_estimated'] = True
-        logger.warning(f"{full_id}: FPR stimato da precision ({fpr:.4f}). Ritrainare per FPR reale.")
     else:
         result['fpr_estimated'] = False
     
@@ -221,15 +213,13 @@ def evaluate_version_scorecard(version: Dict,
         result['constraints']['latency_pass']
     )
     
-    # Calcola score
     if result['constraints']['all_pass']:
         result['status'] = 'PASS'
         
-        recall = metrics.get('recall', 0)
-        f1 = metrics.get('f1', 0)
+        f2 = metrics.get('f2', 0)
         latency_score = max(0, 1 - (latency_per_sample / max_latency_ms))
         
-        result['score'] = (0.50 * recall) + (0.30 * f1) + (0.20 * latency_score)
+        result['score'] = (0.70 * f2) + (0.30 * latency_score)
     
     return result
 
