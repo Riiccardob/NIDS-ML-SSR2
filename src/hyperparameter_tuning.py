@@ -3,7 +3,11 @@
 NIDS-ML - Hyperparameter Tuning
 ================================================================================
 
-Ricerca parametri ottimali per i modelli usando Random Search o Bayesian (Optuna).
+Ricerca parametri ottimali per i modelli usando Random Search o Bayesian (Optuna) con F2-Score (Recall pesata doppio).
+
+METRICA: F2-Score
+Beta=2 enfatizza Recall (critico per sicurezza) rispetto a Precision.
+Formula: F2 = (1 + 2²) * (precision * recall) / (2² * precision + recall)
 
 USAGE:
 ------
@@ -47,6 +51,32 @@ from typing import Dict, Any, Tuple
 import json
 import time
 
+def _get_arg(name, default=None):
+    for i, arg in enumerate(sys.argv):
+        if arg == f'--{name}' and i + 1 < len(sys.argv):
+            try:
+                return int(sys.argv[i + 1])
+            except ValueError:
+                return sys.argv[i + 1]
+    return default
+
+_n_jobs_arg = _get_arg('n-jobs')
+_n_cores = _n_jobs_arg if _n_jobs_arg else max(1, (os.cpu_count() or 4) - 2)
+
+os.environ['OMP_NUM_THREADS'] = str(_n_cores)
+os.environ['MKL_NUM_THREADS'] = str(_n_cores)
+os.environ['OPENBLAS_NUM_THREADS'] = str(_n_cores)
+os.environ['NUMEXPR_NUM_THREADS'] = str(_n_cores)
+os.environ['LOKY_MAX_CPU_COUNT'] = str(_n_cores)
+
+import psutil
+try:
+    p = psutil.Process()
+    p.cpu_affinity(list(range(_n_cores)))
+    p.nice(10)
+except Exception:
+    pass
+
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
@@ -54,6 +84,7 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import RandomizedSearchCV, cross_val_score
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import make_scorer, fbeta_score
 from xgboost import XGBClassifier
 from lightgbm import LGBMClassifier
 
@@ -70,13 +101,9 @@ from src.feature_engineering import (
 suppress_warnings()
 
 
-# ==============================================================================
-# PARAMETER DISTRIBUTIONS
-# ==============================================================================
-
 PARAM_DISTRIBUTIONS = {
     'random_forest': {
-        'n_estimators': [100, 200, 300],
+        'n_estimators': [100, 150, 200],
         'max_depth': [15, 20, 30, None],
         'min_samples_split': [2, 5, 10],
         'min_samples_leaf': [1, 2, 4],
@@ -84,7 +111,7 @@ PARAM_DISTRIBUTIONS = {
         'class_weight': ['balanced', 'balanced_subsample']
     },
     'xgboost': {
-        'n_estimators': [100, 200, 300],
+        'n_estimators': [100, 150, 200],
         'max_depth': [5, 7, 10, 15],
         'learning_rate': [0.01, 0.05, 0.1],
         'subsample': [0.7, 0.8, 0.9],
@@ -95,7 +122,7 @@ PARAM_DISTRIBUTIONS = {
         'reg_lambda': [1, 1.5, 2]
     },
     'lightgbm': {
-        'n_estimators': [100, 200, 300],
+        'n_estimators': [100, 150, 200],
         'max_depth': [5, 10, 15, 20, -1],
         'learning_rate': [0.01, 0.05, 0.1],
         'num_leaves': [31, 50, 70, 100],
@@ -108,9 +135,10 @@ PARAM_DISTRIBUTIONS = {
 }
 
 
-# ==============================================================================
-# RANDOM SEARCH
-# ==============================================================================
+def f2_scorer(y_true, y_pred):
+    """F2-Score: Recall pesa doppio rispetto a Precision."""
+    return fbeta_score(y_true, y_pred, beta=2, zero_division=0)
+
 
 def tune_random_search(
     model_type: str,
@@ -122,13 +150,13 @@ def tune_random_search(
     task: str,
     logger
 ) -> Dict[str, Any]:
-    """
-    Hyperparameter tuning con Random Search.
-    """
+    """Hyperparameter tuning con Random Search e F2-Score."""
+    
     logger.info(f"Random Search: {n_iter} iterations, cv={cv}")
+    logger.info("Metrica: F2-Score (beta=2, Recall pesata doppio)")
     
     param_dist = PARAM_DISTRIBUTIONS[model_type]
-    scoring = 'f1' if task == 'binary' else 'f1_weighted'
+    scoring = make_scorer(f2_scorer) if task == 'binary' else 'f1_weighted'
     
     if model_type == 'random_forest':
         base_model = RandomForestClassifier(random_state=RANDOM_STATE, n_jobs=n_jobs)
@@ -172,6 +200,7 @@ def tune_random_search(
     
     results = {
         'method': 'random_search',
+        'scoring_metric': 'f2_score',
         'best_params': search.best_params_,
         'best_score': float(search.best_score_),
         'n_iterations': n_iter,
@@ -189,15 +218,11 @@ def tune_random_search(
             'std_score': float(cv_results['std_test_score'][i])
         })
     
-    logger.info(f"Best score: {search.best_score_:.4f}")
+    logger.info(f"Best F2-score: {search.best_score_:.4f}")
     logger.info(f"Best params: {search.best_params_}")
     
     return results
 
-
-# ==============================================================================
-# BAYESIAN OPTIMIZATION (OPTUNA)
-# ==============================================================================
 
 def tune_bayesian_optuna(
     model_type: str,
@@ -210,9 +235,8 @@ def tune_bayesian_optuna(
     timeout: int,
     logger
 ) -> Dict[str, Any]:
-    """
-    Hyperparameter tuning con Optuna (Bayesian Optimization).
-    """
+    """Hyperparameter tuning con Optuna (Bayesian Optimization) e F2-Score."""
+    
     try:
         import optuna
         from optuna.samplers import TPESampler
@@ -223,17 +247,18 @@ def tune_bayesian_optuna(
         )
     
     logger.info(f"Bayesian Optimization (Optuna): {n_trials} trials, cv={cv}")
+    logger.info("Metrica: F2-Score (beta=2, Recall pesata doppio)")
     if timeout > 0:
         logger.info(f"Timeout: {timeout}s ({timeout/3600:.1f}h)")
     
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     
-    scoring = 'f1' if task == 'binary' else 'f1_weighted'
+    scoring = make_scorer(f2_scorer) if task == 'binary' else 'f1_weighted'
     
     def objective(trial):
         if model_type == 'random_forest':
             params = {
-                'n_estimators': trial.suggest_int('n_estimators', 100, 300),
+                'n_estimators': trial.suggest_int('n_estimators', 100, 200),
                 'max_depth': trial.suggest_categorical('max_depth', [15, 20, 30, None]),
                 'min_samples_split': trial.suggest_int('min_samples_split', 2, 10),
                 'min_samples_leaf': trial.suggest_int('min_samples_leaf', 1, 4),
@@ -247,7 +272,7 @@ def tune_bayesian_optuna(
         elif model_type == 'xgboost':
             objective_fn = 'binary:logistic' if task == 'binary' else 'multi:softmax'
             params = {
-                'n_estimators': trial.suggest_int('n_estimators', 100, 300),
+                'n_estimators': trial.suggest_int('n_estimators', 100, 200),
                 'max_depth': trial.suggest_int('max_depth', 5, 15),
                 'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.1, log=True),
                 'subsample': trial.suggest_float('subsample', 0.7, 0.9),
@@ -268,7 +293,7 @@ def tune_bayesian_optuna(
         elif model_type == 'lightgbm':
             objective_fn = 'binary' if task == 'binary' else 'multiclass'
             params = {
-                'n_estimators': trial.suggest_int('n_estimators', 100, 300),
+                'n_estimators': trial.suggest_int('n_estimators', 100, 200),
                 'max_depth': trial.suggest_categorical('max_depth', [5, 10, 15, 20, -1]),
                 'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.1, log=True),
                 'num_leaves': trial.suggest_int('num_leaves', 31, 100),
@@ -306,6 +331,7 @@ def tune_bayesian_optuna(
     
     results = {
         'method': 'bayesian_optuna',
+        'scoring_metric': 'f2_score',
         'best_params': study.best_params,
         'best_score': float(study.best_value),
         'n_trials': len(study.trials),
@@ -322,16 +348,12 @@ def tune_bayesian_optuna(
                 'score': float(trial.value)
             })
     
-    logger.info(f"Best score: {study.best_value:.4f}")
+    logger.info(f"Best F2-score: {study.best_value:.4f}")
     logger.info(f"Best params: {study.best_params}")
     logger.info(f"Completed trials: {len(study.trials)}")
     
     return results
 
-
-# ==============================================================================
-# SALVATAGGIO RISULTATI
-# ==============================================================================
 
 def save_tuning_results(
     model_type: str,
@@ -339,9 +361,8 @@ def save_tuning_results(
     task: str,
     output_dir: Path = None
 ) -> Path:
-    """
-    Salva risultati tuning in JSON.
-    """
+    """Salva risultati tuning in JSON."""
+    
     if output_dir is None:
         output_dir = get_project_root() / "tuning_results"
     
@@ -352,6 +373,7 @@ def save_tuning_results(
         'task': task,
         'tuning_timestamp': datetime.now().isoformat(),
         'tuning_method': results['method'],
+        'scoring_metric': results['scoring_metric'],
         'best_params': results['best_params'],
         'best_score': results['best_score'],
         'search_config': {
@@ -369,10 +391,6 @@ def save_tuning_results(
     
     return output_file
 
-
-# ==============================================================================
-# MAIN
-# ==============================================================================
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
@@ -416,6 +434,7 @@ def main():
     print("=" * 70)
     print(f"\nModello:  {args.model}")
     print(f"Metodo:   {args.method}")
+    print(f"Metrica:  F2-Score (beta=2)")
     print(f"Task:     {args.task}")
     print(f"CV:       {args.cv}")
     print(f"CPU:      {n_jobs}/{os.cpu_count()}")
@@ -476,7 +495,7 @@ def main():
         print("\n" + "=" * 70)
         print("TUNING COMPLETATO")
         print("=" * 70)
-        print(f"\nBest score: {results['best_score']:.4f}")
+        print(f"\nBest F2-score: {results['best_score']:.4f}")
         print(f"Best params:")
         for k, v in results['best_params'].items():
             print(f"  {k}: {v}")

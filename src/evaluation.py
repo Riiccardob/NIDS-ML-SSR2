@@ -194,9 +194,12 @@ def compute_metrics(y_true: np.ndarray,
     metrics['accuracy'] = float(accuracy_score(y_true, y_pred))
     
     if task == 'binary':
+        from sklearn.metrics import fbeta_score
+        
         metrics['precision'] = float(precision_score(y_true, y_pred, zero_division=0))
         metrics['recall'] = float(recall_score(y_true, y_pred, zero_division=0))
         metrics['f1'] = float(f1_score(y_true, y_pred, zero_division=0))
+        metrics['f2'] = float(fbeta_score(y_true, y_pred, beta=2, zero_division=0))
         
         # Specificity (True Negative Rate)
         tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()

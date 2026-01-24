@@ -13,6 +13,9 @@ python src/feature_engineering.py
 o
 python src/feature_engineering.py --rf-estimators 20 --n-jobs 10
 
+# 2./3. Hyperparameter tuning
+
+
 # 3. Training (test veloce)
 python src/training/random_forest.py --n-iter 1 --cv 2 --n-jobs 10
 python src/training/xgboost_model.py --n-iter 1 --cv 2 --n-jobs 10
