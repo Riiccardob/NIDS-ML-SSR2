@@ -108,16 +108,16 @@ from scipy.stats import randint, uniform, loguniform
 #   'cat':   ('cat', [lista_opzioni])
 HYPERPARAM_CONFIG = {
     'random_forest': {
-        'n_estimators':      ('int', 1, 10),
+        'n_estimators':      ('int', 50, 2000),
         'max_depth':         ('cat', [10, 20, 30, 40, 50, None]),
         'min_samples_split': ('int', 2, 20),
         'min_samples_leaf':  ('int', 1, 10),
         'max_features':      ('cat', ['sqrt', 'log2', None]),
-        #'bootstrap':         ('cat', [True, False]),
+        'bootstrap':         ('cat', [True, False]),
         'class_weight':      ('cat', ['balanced', 'balanced_subsample', None])
     },
     'xgboost': {
-        'n_estimators':      ('int', 200, 3000),
+        'n_estimators':      ('int', 200, 5000),
         'max_depth':         ('int', 3, 20),
         'learning_rate':     ('float', 0.001, 0.3, True),  # True = scala logaritmica
         'subsample':         ('float', 0.5, 1.0, False),
@@ -126,7 +126,7 @@ HYPERPARAM_CONFIG = {
         'gamma':             ('float', 0.0, 5.0, False),
         'reg_alpha':         ('float', 1e-8, 10.0, True),
         'reg_lambda':        ('float', 1e-8, 10.0, True),
-        #'scale_pos_weight':  ('float', 1.0, 10.0, False)
+        'scale_pos_weight':  ('float', 1.0, 10.0, False)
     },
     'lightgbm': {
         'n_estimators':      ('int', 200, 3000),
@@ -138,7 +138,7 @@ HYPERPARAM_CONFIG = {
         'min_child_samples': ('int', 10, 100),
         'reg_alpha':         ('float', 1e-8, 10.0, True),
         'reg_lambda':        ('float', 1e-8, 10.0, True),
-        #'class_weight':      ('cat', ['balanced', None])
+        'class_weight':      ('cat', ['balanced', None])
     }
 }
 
@@ -162,38 +162,6 @@ def get_random_search_dist(model_type):
             
     return dist
 
-#PARAM_DISTRIBUTIONS = {
-#    'random_forest': {
-#        'n_estimators': [100, 150, 200],
-#        'max_depth': [15, 20, 30, None],
-#        'min_samples_split': [2, 5, 10],
-#        'min_samples_leaf': [1, 2, 4],
-#        'max_features': ['sqrt', 'log2', None],
-#        'class_weight': ['balanced', 'balanced_subsample']
-#    },
-#    'xgboost': {
-#        'n_estimators': [100, 150, 200],
-#        'max_depth': [5, 7, 10, 15],
-#        'learning_rate': [0.01, 0.05, 0.1],
-#        'subsample': [0.7, 0.8, 0.9],
-#        'colsample_bytree': [0.7, 0.8, 0.9],
-#        'min_child_weight': [1, 3, 5],
-#        'gamma': [0, 0.1, 0.2],
-#        'reg_alpha': [0, 0.01, 0.1],
-#        'reg_lambda': [1, 1.5, 2]
-#    },
-#    'lightgbm': {
-#        'n_estimators': [100, 150, 200],
-#        'max_depth': [5, 10, 15, 20, -1],
-#        'learning_rate': [0.01, 0.05, 0.1],
-#        'num_leaves': [31, 50, 70, 100],
-#        'subsample': [0.7, 0.8, 0.9, 1.0],
-#        'colsample_bytree': [0.7, 0.8, 0.9, 1.0],
-#        'min_child_samples': [10, 20, 30, 50],
-#        'reg_alpha': [0, 0.01, 0.1],
-#        'reg_lambda': [0, 0.01, 0.1]
-#    }
-#}
 
 
 # ==============================================================================
