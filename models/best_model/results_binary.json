@@ -19,7 +19,7 @@
     "recall": 0.9994056345841423,
     "f1": 0.9972914730827781
   },
-  "train_time_seconds": 1067.222348,
+  "train_time_seconds": 1850.828281,
   "train_samples": 706632,
   "n_features": 30,
   "early_stopping_used": true,
@@ -27,14 +27,14 @@
   "n_jobs": 2,
   "gpu_used": true,
   "version": {
-    "version_id": "cv5_iter50_gpu",
+    "version_id": "cv5_iter80_gpu",
     "model_type": "xgboost",
-    "n_iter": 50,
+    "n_iter": 80,
     "cv": 5,
     "extra_params": {
       "gpu": true,
       "early_stopping": true
     },
-    "created_at": "2026-01-21T10:50:42.845689"
+    "created_at": "2026-01-21T19:29:39.850600"
   }
 }

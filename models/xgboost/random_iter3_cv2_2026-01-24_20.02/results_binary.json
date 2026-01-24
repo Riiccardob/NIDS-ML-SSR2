@@ -1,0 +1,42 @@
+{
+  "model_name": "XGBoost",
+  "task": "binary",
+  "training_mode": "tuned_params",
+  "best_params": {
+    "colsample_bytree": 0.762378215816119,
+    "gamma": 2.1597250932105787,
+    "learning_rate": 0.005265139631677754,
+    "max_depth": 12,
+    "min_child_weight": 3,
+    "n_estimators": 2099,
+    "reg_alpha": 0.00042472707398058225,
+    "reg_lambda": 0.0021465011216654484,
+    "subsample": 0.5232252063599989
+  },
+  "best_cv_score": null,
+  "validation_metrics": {
+    "accuracy": 0.9970083607401831,
+    "precision": 0.9928468677951406,
+    "recall": 0.998216903752427,
+    "f1": 0.9955246440955928,
+    "false_positive_rate": 0.0035959107659388994,
+    "false_negative_rate": 0.001783096247573008,
+    "specificity": 0.9964040892340611
+  },
+  "train_time_seconds": 35.779911,
+  "train_samples": 706632,
+  "n_features": 30,
+  "early_stopping_used": true,
+  "best_iteration": 499,
+  "n_iter": null,
+  "cv_folds": null,
+  "n_jobs": 14,
+  "gpu_used": true,
+  "version": {
+    "version_id": "random_iter3_cv2_2026-01-24_20.02",
+    "model_type": "xgboost",
+    "training_mode": "tuned_params",
+    "tuning_source": "/home/enea/Desktop/NIDS-ML-SSR2/tuning_results/xgboost/random_iter3_cv2_2026-01-24_20.02.json",
+    "created_at": "2026-01-24T23:21:12.149536"
+  }
+}
