@@ -3,15 +3,15 @@
 NIDS-ML - Comparazione Modelli con Versionamento
 ================================================================================
 
-Confronta TUTTE le versioni di modelli usando approccio Scorecard.
+Confronta TUTTE le versioni di modelli (es. xgboost/cv3_iter20, xgboost/cv5_iter100)
+usando approccio Scorecard con Hard Constraints.
 
-METRICA COMPOSITA (70% F2-Score + 30% Latency):
-- F2-Score (70%): Enfatizza Recall (beta=2) per minimizzare falsi negativi
-- Latency (30%): Tempo inferenza normalizzato
-
-HARD CONSTRAINTS:
-- FPR <= 1% (massimo falsi positivi accettabili)
-- Latency <= 1.0ms/sample (requisito real-time)
+NUOVE FUNZIONALITA:
+-------------------
+1. Confronta tutte le versioni, non solo i 3 tipi base
+2. Ranking intra-algoritmo (es. tutte le versioni XGBoost ordinate)
+3. Grafico plateau per vedere quando ulteriore training non migliora
+4. Selezione automatica best_model tra tutte le versioni
 
 ================================================================================
 """
@@ -167,8 +167,6 @@ def evaluate_version_scorecard(version: Dict,
             'all_pass': False
         },
         'score': 0.0,
-        'f2_component': 0.0,
-        'latency_component': 0.0,
         'status': 'FAIL',
         'training_mode': version.get('training_mode', 'unknown')
     }
@@ -218,21 +216,9 @@ def evaluate_version_scorecard(version: Dict,
     if result['constraints']['all_pass']:
         result['status'] = 'PASS'
         
-        # Calcola F2-Score se non presente
-        f2 = metrics.get('f2')
-        if f2 is None:
-            # Calcola da precision e recall
-            precision = metrics.get('precision', 0)
-            recall = metrics.get('recall', 0)
-            if precision + recall > 0:
-                f2 = (5 * precision * recall) / (4 * precision + recall)
-            else:
-                f2 = 0
-        
+        f2 = metrics.get('f2', 0)
         latency_score = max(0, 1 - (latency_per_sample / max_latency_ms))
         
-        result['f2_component'] = f2
-        result['latency_component'] = latency_score
         result['score'] = (0.70 * f2) + (0.30 * latency_score)
     
     return result
@@ -315,7 +301,7 @@ def plot_plateau_analysis(results: List[Dict], output_dir: Path):
     """
     Genera grafico per visualizzare il plateau di training.
     
-    Mostra come F2/Recall cambiano al variare di n_iter*cv (effort totale).
+    Mostra come F1/Recall cambiano al variare di n_iter*cv (effort totale).
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     
@@ -327,23 +313,13 @@ def plot_plateau_analysis(results: List[Dict], output_dir: Path):
             by_type[mt] = []
         
         effort = r.get('n_iter', 0) * r.get('cv', 1)
-        
-        # Calcola F2 se non presente
-        f2 = r['metrics'].get('f2')
-        if f2 is None:
-            precision = r['metrics'].get('precision', 0)
-            recall = r['metrics'].get('recall', 0)
-            if precision + recall > 0:
-                f2 = (5 * precision * recall) / (4 * precision + recall)
-            else:
-                f2 = 0
-        
+        f1 = r['metrics'].get('f1', 0)
         recall = r['metrics'].get('recall', 0)
         
         if effort > 0:
             by_type[mt].append({
                 'effort': effort,
-                'f2': f2,
+                'f1': f1,
                 'recall': recall,
                 'version': r['version_id'],
                 'score': r['score']
@@ -364,24 +340,24 @@ def plot_plateau_analysis(results: List[Dict], output_dir: Path):
         
         data.sort(key=lambda x: x['effort'])
         efforts = [d['effort'] for d in data]
-        f2s = [d['f2'] for d in data]
+        f1s = [d['f1'] for d in data]
         recalls = [d['recall'] for d in data]
         
         color = colors.get(mt, 'gray')
         marker = markers.get(mt, 'o')
         
-        axes[0].plot(efforts, f2s, f'{marker}-', color=color, label=mt, markersize=8, linewidth=2)
+        axes[0].plot(efforts, f1s, f'{marker}-', color=color, label=mt, markersize=8, linewidth=2)
         axes[1].plot(efforts, recalls, f'{marker}-', color=color, label=mt, markersize=8, linewidth=2)
         
         # Annota punti
         for d in data:
             if d['effort'] == max(efforts) or d['effort'] == min(efforts):
-                axes[0].annotate(d['version'], (d['effort'], d['f2']), 
+                axes[0].annotate(d['version'], (d['effort'], d['f1']), 
                                textcoords="offset points", xytext=(5,5), fontsize=7)
     
     axes[0].set_xlabel('Training Effort (n_iter x cv)')
-    axes[0].set_ylabel('F2 Score')
-    axes[0].set_title('F2 Score vs Training Effort')
+    axes[0].set_ylabel('F1 Score')
+    axes[0].set_title('F1 Score vs Training Effort')
     axes[0].legend()
     axes[0].grid(True, alpha=0.3)
     axes[0].set_ylim(0.9, 1.01)
@@ -427,7 +403,7 @@ def plot_scorecard_comparison(results: List[Dict], best_id: Optional[str], outpu
     
     ax.set_yticks(y_pos)
     ax.set_yticklabels(labels)
-    ax.set_xlabel('Score (70% F2 + 30% Latency)')
+    ax.set_xlabel('Score')
     ax.set_title('Confronto Versioni Modelli (Top 15)')
     ax.set_xlim(0, 1)
     
@@ -463,28 +439,16 @@ def plot_algorithm_rankings(rankings: Dict[str, List[Dict]], output_dir: Path):
             continue
         
         labels = [v['version_id'] for v in versions]
-        
-        # Usa F2 invece di F1
-        f2s = []
-        for v in versions:
-            f2 = v['metrics'].get('f2')
-            if f2 is None:
-                precision = v['metrics'].get('precision', 0)
-                recall = v['metrics'].get('recall', 0)
-                if precision + recall > 0:
-                    f2 = (5 * precision * recall) / (4 * precision + recall)
-                else:
-                    f2 = 0
-            f2s.append(f2)
+        f1s = [v['metrics'].get('f1', 0) for v in versions]
         
         color = colors_map.get(model_type, 'gray')
         y_pos = np.arange(len(labels))
         
-        bars = ax.barh(y_pos, f2s, color=color, alpha=0.8)
+        bars = ax.barh(y_pos, f1s, color=color, alpha=0.8)
         
         ax.set_yticks(y_pos)
         ax.set_yticklabels(labels)
-        ax.set_xlabel('F2 Score')
+        ax.set_xlabel('F1 Score')
         ax.set_title(f'{model_type.upper()}\nRanking Versioni')
         ax.set_xlim(0.9, 1.0)
         
@@ -495,9 +459,9 @@ def plot_algorithm_rankings(rankings: Dict[str, List[Dict]], output_dir: Path):
             bars[best_idx].set_edgecolor('black')
             bars[best_idx].set_linewidth(2)
         
-        for bar, f2 in zip(bars, f2s):
+        for bar, f1 in zip(bars, f1s):
             ax.text(bar.get_width() + 0.002, bar.get_y() + bar.get_height()/2,
-                   f'{f2:.4f}', va='center', fontsize=8)
+                   f'{f1:.4f}', va='center', fontsize=8)
         
         ax.invert_yaxis()
     
@@ -551,9 +515,7 @@ def copy_best_model(best_id: str, task: str, results: List[Dict], output_dir: Pa
         'constraints': best_result['constraints'],
         'metrics': best_result['metrics'],
         'latency': best_result['latency'],
-        'score': best_result['score'],
-        'f2_component': best_result['f2_component'],
-        'latency_component': best_result['latency_component']
+        'score': best_result['score']
     }
     
     with open(output_dir / "metadata.json", 'w') as f:
@@ -600,10 +562,6 @@ def generate_comparison_report(results: List[Dict], rankings: Dict,
             f.write(f"  - FPR max:     {c['fpr_threshold']*100:.2f}%\n")
             f.write(f"  - Latency max: {c['latency_threshold_ms']:.2f}ms\n\n")
         
-        f.write("METRICA COMPOSITA:\n")
-        f.write("  - Score = 70% F2-Score + 30% Latency Score\n")
-        f.write("  - F2-Score enfatizza Recall (beta=2)\n\n")
-        
         # Ranking per algoritmo
         f.write("=" * 80 + "\n")
         f.write("RANKING PER ALGORITMO\n")
@@ -611,25 +569,13 @@ def generate_comparison_report(results: List[Dict], rankings: Dict,
         
         for model_type, versions in rankings.items():
             f.write(f"\n{model_type.upper()}:\n")
-            f.write("-" * 80 + "\n")
-            f.write(f"{'#':<3} {'Versione':<35} {'F2':>8} {'Recall':>8} {'Score':>8} {'Status'}\n")
-            f.write("-" * 80 + "\n")
+            f.write("-" * 60 + "\n")
+            f.write(f"{'#':<3} {'Versione':<20} {'F1':>10} {'Recall':>10} {'Score':>10} {'Status'}\n")
             
             for v in versions:
-                # Calcola F2 se non presente
-                f2 = v['metrics'].get('f2')
-                if f2 is None:
-                    precision = v['metrics'].get('precision', 0)
-                    recall = v['metrics'].get('recall', 0)
-                    if precision + recall > 0:
-                        f2 = (5 * precision * recall) / (4 * precision + recall)
-                    else:
-                        f2 = 0
-                
+                f1 = v['metrics'].get('f1', 0)
                 recall = v['metrics'].get('recall', 0)
-                version_short = v['version_id'][:35]  # Tronca se troppo lungo
-                
-                f.write(f"{v['intra_rank']:<3} {version_short:<35} {f2:>8.4f} {recall:>8.4f} {v['score']:>8.4f} {v['status']}\n")
+                f.write(f"{v['intra_rank']:<3} {v['version_id']:<20} {f1:>10.4f} {recall:>10.4f} {v['score']:>10.4f} {v['status']}\n")
         
         # Best overall
         f.write("\n" + "=" * 80 + "\n")
@@ -637,54 +583,16 @@ def generate_comparison_report(results: List[Dict], rankings: Dict,
         f.write("=" * 80 + "\n\n")
         
         if best_id:
-            f.write(f"Selezionato: {best_id}\n\n")
+            f.write(f"Selezionato: {best_id}\n")
             best = next((r for r in results if r['full_id'] == best_id), None)
             if best:
-                # Calcola F2 se non presente
-                f2 = best['metrics'].get('f2')
-                if f2 is None:
-                    precision = best['metrics'].get('precision', 0)
-                    recall = best['metrics'].get('recall', 0)
-                    if precision + recall > 0:
-                        f2 = (5 * precision * recall) / (4 * precision + recall)
-                    else:
-                        f2 = 0
-                
-                f.write(f"Score Composito:  {best['score']:.4f}\n")
-                f.write(f"  - F2 (70%):     {f2:.4f} (contributo: {best['f2_component']*0.7:.4f})\n")
-                f.write(f"  - Latency (30%): {best['latency_component']:.4f} (contributo: {best['latency_component']*0.3:.4f})\n\n")
-                f.write(f"Metriche:\n")
-                f.write(f"  F2:             {f2:.4f}\n")
-                f.write(f"  Recall:         {best['metrics'].get('recall', 0):.4f}\n")
-                f.write(f"  Precision:      {best['metrics'].get('precision', 0):.4f}\n")
-                f.write(f"  FPR:            {best['metrics'].get('false_positive_rate', 0):.4f}\n")
-                f.write(f"  Latency/sample: {best['latency'].get('latency_per_sample_ms', 0):.4f}ms\n")
+                f.write(f"Score: {best['score']:.4f}\n")
+                f.write(f"F1: {best['metrics'].get('f1', 0):.4f}\n")
+                f.write(f"Recall: {best['metrics'].get('recall', 0):.4f}\n")
         else:
             f.write("Nessun modello soddisfa i constraints!\n")
     
     logger.info(f"Report salvato: {output_dir / 'comparison_report.txt'}")
-
-
-# ==============================================================================
-# FORMATTAZIONE OUTPUT
-# ==============================================================================
-
-def truncate_version_id(full_id: str, max_len: int = 50) -> str:
-    """Tronca version_id mantenendo leggibilita."""
-    model_type, version_id = full_id.split('/', 1)
-    
-    if len(full_id) <= max_len:
-        return full_id
-    
-    # Mantieni model_type e parte finale del version_id
-    available = max_len - len(model_type) - 1 - 3  # -3 per "..."
-    if available < 10:
-        return full_id[:max_len-3] + "..."
-    
-    # Prendi inizio e fine del version_id
-    half = available // 2
-    version_short = version_id[:half] + "..." + version_id[-half:]
-    return f"{model_type}/{version_short}"
 
 
 # ==============================================================================
@@ -703,12 +611,11 @@ def parse_arguments():
 def main():
     args = parse_arguments()
     
-    print("\n" + "=" * 100)
+    print("\n" + "=" * 70)
     print("CONFRONTO TUTTE LE VERSIONI MODELLI")
-    print("=" * 100)
+    print("=" * 70)
     print(f"\nTask: {args.task}")
     print(f"Constraints: FPR <= {args.max_fpr*100:.2f}%, Latency <= {args.max_latency_ms:.2f}ms")
-    print(f"Metrica: Score = 70% F2-Score + 30% Latency Score")
     
     output_dir = args.output_dir or get_project_root() / "models" / "best_model"
     
@@ -721,65 +628,45 @@ def main():
         return
     
     # Calcola ranking
-    print("\n2. Calcolo ranking per algoritmo")
+    print("\n2. Calcolo ranking per algoritmo...")
     rankings = compute_algorithm_rankings(results)
     
-    # Mostra tabella a video
-    print("\n" + "-" * 115)
-    print(f"{'Versione':<50} {'F2':>8} {'Recall':>8} {'Latency':>10} {'Score':>8} {'Status'}")
-    print("-" * 115)
+    # Mostra tabella
+    print("\n" + "-" * 90)
+    print(f"{'Versione':<35} {'F1':>10} {'Recall':>10} {'Latency':>12} {'Score':>10} {'Status'}")
+    print("-" * 90)
     
     for r in sorted(results, key=lambda x: x['score'], reverse=True):
-        # Recupera F2 (o calcolato o da metriche)
-        f2 = r.get('f2_component', 0)
-        if f2 == 0:
-            precision = r['metrics'].get('precision', 0)
-            recall = r['metrics'].get('recall', 0)
-            if precision + recall > 0:
-                f2 = (5 * precision * recall) / (4 * precision + recall)
-
+        f1 = r['metrics'].get('f1', 0)
         recall = r['metrics'].get('recall', 0)
         lat = r['latency'].get('latency_per_sample_ms', 0) if r['latency'] else 0
-        
-        # Usa la funzione di troncamento definita sopra per impaginare bene
-        v_id_short = truncate_version_id(r['full_id'], 48)
-        
-        print(f"{v_id_short:<50} {f2:>8.4f} {recall:>8.4f} {lat:>10.4f} {r['score']:>8.4f} {r['status']}")
+        print(f"{r['full_id']:<35} {f1:>10.4f} {recall:>10.4f} {lat:>12.4f} {r['score']:>10.4f} {r['status']}")
     
-    print("-" * 115)
+    print("-" * 90)
     
     if best_id:
         print(f"\nBEST MODEL: {best_id}")
     else:
         print("\nNessun modello passa i constraints!")
     
-    # Copia best
-    if best_id:
-        print("\n3. Copia best model...")
-        copy_best_model(best_id, args.task, results, output_dir)
-    else:
-        # Se nessun modello passa, dobbiamo comunque pulire la cartella
-        # per evitare che rimanga un vecchio "model_binary.pkl"
-        print("\n3. Nessun modello valido - Pulizia directory output...")
-        if output_dir.exists():
-            shutil.rmtree(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-
     # Grafici
-    print("\n4. Generazione grafici...")
+    print("\n3. Generazione grafici...")
     plot_scorecard_comparison(results, best_id, output_dir)
     plot_algorithm_rankings(rankings, output_dir)
     plot_plateau_analysis(results, output_dir)
     
     # Report
-    print("\n5. Generazione report...")
+    print("\n4. Generazione report...")
     generate_comparison_report(results, rankings, best_id, output_dir)
     
+    # Copia best
+    if best_id:
+        print("\n5. Copia best model...")
+        copy_best_model(best_id, args.task, results, output_dir)
     
-    
-    print("\n" + "=" * 100)
+    print("\n" + "=" * 70)
     print("CONFRONTO COMPLETATO")
-    print("=" * 100)
+    print("=" * 70)
     print(f"Output: {output_dir}")
 
 

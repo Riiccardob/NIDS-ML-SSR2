@@ -1,0 +1,41 @@
+{
+  "model_name": "LightGBM",
+  "task": "binary",
+  "training_mode": "tuned_params",
+  "best_params": {
+    "colsample_bytree": 0.8005575058716043,
+    "learning_rate": 0.05675206026988748,
+    "max_depth": 20,
+    "min_child_samples": 62,
+    "n_estimators": 969,
+    "num_leaves": 211,
+    "reg_alpha": 8.509499823666633,
+    "reg_lambda": 0.0036085571407386235,
+    "subsample": 0.8058265802441404
+  },
+  "best_cv_score": null,
+  "validation_metrics": {
+    "accuracy": 0.9983886093170081,
+    "precision": 0.9961869764501343,
+    "recall": 0.998989578793042,
+    "f1": 0.9975863092293995,
+    "false_positive_rate": 0.0019118754210088362,
+    "false_negative_rate": 0.0010104212069580378,
+    "specificity": 0.9980881245789912
+  },
+  "train_time_seconds": 6.188872,
+  "train_samples": 706632,
+  "n_features": 30,
+  "early_stopping_used": true,
+  "best_iteration": 461,
+  "n_iter": null,
+  "cv_folds": null,
+  "n_jobs": 14,
+  "version": {
+    "version_id": "random_iter3_cv2_2026-01-24_20.00",
+    "model_type": "lightgbm",
+    "training_mode": "tuned_params",
+    "tuning_source": "/home/enea/Desktop/NIDS-ML-SSR2/tuning_results/lightgbm/random_iter3_cv2_2026-01-24_20.00.json",
+    "created_at": "2026-01-24T23:22:25.262679"
+  }
+}
