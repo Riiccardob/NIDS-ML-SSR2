@@ -3,18 +3,21 @@
 NIDS-ML - Training Random Forest
 ================================================================================
 
+Training con parametri da hyperparameter tuning (OBBLIGATORIO).
+
+PREREQUISITO:
+-------------
+Prima eseguire: python src/hyperparameter_tuning.py --model random_forest
+
 GUIDA PARAMETRI:
 ----------------
     python src/training/random_forest.py [opzioni]
 
 Opzioni disponibili:
     --task STR            'binary' o 'multiclass' (default: binary)
-    --use-tuned-params    Usa parametri da hyperparameter_tuning.py
     --tuning-config FILE  Config specifica (default: più recente)
     --tuning-timestamp TS Timestamp config (es: 2026-01-24_20.02)
     --list-configs        Mostra config disponibili ed esci
-    --n-iter INT          Iterazioni random search (default: 20)
-    --cv INT              Fold cross-validation (default: 3)
     --n-jobs INT          Core CPU (default: auto, totale - 2)
     --max-ram INT         Limite RAM %
     --random-state INT    Seed random
@@ -22,22 +25,16 @@ Opzioni disponibili:
 ESEMPI:
 -------
 # Training con parametri tuned (più recente)
-python src/training/random_forest.py --use-tuned-params
+python src/training/random_forest.py
 
 # Training con config specifica
-python src/training/random_forest.py --use-tuned-params --tuning-config random_iter50_cv5_2026-01-24_20.02.json
+python src/training/random_forest.py --tuning-config bayesian_trials50_cv5_2026-01-24_20.02.json
 
 # Training con timestamp
-python src/training/random_forest.py --use-tuned-params --tuning-timestamp 2026-01-24_20.02
+python src/training/random_forest.py --tuning-timestamp 2026-01-24_20.02
 
 # Mostra config disponibili
 python src/training/random_forest.py --list-configs
-
-# Training standard (random search)
-python src/training/random_forest.py
-
-# Test veloce
-python src/training/random_forest.py --n-iter 5 --cv 2
 
 ================================================================================
 """
@@ -87,10 +84,8 @@ import joblib
 import json
 from datetime import datetime
 import gc
-from tqdm import tqdm
 
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import RandomizedSearchCV
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
 from src.utils import (
@@ -119,18 +114,8 @@ logger = get_logger(__name__)
 # CONFIGURAZIONE
 # ==============================================================================
 
-PARAM_DISTRIBUTIONS = {
-    'n_estimators': [100, 200, 300],
-    'max_depth': [15, 20, 30, None],
-    'min_samples_split': [2, 5, 10],
-    'min_samples_leaf': [1, 2, 4],
-    'max_features': ['sqrt', 'log2', None],
-    'class_weight': ['balanced', 'balanced_subsample']
-}
-
-DEFAULT_N_ITER = 20
-DEFAULT_CV_FOLDS = 3
 DEFAULT_MAX_RAM = 85
+
 
 # ==============================================================================
 # IMPORT PARAM DA TUNING
@@ -257,7 +242,7 @@ def print_available_configs(model_type: str):
 
 
 # ==============================================================================
-# TRAINING CON PROGRESS BAR
+# TRAINING CON PARAMETRI TUNED
 # ==============================================================================
 
 def train_random_forest(X_train: pd.DataFrame,
@@ -265,76 +250,33 @@ def train_random_forest(X_train: pd.DataFrame,
                         X_val: pd.DataFrame,
                         y_val: pd.Series,
                         task: str = 'binary',
-                        n_iter: int = DEFAULT_N_ITER,
-                        cv: int = DEFAULT_CV_FOLDS,
                         n_jobs: int = None,
                         random_state: int = RANDOM_STATE,
-                        use_tuned_params: bool = False,
                         tuned_params: Dict = None
                         ) -> Tuple[RandomForestClassifier, Dict[str, Any]]:
-    """Training Random Forest."""
+    """Training Random Forest con parametri tuned."""
     
     if n_jobs is None:
         n_jobs = int(os.environ.get('OMP_NUM_THREADS', _n_cores))
+    
+    if tuned_params is None:
+        raise ValueError("Parametri tuned richiesti. Eseguire prima hyperparameter_tuning.py")
     
     logger.info("=" * 50)
     logger.info(f"TRAINING RANDOM FOREST ({task})")
     logger.info("=" * 50)
     logger.info(f"Train: {X_train.shape[0]:,} x {X_train.shape[1]}")
+    logger.info(f"Parametri tuned: {tuned_params}")
     
-    if use_tuned_params and tuned_params:
-        logger.info("Modalita: TRAINING CON PARAMETRI TUNED")
-        logger.info(f"Parametri: {tuned_params}")
-        
-        final_params = tuned_params.copy()
-        final_params['random_state'] = random_state
-        final_params['n_jobs'] = n_jobs
-        
-        best_model = RandomForestClassifier(**final_params)
-        
-        start_time = datetime.now()
-        best_model.fit(X_train, y_train)
-        train_time = (datetime.now() - start_time).total_seconds()
-        
-        best_params = tuned_params
-        best_cv_score = None
+    final_params = tuned_params.copy()
+    final_params['random_state'] = random_state
+    final_params['n_jobs'] = n_jobs
     
-    else:
-        logger.info(f"Config: n_iter={n_iter}, cv={cv}, n_jobs={n_jobs}")
-        
-        scoring = 'f1' if task == 'binary' else 'f1_weighted'
-        
-        base_rf = RandomForestClassifier(
-            random_state=random_state,
-            n_jobs=n_jobs,
-            verbose=0
-        )
-        
-        search = RandomizedSearchCV(
-            estimator=base_rf,
-            param_distributions=PARAM_DISTRIBUTIONS,
-            n_iter=n_iter,
-            cv=cv,
-            scoring=scoring,
-            random_state=random_state,
-            n_jobs=n_jobs,
-            verbose=2,
-            return_train_score=False
-        )
-        
-        start_time = datetime.now()
-        search.fit(X_train, y_train)
-        train_time = (datetime.now() - start_time).total_seconds()
-        
-        best_model = search.best_estimator_
-        best_params = search.best_params_
-        best_cv_score = float(search.best_score_)
-        
-        logger.info(f"Best CV score ({scoring}): {best_cv_score:.4f}")
-        logger.info(f"Best params: {best_params}")
-        
-        del search
-        gc.collect()
+    best_model = RandomForestClassifier(**final_params)
+    
+    start_time = datetime.now()
+    best_model.fit(X_train, y_train)
+    train_time = (datetime.now() - start_time).total_seconds()
     
     y_val_pred = best_model.predict(X_val)
     
@@ -366,15 +308,13 @@ def train_random_forest(X_train: pd.DataFrame,
     results = {
         'model_name': 'RandomForest',
         'task': task,
-        'training_mode': 'tuned_params' if use_tuned_params else 'random_search',
-        'best_params': best_params,
-        'best_cv_score': best_cv_score,
+        'training_mode': 'tuned_params',
+        'best_params': tuned_params,
+        'best_cv_score': None,
         'validation_metrics': metrics,
         'train_time_seconds': train_time,
         'train_samples': len(X_train),
         'n_features': X_train.shape[1],
-        'n_iter': n_iter if not use_tuned_params else None,
-        'cv_folds': cv if not use_tuned_params else None,
         'n_jobs': n_jobs
     }
     
@@ -388,41 +328,35 @@ def train_random_forest(X_train: pd.DataFrame,
 def parse_arguments():
     """Parse argomenti CLI."""
     parser = argparse.ArgumentParser(
-        description='Training Random Forest per NIDS',
+        description='Training Random Forest per NIDS (con parametri tuned)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
+PREREQUISITO: Eseguire prima hyperparameter tuning
+  python src/hyperparameter_tuning.py --model random_forest --timeout 3600
+
 Esempi:
   # Parametri tuned (più recente)
-  python src/training/random_forest.py --use-tuned-params
+  python src/training/random_forest.py
   
   # Config specifica
-  python src/training/random_forest.py --use-tuned-params --tuning-config random_iter50_cv5_2026-01-24_20.02.json
+  python src/training/random_forest.py --tuning-config bayesian_trials50_cv5_2026-01-24_20.02.json
   
   # Per timestamp
-  python src/training/random_forest.py --use-tuned-params --tuning-timestamp 2026-01-24_20.02
+  python src/training/random_forest.py --tuning-timestamp 2026-01-24_20.02
   
   # Lista config
   python src/training/random_forest.py --list-configs
-  
-  # Random search
-  python src/training/random_forest.py --n-iter 20 --cv 3
         """
     )
     
     parser.add_argument('--task', type=str, choices=['binary', 'multiclass'],
                         default='binary', help='Tipo classificazione')
-    parser.add_argument('--use-tuned-params', action='store_true',
-                        help='Usa parametri da hyperparameter_tuning.py')
     parser.add_argument('--tuning-config', type=str, default=None,
                         help='File config specifico (default: più recente)')
     parser.add_argument('--tuning-timestamp', type=str, default=None,
                         help='Timestamp config da usare (es: 2026-01-24_20.02)')
     parser.add_argument('--list-configs', action='store_true',
                         help='Mostra configurazioni tuning disponibili ed esci')
-    parser.add_argument('--n-iter', type=int, default=DEFAULT_N_ITER,
-                        help=f'Iterazioni random search (default: {DEFAULT_N_ITER})')
-    parser.add_argument('--cv', type=int, default=DEFAULT_CV_FOLDS,
-                        help=f'Fold CV (default: {DEFAULT_CV_FOLDS})')
     parser.add_argument('--n-jobs', type=int, default=None,
                         help='Core CPU (default: auto)')
     parser.add_argument('--max-ram', type=int, default=DEFAULT_MAX_RAM,
@@ -451,9 +385,6 @@ def main():
     
     timer = TimingLogger("training_random_forest", parameters={
         'task': args.task,
-        'use_tuned_params': args.use_tuned_params,
-        'n_iter': args.n_iter,
-        'cv': args.cv,
         'n_jobs': n_jobs,
         'max_ram': args.max_ram,
         'random_state': args.random_state
@@ -464,29 +395,24 @@ def main():
     print("=" * 60)
     print(f"\nParametri:")
     print(f"  Task:         {args.task}")
+    print(f"  Mode:         Tuned parameters (OBBLIGATORIO)")
     
-    tuned_params = None
-    tuning_filepath = None
+    # Carica parametri tuned
+    tuned_params, tuning_filepath = load_tuned_params(
+        'random_forest',
+        args.task,
+        config_file=args.tuning_config,
+        timestamp=args.tuning_timestamp
+    )
     
-    if args.use_tuned_params:
-        print(f"  Mode:         Tuned parameters")
-        tuned_params, tuning_filepath = load_tuned_params(
-            'random_forest',
-            args.task,
-            config_file=args.tuning_config,
-            timestamp=args.tuning_timestamp
-        )
-        
-        if not tuned_params:
-            print("\n⚠️  Parametri tuned non trovati, uso random search")
-            args.use_tuned_params = False
-        else:
-            print(f"  Config:       {tuning_filepath.name}")
-    else:
-        print(f"  Mode:         Random search")
-        print(f"  N iter:       {args.n_iter}")
-        print(f"  CV folds:     {args.cv}")
+    if not tuned_params:
+        print("\n❌ ERRORE: Nessuna configurazione tuning trovata!")
+        print("\nPREREQUISITO: Eseguire prima hyperparameter tuning:")
+        print("  python src/hyperparameter_tuning.py --model random_forest --timeout 3600")
+        print("\nOppure usa --list-configs per vedere le configurazioni disponibili")
+        sys.exit(1)
     
+    print(f"  Config:       {tuning_filepath.name}")
     print(f"  CPU cores:    {n_jobs}/{os.cpu_count()}")
     print(f"  Max RAM:      {args.max_ram}%")
     print()
@@ -531,44 +457,25 @@ def main():
                 X_train_final, y_train,
                 X_val_final, y_val,
                 task=args.task,
-                n_iter=args.n_iter,
-                cv=args.cv,
                 n_jobs=n_jobs,
                 random_state=args.random_state,
-                use_tuned_params=args.use_tuned_params,
                 tuned_params=tuned_params
             )
         
         print("\n4. Salvataggio modello...")
         with timer.time_operation("salvataggio"):
-            if args.use_tuned_params and tuning_filepath:
-                from src.model_versioning import save_tuned_model
-                
-                version_dir, version_id = save_tuned_model(
-                    model=model,
-                    results=results,
-                    selected_features=selected_features,
-                    model_type='random_forest',
-                    tuning_filepath=tuning_filepath
-                )
-                
-                model_path = version_dir / f"model_{args.task}.pkl"
-                print(f"   Versione: {version_id}")
-            else:
-                output_dir = get_project_root() / "models" / "random_forest"
-                output_dir.mkdir(parents=True, exist_ok=True)
-                
-                model_path = output_dir / f"model_{args.task}.pkl"
-                results_path = output_dir / f"results_{args.task}.json"
-                
-                joblib.dump(model, model_path)
-                with open(results_path, 'w') as f:
-                    json.dump(results, f, indent=2, default=str)
-                
-                if selected_features is not None:
-                    features_path = output_dir / f"features_{args.task}.json"
-                    with open(features_path, 'w') as f:
-                        json.dump(selected_features, f, indent=2)
+            from src.model_versioning import save_tuned_model
+            
+            version_dir, version_id = save_tuned_model(
+                model=model,
+                results=results,
+                selected_features=selected_features,
+                model_type='random_forest',
+                tuning_filepath=tuning_filepath
+            )
+            
+            model_path = version_dir / f"model_{args.task}.pkl"
+            print(f"   Versione: {version_id}")
         
         timer.add_metric("train_samples", len(X_train_final))
         timer.add_metric("accuracy", results['validation_metrics'].get('accuracy', 0))

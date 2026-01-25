@@ -3,35 +3,35 @@
 NIDS-ML - Training LightGBM
 ================================================================================
 
+Training con parametri da hyperparameter tuning (OBBLIGATORIO).
+
+PREREQUISITO:
+-------------
+Prima eseguire: python src/hyperparameter_tuning.py --model lightgbm
+
 GUIDA PARAMETRI:
 ----------------
     python src/training/lightgbm_model.py [opzioni]
 
 Opzioni:
     --task STR              'binary' o 'multiclass' (default: binary)
-    --use-tuned-params      Usa parametri da hyperparameter_tuning.py
     --tuning-config FILE    Config specifica (default: più recente)
     --tuning-timestamp TS   Timestamp config (es: 2026-01-24_20.02)
     --list-configs          Mostra config disponibili ed esci
-    --n-iter INT            Iterazioni random search (default: 20)
-    --cv INT                Fold CV (default: 3)
     --early-stopping        Abilita early stopping (default)
     --no-early-stopping     Disabilita early stopping
     --n-jobs INT            Core CPU (default: auto)
 
 ESEMPI:
 -------
-# Parametri tuned (più recente)
-python src/training/lightgbm_model.py --use-tuned-params
+# Training con parametri tuned (più recente)
+python src/training/lightgbm_model.py
 
 # Config specifica
-python src/training/lightgbm_model.py --use-tuned-params --tuning-config random_iter50_cv5_2026-01-24_20.02.json
+python src/training/lightgbm_model.py --tuning-config bayesian_trials50_cv5_2026-01-24_20.02.json
 
 # Lista config
 python src/training/lightgbm_model.py --list-configs
-
-# Random search
-python src/training/lightgbm_model.py --n-iter 5 --cv 2
 
 ================================================================================
 """
@@ -79,7 +79,6 @@ from datetime import datetime
 import gc
 
 from lightgbm import LGBMClassifier, early_stopping
-from sklearn.model_selection import RandomizedSearchCV
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
 from src.utils import get_logger, get_project_root, RANDOM_STATE, ResourceLimiter, suppress_warnings
@@ -92,22 +91,6 @@ from src.timing import TimingLogger
 
 suppress_warnings()
 logger = get_logger(__name__)
-
-
-PARAM_DISTRIBUTIONS = {
-    'n_estimators': [100, 200, 300],
-    'max_depth': [5, 10, 15, 20, -1],
-    'learning_rate': [0.01, 0.05, 0.1],
-    'num_leaves': [31, 50, 70, 100],
-    'subsample': [0.7, 0.8, 0.9, 1.0],
-    'colsample_bytree': [0.7, 0.8, 0.9, 1.0],
-    'min_child_samples': [10, 20, 30, 50],
-    'reg_alpha': [0, 0.01, 0.1],
-    'reg_lambda': [0, 0.01, 0.1]
-}
-
-DEFAULT_N_ITER = 20
-DEFAULT_CV_FOLDS = 3
 
 
 def load_tuned_params(
@@ -228,133 +211,57 @@ def train_lightgbm(X_train: pd.DataFrame,
                    X_val: pd.DataFrame,
                    y_val: pd.Series,
                    task: str = 'binary',
-                   n_iter: int = DEFAULT_N_ITER,
-                   cv: int = DEFAULT_CV_FOLDS,
                    use_early_stopping: bool = True,
                    n_jobs: int = None,
                    random_state: int = RANDOM_STATE,
-                   use_tuned_params: bool = False,
                    tuned_params: Dict = None
                    ) -> Tuple[LGBMClassifier, Dict[str, Any]]:
-    """Training LightGBM con RandomizedSearchCV."""
+    """Training LightGBM con parametri tuned."""
     
     if n_jobs is None:
         n_jobs = int(os.environ.get('OMP_NUM_THREADS', _n_cores))
+    
+    if tuned_params is None:
+        raise ValueError("Parametri tuned richiesti. Eseguire prima hyperparameter_tuning.py")
     
     logger.info("=" * 50)
     logger.info(f"TRAINING LIGHTGBM ({task})")
     logger.info("=" * 50)
     logger.info(f"Train: {X_train.shape[0]:,} x {X_train.shape[1]}")
+    logger.info(f"Parametri tuned: {tuned_params}")
     
-    scoring = 'f1' if task == 'binary' else 'f1_weighted'
     objective = 'binary' if task == 'binary' else 'multiclass'
     
-    if use_tuned_params and tuned_params:
-        logger.info("Modalita: TRAINING CON PARAMETRI TUNED")
-        logger.info(f"Parametri: {tuned_params}")
-        
-        final_params = tuned_params.copy()
-        final_params['objective'] = objective
-        final_params['random_state'] = random_state
-        final_params['n_jobs'] = n_jobs
-        final_params['verbose'] = -1
-        final_params['class_weight'] = 'balanced'
-        final_params['force_col_wise'] = True
-        
-        if task == 'multiclass' and 'num_class' not in final_params:
-            final_params['num_class'] = len(y_train.unique())
-        
-        best_model = LGBMClassifier(**final_params)
-        
-        start_time = datetime.now()
-        
-        if use_early_stopping:
-            best_model.set_params(n_estimators=500)
-            eval_metric = 'binary_logloss' if task == 'binary' else 'multi_logloss'
-            best_model.fit(
-                X_train, y_train,
-                eval_set=[(X_val, y_val)],
-                eval_metric=eval_metric,
-                callbacks=[early_stopping(stopping_rounds=20, verbose=False)]
-            )
-            best_iteration = best_model.best_iteration_
-        else:
-            best_model.fit(X_train, y_train)
-            best_iteration = None
-        
-        train_time = (datetime.now() - start_time).total_seconds()
-        
-        best_params = tuned_params
-        best_cv_score = None
+    final_params = tuned_params.copy()
+    final_params['objective'] = objective
+    final_params['random_state'] = random_state
+    final_params['n_jobs'] = n_jobs
+    final_params['verbose'] = -1
+    final_params['class_weight'] = 'balanced'
+    final_params['force_col_wise'] = True
     
-    else:
-        logger.info(f"Config: n_iter={n_iter}, cv={cv}, n_jobs={n_jobs}")
-        
-        base_params = {
-            'objective': objective,
-            'random_state': random_state,
-            'n_jobs': n_jobs,
-            'verbose': -1,
-            'class_weight': 'balanced',
-            'force_col_wise': True,
-        }
-        
-        if task == 'multiclass':
-            base_params['num_class'] = len(y_train.unique())
-        
-        total_fits = n_iter * cv
-        print(f"\n   RandomizedSearchCV: {n_iter} x {cv} = {total_fits} fit totali")
-        print(f"   LightGBM threads: {n_jobs}")
-        print(f"   CV parallelism: 1 (serializzato per evitare conflitti)")
-        print(f"   Attendere...\n")
-        
-        base_lgbm = LGBMClassifier(**base_params)
-        
-        search = RandomizedSearchCV(
-            estimator=base_lgbm,
-            param_distributions=PARAM_DISTRIBUTIONS,
-            n_iter=n_iter,
-            cv=cv,
-            scoring=scoring,
-            random_state=random_state,
-            n_jobs=1,
-            verbose=2,
-            return_train_score=False
+    if task == 'multiclass' and 'num_class' not in final_params:
+        final_params['num_class'] = len(y_train.unique())
+    
+    best_model = LGBMClassifier(**final_params)
+    
+    start_time = datetime.now()
+    
+    if use_early_stopping:
+        best_model.set_params(n_estimators=500)
+        eval_metric = 'binary_logloss' if task == 'binary' else 'multi_logloss'
+        best_model.fit(
+            X_train, y_train,
+            eval_set=[(X_val, y_val)],
+            eval_metric=eval_metric,
+            callbacks=[early_stopping(stopping_rounds=20, verbose=False)]
         )
-        
-        start_time = datetime.now()
-        search.fit(X_train, y_train)
-        
-        print(f"\n   Search completato")
-        logger.info(f"Best CV score: {search.best_score_:.4f}")
-        
+        best_iteration = best_model.best_iteration_
+    else:
+        best_model.fit(X_train, y_train)
         best_iteration = None
-        if use_early_stopping:
-            print("   Retraining con early stopping...")
-            final_params = {**base_params, **search.best_params_}
-            final_params['n_estimators'] = 500
-            
-            best_model = LGBMClassifier(**final_params)
-            
-            eval_metric = 'binary_logloss' if task == 'binary' else 'multi_logloss'
-            best_model.fit(
-                X_train, y_train,
-                eval_set=[(X_val, y_val)],
-                eval_metric=eval_metric,
-                callbacks=[early_stopping(stopping_rounds=20, verbose=False)]
-            )
-            best_iteration = best_model.best_iteration_
-            print(f"   Early stopping a iterazione: {best_iteration}")
-        else:
-            best_model = search.best_estimator_
-        
-        train_time = (datetime.now() - start_time).total_seconds()
-        
-        best_params = search.best_params_
-        best_cv_score = float(search.best_score_)
-        
-        del search
-        gc.collect()
+    
+    train_time = (datetime.now() - start_time).total_seconds()
     
     y_val_pred = best_model.predict(X_val)
     
@@ -386,17 +293,15 @@ def train_lightgbm(X_train: pd.DataFrame,
     results = {
         'model_name': 'LightGBM',
         'task': task,
-        'training_mode': 'tuned_params' if use_tuned_params else 'random_search',
-        'best_params': best_params,
-        'best_cv_score': best_cv_score,
+        'training_mode': 'tuned_params',
+        'best_params': tuned_params,
+        'best_cv_score': None,
         'validation_metrics': metrics,
         'train_time_seconds': train_time,
         'train_samples': len(X_train),
         'n_features': X_train.shape[1],
         'early_stopping_used': use_early_stopping,
         'best_iteration': best_iteration,
-        'n_iter': n_iter if not use_tuned_params else None,
-        'cv_folds': cv if not use_tuned_params else None,
         'n_jobs': n_jobs
     }
     
@@ -404,18 +309,32 @@ def train_lightgbm(X_train: pd.DataFrame,
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description='Training LightGBM per NIDS')
+    parser = argparse.ArgumentParser(
+        description='Training LightGBM per NIDS (con parametri tuned)',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+PREREQUISITO: Eseguire prima hyperparameter tuning
+  python src/hyperparameter_tuning.py --model lightgbm --timeout 3600
+
+Esempi:
+  # Parametri tuned (più recente)
+  python src/training/lightgbm_model.py
+  
+  # Config specifica
+  python src/training/lightgbm_model.py --tuning-config bayesian_trials50_cv5_2026-01-24_20.02.json
+  
+  # Lista config
+  python src/training/lightgbm_model.py --list-configs
+        """
+    )
+    
     parser.add_argument('--task', type=str, choices=['binary', 'multiclass'], default='binary')
-    parser.add_argument('--use-tuned-params', action='store_true',
-                        help='Usa parametri da hyperparameter_tuning.py')
     parser.add_argument('--tuning-config', type=str, default=None,
                         help='File config specifico (default: più recente)')
     parser.add_argument('--tuning-timestamp', type=str, default=None,
                         help='Timestamp config da usare (es: 2026-01-24_20.02)')
     parser.add_argument('--list-configs', action='store_true',
                         help='Mostra configurazioni tuning disponibili ed esci')
-    parser.add_argument('--n-iter', type=int, default=DEFAULT_N_ITER)
-    parser.add_argument('--cv', type=int, default=DEFAULT_CV_FOLDS)
     parser.add_argument('--early-stopping', dest='early_stopping', action='store_true', default=True)
     parser.add_argument('--no-early-stopping', dest='early_stopping', action='store_false')
     parser.add_argument('--n-jobs', type=int, default=None)
@@ -440,29 +359,24 @@ def main():
     print("=" * 60)
     print(f"\nParametri:")
     print(f"  Task:           {args.task}")
+    print(f"  Mode:           Tuned parameters (OBBLIGATORIO)")
     
-    tuned_params = None
-    tuning_filepath = None
+    # Carica parametri tuned
+    tuned_params, tuning_filepath = load_tuned_params(
+        'lightgbm',
+        args.task,
+        config_file=args.tuning_config,
+        timestamp=args.tuning_timestamp
+    )
     
-    if args.use_tuned_params:
-        print(f"  Mode:           Tuned parameters")
-        tuned_params, tuning_filepath = load_tuned_params(
-            'lightgbm',
-            args.task,
-            config_file=args.tuning_config,
-            timestamp=args.tuning_timestamp
-        )
-        
-        if not tuned_params:
-            print("\n⚠️  Parametri tuned non trovati, uso random search")
-            args.use_tuned_params = False
-        else:
-            print(f"  Config:         {tuning_filepath.name}")
-    else:
-        print(f"  Mode:           Random search")
-        print(f"  N iter:         {args.n_iter}")
-        print(f"  CV folds:       {args.cv}")
+    if not tuned_params:
+        print("\n❌ ERRORE: Nessuna configurazione tuning trovata!")
+        print("\nPREREQUISITO: Eseguire prima hyperparameter tuning:")
+        print("  python src/hyperparameter_tuning.py --model lightgbm --timeout 3600")
+        print("\nOppure usa --list-configs per vedere le configurazioni disponibili")
+        sys.exit(1)
     
+    print(f"  Config:         {tuning_filepath.name}")
     print(f"  Early stopping: {args.early_stopping}")
     print(f"  CPU cores:      {n_jobs}/{os.cpu_count()}")
     print()
@@ -501,42 +415,25 @@ def main():
         print("\n3. Training LightGBM...")
         model, results = train_lightgbm(
             X_train_final, y_train, X_val_final, y_val,
-            task=args.task, n_iter=args.n_iter, cv=args.cv,
+            task=args.task,
             use_early_stopping=args.early_stopping,
             n_jobs=n_jobs, random_state=args.random_state,
-            use_tuned_params=args.use_tuned_params,
             tuned_params=tuned_params
         )
         
         print("\n4. Salvataggio...")
-        if args.use_tuned_params and tuning_filepath:
-            from src.model_versioning import save_tuned_model
-            
-            version_dir, version_id = save_tuned_model(
-                model=model,
-                results=results,
-                selected_features=selected_features,
-                model_type='lightgbm',
-                tuning_filepath=tuning_filepath
-            )
-            
-            model_path = version_dir / f"model_{args.task}.pkl"
-            print(f"   Versione: {version_id}")
-        else:
-            output_dir = get_project_root() / "models" / "lightgbm"
-            output_dir.mkdir(parents=True, exist_ok=True)
-            
-            model_path = output_dir / f"model_{args.task}.pkl"
-            results_path = output_dir / f"results_{args.task}.json"
-            
-            joblib.dump(model, model_path)
-            with open(results_path, 'w') as f:
-                json.dump(results, f, indent=2, default=str)
-            
-            if selected_features is not None:
-                features_path = output_dir / f"features_{args.task}.json"
-                with open(features_path, 'w') as f:
-                    json.dump(selected_features, f, indent=2)
+        from src.model_versioning import save_tuned_model
+        
+        version_dir, version_id = save_tuned_model(
+            model=model,
+            results=results,
+            selected_features=selected_features,
+            model_type='lightgbm',
+            tuning_filepath=tuning_filepath
+        )
+        
+        model_path = version_dir / f"model_{args.task}.pkl"
+        print(f"   Versione: {version_id}")
         
         print("\n" + "=" * 60)
         print("TRAINING COMPLETATO")
