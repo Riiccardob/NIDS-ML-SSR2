@@ -11,10 +11,10 @@
       "f1": 0.997981916388026
     },
     "latency": {
-      "latency_total_ms": 4.562403124964476,
-      "latency_per_sample_ms": 0.004562403124964476,
-      "latency_std_ms": 0.09180744107130408,
-      "samples_per_second": 219182.73607349992
+      "latency_total_ms": 4.772041124965654,
+      "latency_per_sample_ms": 0.004772041124965654,
+      "latency_std_ms": 0.19372520200038365,
+      "samples_per_second": 209553.93589723043
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -23,14 +23,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9977913056755288,
+    "score": 0.9977284142755285,
     "f2_component": 0.9988000380185974,
-    "latency_component": 0.9954375968750355,
+    "latency_component": 0.9952279588750343,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 6,
-    "total_versions": 18
+    "intra_rank": 13,
+    "total_versions": 19
   },
   {
     "full_id": "lightgbm/cv4_iter50",
@@ -44,10 +44,10 @@
       "f1": 0.9979720037592126
     },
     "latency": {
-      "latency_total_ms": 6.2323479999122355,
-      "latency_per_sample_ms": 0.0062323479999122355,
-      "latency_std_ms": 0.107066946116346,
-      "samples_per_second": 160453.17110246123
+      "latency_total_ms": 6.074266374923809,
+      "latency_per_sample_ms": 0.006074266374923809,
+      "latency_std_ms": 0.15076793361249125,
+      "samples_per_second": 164628.93430690933
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -56,14 +56,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9972792300850108,
+    "score": 0.9973266545725075,
     "f2_component": 0.9987841921214066,
-    "latency_component": 0.9937676520000878,
+    "latency_component": 0.9939257336250762,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 18,
-    "total_versions": 18
+    "intra_rank": 19,
+    "total_versions": 19
   },
   {
     "full_id": "lightgbm/cv5_iter80",
@@ -77,10 +77,10 @@
       "f1": 0.9979720037592126
     },
     "latency": {
-      "latency_total_ms": 6.170964999796524,
-      "latency_per_sample_ms": 0.006170964999796524,
-      "latency_std_ms": 0.10632669568180084,
-      "samples_per_second": 162049.2094887871
+      "latency_total_ms": 5.99659875007319,
+      "latency_per_sample_ms": 0.00599659875007319,
+      "latency_std_ms": 0.04976517216709774,
+      "samples_per_second": 166761.19941955342
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -89,14 +89,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9972976449850457,
+    "score": 0.9973499548599627,
     "f2_component": 0.9987841921214066,
-    "latency_component": 0.9938290350002035,
+    "latency_component": 0.9940034012499268,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 17,
-    "total_versions": 18
+    "intra_rank": 18,
+    "total_versions": 19
   },
   {
     "full_id": "lightgbm/cv5_iter200",
@@ -113,10 +113,10 @@
       "specificity": 0.9982961524745414
     },
     "latency": {
-      "latency_total_ms": 4.740227750062331,
-      "latency_per_sample_ms": 0.004740227750062331,
-      "latency_std_ms": 0.032201830945719274,
-      "samples_per_second": 210960.32780004095
+      "latency_total_ms": 4.706702750013392,
+      "latency_per_sample_ms": 0.004706702750013392,
+      "latency_std_ms": 0.11709923773241111,
+      "samples_per_second": 212462.96040198306
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -125,14 +125,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9977240973410195,
+    "score": 0.9977341548410342,
     "f2_component": 0.998780236665769,
-    "latency_component": 0.9952597722499377,
+    "latency_component": 0.9952932972499866,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 7,
-    "total_versions": 18
+    "intra_rank": 8,
+    "total_versions": 19
   },
   {
     "full_id": "lightgbm/cv5_iter250",
@@ -149,10 +149,10 @@
       "specificity": 0.9982961524745414
     },
     "latency": {
-      "latency_total_ms": 4.745271000047069,
-      "latency_per_sample_ms": 0.004745271000047069,
-      "latency_std_ms": 0.09504707645989999,
-      "samples_per_second": 210736.12023213867
+      "latency_total_ms": 4.718181374983033,
+      "latency_per_sample_ms": 0.004718181374983033,
+      "latency_std_ms": 0.09253526807720955,
+      "samples_per_second": 211946.07000533043
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -161,14 +161,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9977225843660241,
+    "score": 0.9977307112535434,
     "f2_component": 0.998780236665769,
-    "latency_component": 0.9952547289999529,
+    "latency_component": 0.995281818625017,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 9,
-    "total_versions": 18
+    "intra_rank": 12,
+    "total_versions": 19
   },
   {
     "full_id": "lightgbm/cv5_iter130",
@@ -185,10 +185,10 @@
       "specificity": 0.9982961524745414
     },
     "latency": {
-      "latency_total_ms": 4.823773499992967,
-      "latency_per_sample_ms": 0.004823773499992967,
-      "latency_std_ms": 0.1515670410866496,
-      "samples_per_second": 207306.58269951065
+      "latency_total_ms": 4.616490250043626,
+      "latency_per_sample_ms": 0.0046164902500436256,
+      "latency_std_ms": 0.36510979926062126,
+      "samples_per_second": 216614.77569254045
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -197,14 +197,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9976990336160403,
+    "score": 0.9977612185910252,
     "f2_component": 0.998780236665769,
-    "latency_component": 0.995176226500007,
+    "latency_component": 0.9953835097499564,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 12,
-    "total_versions": 18
+    "intra_rank": 6,
+    "total_versions": 19
   },
   {
     "full_id": "lightgbm/cv5_iter350",
@@ -221,10 +221,10 @@
       "specificity": 0.9982961524745414
     },
     "latency": {
-      "latency_total_ms": 4.811817375070859,
-      "latency_per_sample_ms": 0.004811817375070859,
-      "latency_std_ms": 0.14702451857797766,
-      "samples_per_second": 207821.68608077607
+      "latency_total_ms": 4.711319999955776,
+      "latency_per_sample_ms": 0.0047113199999557764,
+      "latency_std_ms": 0.1189457865318414,
+      "samples_per_second": 212254.7396503287
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -233,14 +233,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.997702620453517,
+    "score": 0.9977327696660515,
     "f2_component": 0.998780236665769,
-    "latency_component": 0.9951881826249291,
+    "latency_component": 0.9952886800000442,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 11,
-    "total_versions": 18
+    "intra_rank": 10,
+    "total_versions": 19
   },
   {
     "full_id": "lightgbm/cv5_iter100",
@@ -257,10 +257,10 @@
       "specificity": 0.9982961524745414
     },
     "latency": {
-      "latency_total_ms": 4.744347999917409,
-      "latency_per_sample_ms": 0.004744347999917409,
-      "latency_std_ms": 0.0740253273487255,
-      "samples_per_second": 210777.11837694206
+      "latency_total_ms": 4.708296874980533,
+      "latency_per_sample_ms": 0.004708296874980533,
+      "latency_std_ms": 0.06532166459273268,
+      "samples_per_second": 212391.0251526216
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -269,14 +269,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.997722861266063,
+    "score": 0.9977336766035441,
     "f2_component": 0.998780236665769,
-    "latency_component": 0.9952556520000826,
+    "latency_component": 0.9952917031250195,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 8,
-    "total_versions": 18
+    "intra_rank": 9,
+    "total_versions": 19
   },
   {
     "full_id": "lightgbm/cv5_iter400",
@@ -293,10 +293,10 @@
       "specificity": 0.9982961524745414
     },
     "latency": {
-      "latency_total_ms": 4.767624875057663,
-      "latency_per_sample_ms": 0.004767624875057663,
-      "latency_std_ms": 0.05927892857754447,
-      "samples_per_second": 209748.04566349302
+      "latency_total_ms": 4.711609124967708,
+      "latency_per_sample_ms": 0.004711609124967708,
+      "latency_std_ms": 0.08385570146378156,
+      "samples_per_second": 212241.71476806316
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -305,14 +305,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9977158782035209,
+    "score": 0.997732682928548,
     "f2_component": 0.998780236665769,
-    "latency_component": 0.9952323751249423,
+    "latency_component": 0.9952883908750323,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 10,
-    "total_versions": 18
+    "intra_rank": 11,
+    "total_versions": 19
   },
   {
     "full_id": "lightgbm/cv5_iter170",
@@ -326,10 +326,10 @@
       "f1": 0.997952258945265
     },
     "latency": {
-      "latency_total_ms": 6.119805125081257,
-      "latency_per_sample_ms": 0.006119805125081257,
-      "latency_std_ms": 0.0577333747819803,
-      "samples_per_second": 163403.8959674753
+      "latency_total_ms": 5.922612749941436,
+      "latency_per_sample_ms": 0.005922612749941436,
+      "latency_std_ms": 0.0752889032053609,
+      "samples_per_second": 168844.40064224834
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -338,14 +338,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9973074553314981,
+    "score": 0.9973666130440401,
     "f2_component": 0.9987762812414608,
-    "latency_component": 0.9938801948749187,
+    "latency_component": 0.9940773872500586,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 16,
-    "total_versions": 18
+    "intra_rank": 17,
+    "total_versions": 19
   },
   {
     "full_id": "lightgbm/cv3_iter30",
@@ -359,10 +359,10 @@
       "f1": 0.9979423868312757
     },
     "latency": {
-      "latency_total_ms": 5.200110249688805,
-      "latency_per_sample_ms": 0.005200110249688805,
-      "latency_std_ms": 0.16289828014007013,
-      "samples_per_second": 192303.61511274573
+      "latency_total_ms": 4.835044749881945,
+      "latency_per_sample_ms": 0.004835044749881945,
+      "latency_std_ms": 0.17858859846237643,
+      "samples_per_second": 206823.31844486372
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -371,14 +371,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9975805950190302,
+    "score": 0.9976901146689723,
     "f2_component": 0.9987723258484812,
-    "latency_component": 0.9947998897503112,
+    "latency_component": 0.995164955250118,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 15,
-    "total_versions": 18
+    "intra_rank": 14,
+    "total_versions": 19
   },
   {
     "full_id": "lightgbm/cv3_iter20",
@@ -392,10 +392,10 @@
       "f1": 0.9979423868312757
     },
     "latency": {
-      "latency_total_ms": 5.139852000183964,
-      "latency_per_sample_ms": 0.005139852000183964,
-      "latency_std_ms": 0.09737447686138728,
-      "samples_per_second": 194558.13123883883
+      "latency_total_ms": 5.055726624959789,
+      "latency_per_sample_ms": 0.005055726624959789,
+      "latency_std_ms": 0.08955725889112515,
+      "samples_per_second": 197795.50481686767
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -404,14 +404,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9975986724938817,
+    "score": 0.9976239101064489,
     "f2_component": 0.9987723258484812,
-    "latency_component": 0.994860147999816,
+    "latency_component": 0.9949442733750402,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 13,
-    "total_versions": 18
+    "intra_rank": 16,
+    "total_versions": 19
   },
   {
     "full_id": "lightgbm/cv2_iter10",
@@ -425,10 +425,10 @@
       "f1": 0.9979423868312757
     },
     "latency": {
-      "latency_total_ms": 5.179768750167568,
-      "latency_per_sample_ms": 0.005179768750167568,
-      "latency_std_ms": 0.1333298820192176,
-      "samples_per_second": 193058.8117409005
+      "latency_total_ms": 4.955280000046969,
+      "latency_per_sample_ms": 0.004955280000046969,
+      "latency_std_ms": 0.05726313343770479,
+      "samples_per_second": 201804.94341198105
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -437,14 +437,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9975866974688865,
+    "score": 0.9976540440939228,
     "f2_component": 0.9987723258484812,
-    "latency_component": 0.9948202312498324,
+    "latency_component": 0.995044719999953,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 14,
-    "total_versions": 18
+    "intra_rank": 15,
+    "total_versions": 19
   },
   {
     "full_id": "lightgbm/cv7_iter250",
@@ -461,10 +461,10 @@
       "specificity": 0.9982466220232199
     },
     "latency": {
-      "latency_total_ms": 4.234293249965049,
-      "latency_per_sample_ms": 0.004234293249965049,
-      "latency_std_ms": 0.15250081078209637,
-      "samples_per_second": 236166.9211286333
+      "latency_total_ms": 3.882954125060678,
+      "latency_per_sample_ms": 0.003882954125060678,
+      "latency_std_ms": 0.09495414912571587,
+      "samples_per_second": 257535.878043466
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -473,14 +473,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9978398498011867,
+    "score": 0.997945251538658,
     "f2_component": 0.9987287682516803,
-    "latency_component": 0.995765706750035,
+    "latency_component": 0.9961170458749393,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 4,
-    "total_versions": 18
+    "intra_rank": 5,
+    "total_versions": 19
   },
   {
     "full_id": "lightgbm/cv7_iter220",
@@ -497,10 +497,10 @@
       "specificity": 0.9982466220232199
     },
     "latency": {
-      "latency_total_ms": 4.288605874990026,
-      "latency_per_sample_ms": 0.004288605874990026,
-      "latency_std_ms": 0.18500804560184778,
-      "samples_per_second": 233176.00850936802
+      "latency_total_ms": 3.8823928749707193,
+      "latency_per_sample_ms": 0.0038823928749707193,
+      "latency_std_ms": 0.04328413635024994,
+      "samples_per_second": 257573.10818461204
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -509,14 +509,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9978235560136791,
+    "score": 0.9979454199136849,
     "f2_component": 0.9987287682516803,
-    "latency_component": 0.99571139412501,
+    "latency_component": 0.9961176071250293,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 5,
-    "total_versions": 18
+    "intra_rank": 4,
+    "total_versions": 19
   },
   {
     "full_id": "lightgbm/cv7_iter130",
@@ -533,10 +533,10 @@
       "specificity": 0.9982466220232199
     },
     "latency": {
-      "latency_total_ms": 4.182423250199463,
-      "latency_per_sample_ms": 0.004182423250199463,
-      "latency_std_ms": 0.2111250024156316,
-      "samples_per_second": 239095.8399421458
+      "latency_total_ms": 3.8771684999119316,
+      "latency_per_sample_ms": 0.0038771684999119316,
+      "latency_std_ms": 0.036487034483782564,
+      "samples_per_second": 257920.1806737867
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -545,14 +545,50 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9978554108011163,
+    "score": 0.9979469872262026,
     "f2_component": 0.9987287682516803,
-    "latency_component": 0.9958175767498005,
+    "latency_component": 0.9961228315000881,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
     "intra_rank": 3,
-    "total_versions": 18
+    "total_versions": 19
+  },
+  {
+    "full_id": "lightgbm/bayesian_trials258_cv5_2026-01-25_06.56",
+    "model_type": "lightgbm",
+    "version_id": "bayesian_trials258_cv5_2026-01-25_06.56",
+    "task": "binary",
+    "metrics": {
+      "accuracy": 0.9984348377382415,
+      "precision": 0.9961679012345679,
+      "recall": 0.9991480762372706,
+      "f1": 0.9976557631628404,
+      "false_positive_rate": 0.0019217815112731306,
+      "false_negative_rate": 0.000851923762729326,
+      "specificity": 0.9980782184887269
+    },
+    "latency": {
+      "latency_total_ms": 0.7894763749050071,
+      "latency_per_sample_ms": 0.0007894763749050071,
+      "latency_std_ms": 0.009258953674365493,
+      "samples_per_second": 1266662.3496115687
+    },
+    "constraints": {
+      "fpr_threshold": 0.01,
+      "latency_threshold_ms": 1.0,
+      "fpr_pass": true,
+      "latency_pass": 1,
+      "all_pass": 1
+    },
+    "score": 0.9987485880021849,
+    "f2_component": 0.9985506155923665,
+    "latency_component": 0.999210523625095,
+    "status": "PASS",
+    "training_mode": "tuned_params",
+    "fpr_estimated": false,
+    "intra_rank": 1,
+    "total_versions": 19
   },
   {
     "full_id": "lightgbm/random_iter3_cv2_2026-01-24_20.00",
@@ -569,10 +605,10 @@
       "specificity": 0.9980881245789912
     },
     "latency": {
-      "latency_total_ms": 3.0881882498761115,
-      "latency_per_sample_ms": 0.0030881882498761115,
-      "latency_std_ms": 0.21164574323407181,
-      "samples_per_second": 323814.4565960695
+      "latency_total_ms": 3.832028124918452,
+      "latency_per_sample_ms": 0.003832028124918452,
+      "latency_std_ms": 1.3038849910056025,
+      "samples_per_second": 260958.41872801512
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -581,14 +617,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9979730017686057,
+    "score": 0.997749849806093,
     "f2_component": 0.9984277974908123,
-    "latency_component": 0.9969118117501239,
+    "latency_component": 0.9961679718750815,
     "status": "PASS",
     "training_mode": "tuned_params",
     "fpr_estimated": false,
-    "intra_rank": 2,
-    "total_versions": 18
+    "intra_rank": 7,
+    "total_versions": 19
   },
   {
     "full_id": "random_forest/cv3_iter40",
@@ -602,10 +638,10 @@
       "f1": 0.9982770571343698
     },
     "latency": {
-      "latency_total_ms": 18.104048624991265,
-      "latency_per_sample_ms": 0.018104048624991265,
-      "latency_std_ms": 5.01709278251318,
-      "samples_per_second": 55236.2634852613
+      "latency_total_ms": 22.21114012485259,
+      "latency_per_sample_ms": 0.02221114012485259,
+      "latency_std_ms": 0.16104689859599908,
+      "samples_per_second": 45022.452444081224
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -614,13 +650,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9935371387396026,
+    "score": 0.9923050112896443,
     "f2_component": 0.9985262190387144,
-    "latency_component": 0.9818959513750087,
+    "latency_component": 0.9777888598751474,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 3,
+    "intra_rank": 4,
     "total_versions": 7
   },
   {
@@ -635,10 +671,10 @@
       "f1": 0.9980782184887269
     },
     "latency": {
-      "latency_total_ms": 12.654281250092936,
-      "latency_per_sample_ms": 0.012654281250092936,
-      "latency_std_ms": 3.4840176177877247,
-      "samples_per_second": 79024.63839996094
+      "latency_total_ms": 22.155609499975526,
+      "latency_per_sample_ms": 0.022155609499975526,
+      "latency_std_ms": 0.09953278997915806,
+      "samples_per_second": 45135.29632308715
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -647,13 +683,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9948584685670809,
+    "score": 0.9920080700921161,
     "f2_component": 0.9980782184887269,
-    "latency_component": 0.9873457187499071,
+    "latency_component": 0.9778443905000245,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 2,
+    "intra_rank": 6,
     "total_versions": 7
   },
   {
@@ -671,10 +707,10 @@
       "specificity": 0.998652771724056
     },
     "latency": {
-      "latency_total_ms": 12.038126625043333,
-      "latency_per_sample_ms": 0.012038126625043333,
-      "latency_std_ms": 0.025926407433042094,
-      "samples_per_second": 83069.40366615394
+      "latency_total_ms": 12.086442124939367,
+      "latency_per_sample_ms": 0.012086442124939367,
+      "latency_std_ms": 0.07034691093361137,
+      "samples_per_second": 82737.33408581697
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -683,9 +719,9 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9949131671145643,
+    "score": 0.9948986724645956,
     "f2_component": 0.9978922930029677,
-    "latency_component": 0.9879618733749567,
+    "latency_component": 0.9879135578750606,
     "status": "PASS",
     "training_mode": "tuned_params",
     "fpr_estimated": false,
@@ -707,10 +743,10 @@
       "specificity": 0.9968894876570116
     },
     "latency": {
-      "latency_total_ms": 19.02378487511669,
-      "latency_per_sample_ms": 0.01902378487511669,
-      "latency_std_ms": 5.162332012477498,
-      "samples_per_second": 52565.77524212916
+      "latency_total_ms": 18.931010875007814,
+      "latency_per_sample_ms": 0.018931010875007814,
+      "latency_std_ms": 5.090506190138746,
+      "samples_per_second": 52823.38099124816
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -719,13 +755,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9927023270086173,
+    "score": 0.9927301592086499,
     "f2_component": 0.9977278035302175,
-    "latency_component": 0.9809762151248833,
+    "latency_component": 0.9810689891249922,
     "status": "PASS",
     "training_mode": "tuned_params",
     "fpr_estimated": false,
-    "intra_rank": 4,
+    "intra_rank": 2,
     "total_versions": 7
   },
   {
@@ -743,10 +779,10 @@
       "specificity": 0.9968894876570116
     },
     "latency": {
-      "latency_total_ms": 20.515465999892513,
-      "latency_per_sample_ms": 0.020515465999892513,
-      "latency_std_ms": 4.577511675698005,
-      "samples_per_second": 48743.71364536586
+      "latency_total_ms": 20.507802499935224,
+      "latency_per_sample_ms": 0.020507802499935224,
+      "latency_std_ms": 4.611189620446219,
+      "samples_per_second": 48761.92853930394
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -755,13 +791,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9922548226711845,
+    "score": 0.9922571217211716,
     "f2_component": 0.9977278035302175,
-    "latency_component": 0.9794845340001075,
+    "latency_component": 0.9794921975000648,
     "status": "PASS",
     "training_mode": "tuned_params",
     "fpr_estimated": false,
-    "intra_rank": 6,
+    "intra_rank": 5,
     "total_versions": 7
   },
   {
@@ -779,10 +815,10 @@
       "specificity": 0.996869675476483
     },
     "latency": {
-      "latency_total_ms": 22.602255000151672,
-      "latency_per_sample_ms": 0.022602255000151672,
-      "latency_std_ms": 0.22090321539770266,
-      "samples_per_second": 44243.37306137328
+      "latency_total_ms": 22.750746999975036,
+      "latency_per_sample_ms": 0.022750746999975036,
+      "latency_std_ms": 0.18238994663360247,
+      "samples_per_second": 43954.60069953296
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -791,9 +827,9 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9914568950540743,
+    "score": 0.9914123474541272,
     "f2_component": 0.9974822450773141,
-    "latency_component": 0.9773977449998483,
+    "latency_component": 0.977249253000025,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
@@ -812,10 +848,10 @@
       "f1": 0.9973012248287316
     },
     "latency": {
-      "latency_total_ms": 1.418593749917818,
-      "latency_per_sample_ms": 0.001418593749917818,
-      "latency_std_ms": 0.0139989912621911,
-      "samples_per_second": 704923.4497599697
+      "latency_total_ms": 1.4059163750630432,
+      "latency_per_sample_ms": 0.0014059163750630432,
+      "latency_std_ms": 0.021882223776468566,
+      "samples_per_second": 711279.8582740447
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -824,14 +860,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9985517715359229,
+    "score": 0.9985555747483792,
     "f2_component": 0.9985390709441403,
-    "latency_component": 0.9985814062500822,
+    "latency_component": 0.998594083624937,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
     "intra_rank": 7,
-    "total_versions": 21
+    "total_versions": 22
   },
   {
     "full_id": "xgboost/cv3_iter20_gpu",
@@ -845,10 +881,10 @@
       "f1": 0.9973012248287316
     },
     "latency": {
-      "latency_total_ms": 1.421095875230094,
-      "latency_per_sample_ms": 0.001421095875230094,
-      "latency_std_ms": 0.015916687008309914,
-      "samples_per_second": 703682.2901467411
+      "latency_total_ms": 1.4229603749527087,
+      "latency_per_sample_ms": 0.0014229603749527087,
+      "latency_std_ms": 0.016712211820536227,
+      "samples_per_second": 702760.2578414979
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -857,14 +893,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9985510208983291,
+    "score": 0.9985504615484124,
     "f2_component": 0.9985390709441403,
-    "latency_component": 0.9985789041247699,
+    "latency_component": 0.9985770396250473,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 8,
-    "total_versions": 21
+    "intra_rank": 10,
+    "total_versions": 22
   },
   {
     "full_id": "xgboost/cv3_iter50_gpu",
@@ -878,10 +914,10 @@
       "f1": 0.9973012248287316
     },
     "latency": {
-      "latency_total_ms": 1.4226901249685397,
-      "latency_per_sample_ms": 0.0014226901249685397,
-      "latency_std_ms": 0.01147250440091455,
-      "samples_per_second": 702893.752089629
+      "latency_total_ms": 1.410967125082152,
+      "latency_per_sample_ms": 0.001410967125082152,
+      "latency_std_ms": 0.0038684566126478723,
+      "samples_per_second": 708733.7346302636
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -890,14 +926,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9985505426234076,
+    "score": 0.9985540595233735,
     "f2_component": 0.9985390709441403,
-    "latency_component": 0.9985773098750315,
+    "latency_component": 0.9985890328749178,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 9,
-    "total_versions": 21
+    "intra_rank": 8,
+    "total_versions": 22
   },
   {
     "full_id": "xgboost/cv2_iter10_gpu",
@@ -911,10 +947,10 @@
       "f1": 0.9973012248287316
     },
     "latency": {
-      "latency_total_ms": 1.4576063749700552,
-      "latency_per_sample_ms": 0.0014576063749700552,
-      "latency_std_ms": 0.07200899520645063,
-      "samples_per_second": 686056.2749806468
+      "latency_total_ms": 1.424489750036173,
+      "latency_per_sample_ms": 0.001424489750036173,
+      "latency_std_ms": 0.006577276738849669,
+      "samples_per_second": 702005.7532703246
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -923,14 +959,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9985400677484071,
+    "score": 0.9985500027358873,
     "f2_component": 0.9985390709441403,
-    "latency_component": 0.99854239362503,
+    "latency_component": 0.9985755102499638,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 12,
-    "total_versions": 21
+    "intra_rank": 11,
+    "total_versions": 22
   },
   {
     "full_id": "xgboost/cv5_iter80_gpu",
@@ -944,10 +980,10 @@
       "f1": 0.9972914730827781
     },
     "latency": {
-      "latency_total_ms": 1.019176249769771,
-      "latency_per_sample_ms": 0.001019176249769771,
-      "latency_std_ms": 0.01449556483673489,
-      "samples_per_second": 981184.5598108248
+      "latency_total_ms": 1.0109197500014488,
+      "latency_per_sample_ms": 0.0010109197500014488,
+      "latency_std_ms": 0.0086299793305621,
+      "samples_per_second": 989198.2029222071
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -956,14 +992,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.998685473806094,
+    "score": 0.9986879507560245,
     "f2_component": 0.998558895258607,
-    "latency_component": 0.9989808237502302,
+    "latency_component": 0.9989890802499986,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 1,
-    "total_versions": 21
+    "intra_rank": 2,
+    "total_versions": 22
   },
   {
     "full_id": "xgboost/cv5_iter50_gpu",
@@ -977,10 +1013,10 @@
       "f1": 0.9972914730827781
     },
     "latency": {
-      "latency_total_ms": 1.0263496249081072,
-      "latency_per_sample_ms": 0.0010263496249081072,
-      "latency_std_ms": 0.03884374107547026,
-      "samples_per_second": 974326.8528884917
+      "latency_total_ms": 1.0034131250904466,
+      "latency_per_sample_ms": 0.0010034131250904466,
+      "latency_std_ms": 0.017804744172770906,
+      "samples_per_second": 996598.4847067464
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -989,14 +1025,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9986833217935525,
+    "score": 0.9986902027434977,
     "f2_component": 0.998558895258607,
-    "latency_component": 0.9989736503750919,
+    "latency_component": 0.9989965868749096,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 2,
-    "total_versions": 21
+    "intra_rank": 1,
+    "total_versions": 22
   },
   {
     "full_id": "xgboost/cv4_iter50_gpu",
@@ -1010,10 +1046,10 @@
       "f1": 0.9972813998319411
     },
     "latency": {
-      "latency_total_ms": 1.5643052499854093,
-      "latency_per_sample_ms": 0.0015643052499854093,
-      "latency_std_ms": 0.03460585115340081,
-      "samples_per_second": 639261.422928375
+      "latency_total_ms": 1.5152895000483113,
+      "latency_per_sample_ms": 0.0015152895000483113,
+      "latency_std_ms": 0.01102968147691444,
+      "samples_per_second": 659939.8992523326
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1022,14 +1058,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.998485878531546,
+    "score": 0.9985005832565272,
     "f2_component": 0.9985073858664882,
-    "latency_component": 0.9984356947500146,
+    "latency_component": 0.9984847104999517,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 17,
-    "total_versions": 21
+    "intra_rank": 18,
+    "total_versions": 22
   },
   {
     "full_id": "xgboost/cv5_iter100_gpu",
@@ -1043,10 +1079,10 @@
       "f1": 0.9972716488730724
     },
     "latency": {
-      "latency_total_ms": 1.153963375031708,
-      "latency_per_sample_ms": 0.001153963375031708,
-      "latency_std_ms": 0.019355252989015786,
-      "samples_per_second": 866578.6294755867
+      "latency_total_ms": 1.1851141250645014,
+      "latency_per_sample_ms": 0.0011851141250645014,
+      "latency_std_ms": 0.0765166175449055,
+      "samples_per_second": 843800.591732525
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1055,14 +1091,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9986228586630967,
+    "score": 0.9986135134380869,
     "f2_component": 0.998527210965152,
-    "latency_component": 0.9988460366249683,
+    "latency_component": 0.9988148858749355,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 3,
-    "total_versions": 21
+    "intra_rank": 6,
+    "total_versions": 22
   },
   {
     "full_id": "xgboost/cv5_iter200_gpu",
@@ -1079,10 +1115,10 @@
       "specificity": 0.9975829139755121
     },
     "latency": {
-      "latency_total_ms": 1.1810212499767658,
-      "latency_per_sample_ms": 0.0011810212499767658,
-      "latency_std_ms": 0.03814419437898608,
-      "samples_per_second": 846724.8155100283
+      "latency_total_ms": 1.1287796249916937,
+      "latency_per_sample_ms": 0.0011287796249916937,
+      "latency_std_ms": 0.0062052375497864964,
+      "samples_per_second": 885912.5181386567
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1091,14 +1127,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9986147413006132,
+    "score": 0.9986304137881088,
     "f2_component": 0.998527210965152,
-    "latency_component": 0.9988189787500232,
+    "latency_component": 0.9988712203750083,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 6,
-    "total_versions": 21
+    "intra_rank": 3,
+    "total_versions": 22
   },
   {
     "full_id": "xgboost/cv5_iter130_gpu",
@@ -1112,10 +1148,10 @@
       "f1": 0.9972716488730724
     },
     "latency": {
-      "latency_total_ms": 1.1646007499166444,
-      "latency_per_sample_ms": 0.0011646007499166444,
-      "latency_std_ms": 0.037822898301465895,
-      "samples_per_second": 858663.3660261462
+      "latency_total_ms": 1.136415000019042,
+      "latency_per_sample_ms": 0.001136415000019042,
+      "latency_std_ms": 0.01843098398274864,
+      "samples_per_second": 879960.2257830491
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1124,14 +1160,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9986196674506314,
+    "score": 0.9986281231756006,
     "f2_component": 0.998527210965152,
-    "latency_component": 0.9988353992500834,
+    "latency_component": 0.998863584999981,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 5,
-    "total_versions": 21
+    "intra_rank": 4,
+    "total_versions": 22
   },
   {
     "full_id": "xgboost/cv5_iter170_gpu",
@@ -1148,10 +1184,10 @@
       "specificity": 0.9975829139755121
     },
     "latency": {
-      "latency_total_ms": 1.154493250055566,
-      "latency_per_sample_ms": 0.001154493250055566,
-      "latency_std_ms": 0.024436783218570388,
-      "samples_per_second": 866180.8979410402
+      "latency_total_ms": 1.1484986250138718,
+      "latency_per_sample_ms": 0.0011484986250138718,
+      "latency_std_ms": 0.009236331011006717,
+      "samples_per_second": 870701.9566418043
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1160,14 +1196,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9986226997005896,
+    "score": 0.998624498088102,
     "f2_component": 0.998527210965152,
-    "latency_component": 0.9988455067499444,
+    "latency_component": 0.9988515013749861,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 4,
-    "total_versions": 21
+    "intra_rank": 5,
+    "total_versions": 22
   },
   {
     "full_id": "xgboost/cv7_iter130_gpu",
@@ -1181,10 +1217,10 @@
       "f1": 0.9972518238794756
     },
     "latency": {
-      "latency_total_ms": 1.3659491251019062,
-      "latency_per_sample_ms": 0.0013659491251019062,
-      "latency_std_ms": 0.00977015853473435,
-      "samples_per_second": 732091.6874743744
+      "latency_total_ms": 1.350007874975745,
+      "latency_per_sample_ms": 0.001350007874975745,
+      "latency_std_ms": 0.009805973716984575,
+      "samples_per_second": 740736.4197916006
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1193,14 +1229,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9985370835814178,
+    "score": 0.9985418659564556,
     "f2_component": 0.9984955261699263,
-    "latency_component": 0.9986340508748981,
+    "latency_component": 0.9986499921250243,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
     "intra_rank": 13,
-    "total_versions": 21
+    "total_versions": 22
   },
   {
     "full_id": "xgboost/cv7_iter170_gpu",
@@ -1217,10 +1253,10 @@
       "specificity": 0.9975829139755121
     },
     "latency": {
-      "latency_total_ms": 1.379815250061256,
-      "latency_per_sample_ms": 0.001379815250061256,
-      "latency_std_ms": 0.01588210610037903,
-      "samples_per_second": 724734.7062989814
+      "latency_total_ms": 1.3707663749755739,
+      "latency_per_sample_ms": 0.0013707663749755739,
+      "latency_std_ms": 0.009753893452742796,
+      "samples_per_second": 729518.9160281374
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1229,14 +1265,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.99853292374393,
+    "score": 0.9985356384064557,
     "f2_component": 0.9984955261699263,
-    "latency_component": 0.9986201847499387,
+    "latency_component": 0.9986292336250244,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 14,
-    "total_versions": 21
+    "intra_rank": 16,
+    "total_versions": 22
   },
   {
     "full_id": "xgboost/cv7_iter220_gpu",
@@ -1253,10 +1289,10 @@
       "specificity": 0.9975829139755121
     },
     "latency": {
-      "latency_total_ms": 1.3836586247180094,
-      "latency_per_sample_ms": 0.0013836586247180094,
-      "latency_std_ms": 0.02820691786292051,
-      "samples_per_second": 722721.6179885416
+      "latency_total_ms": 1.360741374924146,
+      "latency_per_sample_ms": 0.001360741374924146,
+      "latency_std_ms": 0.007741756525171672,
+      "samples_per_second": 734893.5061636857
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1265,14 +1301,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9985317707315329,
+    "score": 0.9985386459064711,
     "f2_component": 0.9984955261699263,
-    "latency_component": 0.998616341375282,
+    "latency_component": 0.9986392586250759,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
     "intra_rank": 15,
-    "total_versions": 21
+    "total_versions": 22
   },
   {
     "full_id": "xgboost/cv5_iter250_gpu",
@@ -1289,10 +1325,10 @@
       "specificity": 0.9975829139755121
     },
     "latency": {
-      "latency_total_ms": 1.398294374894249,
-      "latency_per_sample_ms": 0.001398294374894249,
-      "latency_std_ms": 0.00964833104078802,
-      "samples_per_second": 715156.9926580221
+      "latency_total_ms": 1.4208253750211952,
+      "latency_per_sample_ms": 0.0014208253750211952,
+      "latency_std_ms": 0.04357470746483691,
+      "samples_per_second": 703816.2589016842
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1301,14 +1337,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9985162901964337,
+    "score": 0.9985095308963957,
     "f2_component": 0.998479683584146,
-    "latency_component": 0.9986017056251058,
+    "latency_component": 0.9985791746249788,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 16,
-    "total_versions": 21
+    "intra_rank": 17,
+    "total_versions": 22
   },
   {
     "full_id": "xgboost/cv5_iter400_gpu",
@@ -1325,10 +1361,10 @@
       "specificity": 0.9975631017949835
     },
     "latency": {
-      "latency_total_ms": 1.2604954999915208,
-      "latency_per_sample_ms": 0.0012604954999915208,
-      "latency_std_ms": 0.02403489986453924,
-      "samples_per_second": 793338.8100209219
+      "latency_total_ms": 1.263452125101594,
+      "latency_per_sample_ms": 0.001263452125101594,
+      "latency_std_ms": 0.02051459089541225,
+      "samples_per_second": 791482.3048159345
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1337,14 +1373,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9985410056773443,
+    "score": 0.9985401186898113,
     "f2_component": 0.9984559347533455,
-    "latency_component": 0.9987395045000085,
+    "latency_component": 0.9987365478748984,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 11,
-    "total_versions": 21
+    "intra_rank": 14,
+    "total_versions": 22
   },
   {
     "full_id": "xgboost/cv5_iter350_gpu",
@@ -1361,10 +1397,10 @@
       "specificity": 0.9975631017949835
     },
     "latency": {
-      "latency_total_ms": 1.2381913750232343,
-      "latency_per_sample_ms": 0.0012381913750232343,
-      "latency_std_ms": 0.0055762976863998415,
-      "samples_per_second": 807629.5960155879
+      "latency_total_ms": 1.2443066249829826,
+      "latency_per_sample_ms": 0.0012443066249829826,
+      "latency_std_ms": 0.01288316518354104,
+      "samples_per_second": 803660.4321813976
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1373,14 +1409,50 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9985476969148348,
+    "score": 0.9985458623398469,
     "f2_component": 0.9984559347533455,
-    "latency_component": 0.9987618086249768,
+    "latency_component": 0.998755693375017,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 10,
-    "total_versions": 21
+    "intra_rank": 12,
+    "total_versions": 22
+  },
+  {
+    "full_id": "xgboost/bayesian_trials497_cv5_2026-01-25_06.51",
+    "model_type": "xgboost",
+    "version_id": "bayesian_trials497_cv5_2026-01-25_06.51",
+    "task": "binary",
+    "metrics": {
+      "accuracy": 0.9980980306692555,
+      "precision": 0.9952239984211565,
+      "recall": 0.999088639695685,
+      "f1": 0.9971525745471802,
+      "false_positive_rate": 0.0023972738439592663,
+      "false_negative_rate": 0.0009113603043150929,
+      "specificity": 0.9976027261560407
+    },
+    "latency": {
+      "latency_total_ms": 0.8943496250708449,
+      "latency_per_sample_ms": 0.0008943496250708449,
+      "latency_std_ms": 0.06022959973191956,
+      "samples_per_second": 1118130.9545702399
+    },
+    "constraints": {
+      "fpr_threshold": 0.01,
+      "latency_threshold_ms": 1.0,
+      "fpr_pass": true,
+      "latency_pass": 1,
+      "all_pass": 1
+    },
+    "score": 0.9985510136272431,
+    "f2_component": 0.9983133121639493,
+    "latency_component": 0.9991056503749292,
+    "status": "PASS",
+    "training_mode": "tuned_params",
+    "fpr_estimated": false,
+    "intra_rank": 9,
+    "total_versions": 22
   },
   {
     "full_id": "xgboost/random_iter3_cv2_2026-01-24_20.02",
@@ -1397,10 +1469,10 @@
       "specificity": 0.9964040892340611
     },
     "latency": {
-      "latency_total_ms": 11.693543999854228,
-      "latency_per_sample_ms": 0.011693543999854228,
-      "latency_std_ms": 0.24232231019267964,
-      "samples_per_second": 85517.27346409831
+      "latency_total_ms": 11.59754187500539,
+      "latency_per_sample_ms": 0.01159754187500539,
+      "latency_std_ms": 0.3329351952469771,
+      "samples_per_second": 86225.16829666849
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1409,14 +1481,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9944887148623687,
+    "score": 0.9945175154998234,
     "f2_component": 0.99713825437475,
-    "latency_component": 0.9883064560001458,
+    "latency_component": 0.9884024581249946,
     "status": "PASS",
     "training_mode": "tuned_params",
     "fpr_estimated": false,
-    "intra_rank": 19,
-    "total_versions": 21
+    "intra_rank": 20,
+    "total_versions": 22
   },
   {
     "full_id": "xgboost/cv2_iter1_gpu",
@@ -1433,10 +1505,10 @@
       "specificity": 0.9958196299084677
     },
     "latency": {
-      "latency_total_ms": 6.75556787507503,
-      "latency_per_sample_ms": 0.00675556787507503,
-      "latency_std_ms": 0.0310188247518064,
-      "samples_per_second": 148026.04584724028
+      "latency_total_ms": 6.789013250113385,
+      "latency_per_sample_ms": 0.006789013250113385,
+      "latency_std_ms": 0.195186515438427,
+      "samples_per_second": 147296.8107674998
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1445,14 +1517,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9942649479663697,
+    "score": 0.9942549143538582,
     "f2_component": 0.9947023118984174,
-    "latency_component": 0.993244432124925,
+    "latency_component": 0.9932109867498866,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 21,
-    "total_versions": 21
+    "intra_rank": 22,
+    "total_versions": 22
   },
   {
     "full_id": "xgboost/latest",
@@ -1469,10 +1541,10 @@
       "specificity": 0.9958196299084677
     },
     "latency": {
-      "latency_total_ms": 6.739804624999124,
-      "latency_per_sample_ms": 0.006739804624999124,
-      "latency_std_ms": 0.08440845342514587,
-      "samples_per_second": 148372.253446461
+      "latency_total_ms": 6.7116698750169235,
+      "latency_per_sample_ms": 0.0067116698750169235,
+      "latency_std_ms": 0.1351484869212293,
+      "samples_per_second": 148994.2173291827
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1481,14 +1553,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9942696769413925,
+    "score": 0.994278117366387,
     "f2_component": 0.9947023118984174,
-    "latency_component": 0.9932601953750009,
+    "latency_component": 0.9932883301249831,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 20,
-    "total_versions": 21
+    "intra_rank": 21,
+    "total_versions": 22
   },
   {
     "full_id": "random_forest/default",
@@ -1502,10 +1574,10 @@
       "f1": 0.9982770571343698
     },
     "latency": {
-      "latency_total_ms": 22.20775099988259,
-      "latency_per_sample_ms": 0.02220775099988259,
-      "latency_std_ms": 0.04458381244851961,
-      "samples_per_second": 45029.32332073098
+      "latency_total_ms": 22.107036875013364,
+      "latency_per_sample_ms": 0.022107036875013364,
+      "latency_std_ms": 0.09398505051581117,
+      "samples_per_second": 45234.46564339236
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1514,13 +1586,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9923060280271352,
+    "score": 0.992336242264596,
     "f2_component": 0.9985262190387144,
-    "latency_component": 0.9777922490001174,
+    "latency_component": 0.9778929631249866,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 5,
+    "intra_rank": 3,
     "total_versions": 7
   },
   {
@@ -1538,10 +1610,10 @@
       "specificity": 0.9975829139755121
     },
     "latency": {
-      "latency_total_ms": 5.038259375055532,
-      "latency_per_sample_ms": 0.0050382593750555316,
-      "latency_std_ms": 0.11040956283514979,
-      "samples_per_second": 198481.24631117826
+      "latency_total_ms": 5.0268006249893915,
+      "latency_per_sample_ms": 0.0050268006249893915,
+      "latency_std_ms": 0.1053648000855524,
+      "samples_per_second": 198933.69055235016
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1550,14 +1622,14 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9974243006963854,
+    "score": 0.9974277383214052,
     "f2_component": 0.998479683584146,
-    "latency_component": 0.9949617406249445,
+    "latency_component": 0.9949731993750106,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 18,
-    "total_versions": 21
+    "intra_rank": 19,
+    "total_versions": 22
   },
   {
     "full_id": "lightgbm/default",
@@ -1574,10 +1646,10 @@
       "specificity": 0.9982961524745414
     },
     "latency": {
-      "latency_total_ms": 2.1591877501805357,
-      "latency_per_sample_ms": 0.0021591877501805357,
-      "latency_std_ms": 0.260842970062924,
-      "samples_per_second": 463137.1217794225
+      "latency_total_ms": 2.0884367500002554,
+      "latency_per_sample_ms": 0.0020884367500002554,
+      "latency_std_ms": 0.03660542268978746,
+      "samples_per_second": 478827.0461146969
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1586,13 +1658,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9984984093409841,
+    "score": 0.9985196346410381,
     "f2_component": 0.998780236665769,
-    "latency_component": 0.9978408122498195,
+    "latency_component": 0.9979115632499997,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 1,
-    "total_versions": 18
+    "intra_rank": 2,
+    "total_versions": 19
   }
 ]
