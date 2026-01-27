@@ -1,0 +1,44 @@
+14:27:35 | INFO | PCAP ANALYSIS COMPLETE
+2026-01-27 14:27:35 | INFO | sniffer.20260127_134428 | PCAP ANALYSIS COMPLETE
+14:27:35 | INFO |   Packets processed: 11,625,508
+2026-01-27 14:27:35 | INFO | sniffer.20260127_134428 |   Packets processed: 11,625,508
+14:27:35 | INFO |   Flows analyzed: 489,970
+2026-01-27 14:27:35 | INFO | sniffer.20260127_134428 |   Flows analyzed: 489,970
+14:27:35 | INFO |   Attacks detected: 389
+2026-01-27 14:27:35 | INFO | sniffer.20260127_134428 |   Attacks detected: 389
+14:27:35 | INFO |   Benign flows: 489,581
+2026-01-27 14:27:35 | INFO | sniffer.20260127_134428 |   Benign flows: 489,581
+14:27:35 | INFO |   Unique source IPs: 9,640
+2026-01-27 14:27:35 | INFO | sniffer.20260127_134428 |   Unique source IPs: 9,640
+14:27:35 | INFO |   Unique dest IPs: 9,699
+2026-01-27 14:27:35 | INFO | sniffer.20260127_134428 |   Unique dest IPs: 9,699
+14:27:35 | INFO | ==================================================
+2026-01-27 14:27:35 | INFO | sniffer.20260127_134428 | ==================================================
+
+Results: 247968 flows analyzed
+Attacks detected: 38
+
+Attack details (top 20):
+  - ATTACK | confidence: 60.72%
+  - ATTACK | confidence: 60.72%
+  - ATTACK | confidence: 76.23%
+  - ATTACK | confidence: 72.12%
+  - ATTACK | confidence: 58.02%
+  - ATTACK | confidence: 60.72%
+  - ATTACK | confidence: 56.79%
+  - ATTACK | confidence: 60.72%
+  - ATTACK | confidence: 60.72%
+  - ATTACK | confidence: 60.72%
+  - ATTACK | confidence: 60.72%
+  - ATTACK | confidence: 60.72%
+  - ATTACK | confidence: 56.47%
+  - ATTACK | confidence: 63.03%
+  - ATTACK | confidence: 82.60%
+  - ATTACK | confidence: 56.14%
+  - ATTACK | confidence: 61.28%
+  - ATTACK | confidence: 51.62%
+  - ATTACK | confidence: 56.06%
+  - ATTACK | confidence: 56.06%
+  ... and 18 more
+
+Results saved to: reports/pcap/monday.json
