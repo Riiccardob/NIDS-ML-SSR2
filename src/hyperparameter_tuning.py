@@ -124,7 +124,7 @@ HYPERPARAM_CONFIG = {
         'scale_pos_weight':  ('float', 1.0, 10.0, False)
     },
     'lightgbm': {
-        'n_estimators':      ('int', 1, 10),
+        'n_estimators':      ('int', 100, 5000),
         'max_depth':         ('int', -1, 30),
         'learning_rate':     ('float', 0.001, 0.3, True),
         'num_leaves':        ('int', 20, 300),
