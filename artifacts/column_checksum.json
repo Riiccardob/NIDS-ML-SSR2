@@ -1,0 +1,16 @@
+{
+  "checksum": "a533a4d4e9872cf0",
+  "n_columns": 77,
+  "columns": [
+    "ACK Flag Count",
+    "Active Max",
+    "Active Mean",
+    "Active Min",
+    "Active Std",
+    "Average Packet Size",
+    "Avg Bwd Segment Size",
+    "Avg Fwd Segment Size",
+    "Bwd Avg Bulk Rate",
+    "Bwd Avg Bytes/Bulk"
+  ]
+}

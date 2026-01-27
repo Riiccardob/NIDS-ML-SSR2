@@ -236,7 +236,7 @@ def encode_labels(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
     logger.info("Encoding label...")
     
     df['Label_Original'] = df['Label'].copy()
-    df['Label_Binary'] = df['Label'].apply(lambda x: 0 if x == 'BENIGN' else 1)
+    df['Label_Binary'] = df['Label'].str.strip().str.upper().apply(lambda x: 0 if x == 'BENIGN' else 1)
     
     unique_labels = sorted(df['Label'].unique())
     label_to_int = {label: idx for idx, label in enumerate(unique_labels)}

@@ -531,14 +531,14 @@ def select_tuning_config(
             target = tuning_dir / config_path.name
         
         if not target.exists():
-            print(f"⚠️  Config file non trovato: {target}")
+            print(f"Config file non trovato: {target}")
             return None
         
         with open(target) as f:
             data = json.load(f)
         
         if data.get('task') != task:
-            print(f"⚠️  Task mismatch: config per {data.get('task')}, richiesto {task}")
+            print(f"Task mismatch: config per {data.get('task')}, richiesto {task}")
             return None
         
         print(f"✓ Config selezionata: {target.name}")
@@ -552,13 +552,13 @@ def select_tuning_config(
                     data = json.load(f)
                 
                 if data.get('task') != task:
-                    print(f"⚠️  Task mismatch: config per {data.get('task')}, richiesto {task}")
+                    print(f"Task mismatch: config per {data.get('task')}, richiesto {task}")
                     continue
                 
                 print(f"✓ Config selezionata (timestamp): {cfg['filename']}")
                 return data['best_params']
         
-        print(f"⚠️  Nessuna config trovata con timestamp '{timestamp}'")
+        print(f"Nessuna config trovata con timestamp '{timestamp}'")
         return None
     
     # Caso 3: Più recente (default)
@@ -567,7 +567,7 @@ def select_tuning_config(
         data = json.load(f)
     
     if data.get('task') != task:
-        print(f"⚠️  Config più recente è per task {data.get('task')}, richiesto {task}")
+        print(f"Config più recente è per task {data.get('task')}, richiesto {task}")
         # Cerca il più recente con task corretto
         for cfg in configs:
             with open(cfg['filepath']) as f:
@@ -599,3 +599,120 @@ def print_available_configs(model_type: str):
         print(f"{i:<3} {cfg['filename']:<45} {cfg['best_score']:>8.4f} {cfg['method']:<10}")
     
     print(f"\nTotale: {len(configs)} configurazioni")
+
+
+# ==============================================================================
+# FIX #2: Validazione Ordine Colonne e Checksum
+# ==============================================================================
+
+def compute_column_checksum(columns: List[str]) -> str:
+    """
+    Calcola checksum deterministico da lista colonne.
+    
+    Usa per verificare che scaler e dataset abbiano le stesse colonne
+    nello stesso ordine.
+    
+    Args:
+        columns: Lista nomi colonne (ordinata)
+    
+    Returns:
+        Stringa checksum (hash SHA256 primi 16 caratteri)
+    
+    Examples:
+        >>> compute_column_checksum(['a', 'b', 'c'])
+        'a9e6d7f8b2c1e3d4'
+    """
+    import hashlib
+    
+    # Crea stringa deterministica
+    columns_str = '|'.join(sorted(columns))
+    
+    # Calcola hash
+    hash_obj = hashlib.sha256(columns_str.encode('utf-8'))
+    checksum = hash_obj.hexdigest()[:16]
+    
+    return checksum
+
+
+def validate_column_consistency(
+    expected_columns: List[str],
+    actual_columns: List[str],
+    context: str = "dataset"
+) -> None:
+    """
+    Valida che le colonne siano consistenti con quelle attese.
+    
+    Verifica:
+    1. Stesse colonne presenti
+    2. Stesso ordine
+    3. Nessuna colonna mancante o extra
+    
+    Args:
+        expected_columns: Colonne attese (da scaler/artifacts)
+        actual_columns: Colonne effettive (da dataset)
+        context: Descrizione contesto per errori più chiari
+    
+    Raises:
+        ValueError: Se c'è inconsistenza
+    
+    Examples:
+        >>> validate_column_consistency(['a', 'b'], ['b', 'a'], "test")
+        ValueError: Ordine colonne diverso in test
+    """
+    expected_set = set(expected_columns)
+    actual_set = set(actual_columns)
+    
+    # Controlla colonne mancanti
+    missing = expected_set - actual_set
+    if missing:
+        raise ValueError(
+            f"Colonne mancanti in {context}: {sorted(missing)}\n"
+            f"Attese {len(expected_columns)} colonne, trovate {len(actual_columns)}"
+        )
+    
+    # Controlla colonne extra
+    extra = actual_set - expected_set
+    if extra:
+        raise ValueError(
+            f"Colonne extra in {context}: {sorted(extra)}\n"
+            f"Attese {len(expected_columns)} colonne, trovate {len(actual_columns)}"
+        )
+    
+    # Controlla ordine
+    if list(expected_columns) != list(actual_columns):
+        raise ValueError(
+            f"Ordine colonne diverso in {context}!\n"
+            f"Atteso: {expected_columns[:5]}...\n"
+            f"Trovato: {actual_columns[:5]}...\n"
+            f"Le colonne devono essere nello stesso ordine per compatibilità con scaler."
+        )
+    
+    # Tutto OK
+    pass
+
+
+def ensure_column_order(df, expected_columns: List[str]):
+    """
+    Riordina DataFrame secondo l'ordine atteso delle colonne.
+    
+    Usa quando hai un DataFrame con le colonne giuste ma in ordine sbagliato.
+    
+    Args:
+        df: DataFrame pandas
+        expected_columns: Lista colonne nell'ordine corretto
+    
+    Returns:
+        DataFrame con colonne riordinate
+    
+    Raises:
+        ValueError: Se mancano colonne
+    """
+    import pandas as pd
+    
+    # Verifica che tutte le colonne siano presenti
+    missing = set(expected_columns) - set(df.columns)
+    if missing:
+        raise ValueError(f"Colonne mancanti nel DataFrame: {sorted(missing)}")
+    
+    # Riordina
+    return df[expected_columns]

@@ -12,7 +12,6 @@ GUIDA PARAMETRI:
 Opzioni disponibili:
     --n-features INT      Numero feature da selezionare (default: 30)
     --rf-estimators INT   Alberi RF per selezione (default: 100)
-    --method STR          Metodo selezione: importance, rfecv, histgb (default: importance)
     --n-jobs INT          Core CPU da usare (default: auto, lascia 2 liberi)
     --max-ram INT         Limite RAM percentuale (default: 85)
 
@@ -26,26 +25,6 @@ python src/feature_engineering.py --n-jobs 4
 
 # Test veloce con pochi alberi
 python src/feature_engineering.py --rf-estimators 20
-
-# FASE 2: Usa HistGradientBoosting (~10x più veloce)
-python src/feature_engineering.py --method histgb
-
-# FASE 2: Usa RFECV con F2 scorer (più robusto, più lento)
-python src/feature_engineering.py --method rfecv
-
-CHANGELOG FIX #2:
------------------
-✓ Ordine colonne deterministico garantito (sorted sempre applicato)
-✓ Checksum colonne salvato in artifacts/column_checksum.json
-✓ Validazione automatica ordine colonne al caricamento artifacts
-✓ Migliore tracciabilità e debug compatibilità scaler/dataset
-
-CHANGELOG FASE 2:
------------------
-✓ Fix #3: RFECV con F2 scorer per selezione robusta (--method rfecv)
-✓ Fix #4: HistGradientBoosting per speedup ~10x (--method histgb)
-✓ Backward compatible: metodo default rimane 'importance' (RF feature_importances_)
-✓ Metodi selezionabili da CLI
 
 ================================================================================
 """
@@ -103,9 +82,7 @@ import gc
 from tqdm import tqdm
 
 from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier
-from sklearn.feature_selection import RFECV
-from sklearn.metrics import make_scorer, fbeta_score
+from sklearn.ensemble import RandomForestClassifier
 
 from src.utils import (
     get_logger,
@@ -113,10 +90,7 @@ from src.utils import (
     RANDOM_STATE,
     LABEL_COLUMNS,
     ResourceLimiter,
-    suppress_warnings,
-    compute_column_checksum,
-    validate_column_consistency,
-    ensure_column_order
+    suppress_warnings
 )
 from src.preprocessing import load_processed_data
 from src.timing import TimingLogger
@@ -139,13 +113,9 @@ DEFAULT_MAX_RAM = 85
 # ==============================================================================
 
 def get_feature_columns(df: pd.DataFrame) -> List[str]:
-    """
-    Estrae nomi colonne feature, escludendo label.
-    
-    FIX #2: Ordine deterministico garantito con sorted()
-    """
+    """Estrae nomi colonne feature, escludendo label."""
     feature_cols = [c for c in df.columns if c not in LABEL_COLUMNS]
-    return sorted(feature_cols)  # FIX #2: Ordine sempre consistente
+    return sorted(feature_cols)
 
 
 def prepare_xy(df: pd.DataFrame,
@@ -180,26 +150,8 @@ def fit_scaler(X_train: pd.DataFrame) -> StandardScaler:
 
 
 def transform_data(X: pd.DataFrame, 
-                   scaler: StandardScaler,
-                   expected_columns: List[str] = None) -> pd.DataFrame:
-    """
-    Applica trasformazione scaler.
-    
-    FIX #2: Validazione ordine colonne prima della trasformazione
-    
-    Args:
-        X: DataFrame da scalare
-        scaler: Scaler fitted
-        expected_columns: Colonne attese (opzionale, per validazione)
-    """
-    # FIX #2: Valida ordine colonne se fornite
-    if expected_columns is not None:
-        validate_column_consistency(
-            expected_columns=expected_columns,
-            actual_columns=list(X.columns),
-            context="transform_data"
-        )
-    
+                   scaler: StandardScaler) -> pd.DataFrame:
+    """Applica trasformazione scaler."""
     X_scaled = scaler.transform(X)
     return pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
 
@@ -279,169 +231,6 @@ def select_features_by_importance(X_train: pd.DataFrame,
     return selected_features, importance_dict
 
 
-def select_features_histgb(X_train: pd.DataFrame,
-                           y_train: pd.Series,
-                           n_features: int = DEFAULT_N_FEATURES,
-                           max_iter: int = 100,
-                           n_jobs: int = None,
-                           random_state: int = RANDOM_STATE
-                           ) -> Tuple[List[str], dict]:
-    """
-    FIX #4 (FASE 2): Selezione feature con HistGradientBoosting.
-    
-    Speedup ~10x rispetto a RandomForest mantenendo qualità simile.
-    
-    Args:
-        X_train: Feature training scalate
-        y_train: Target training
-        n_features: Numero feature da selezionare
-        max_iter: Iterazioni HistGradientBoosting (default: 100)
-        n_jobs: Core CPU (None = usa default da environment)
-        random_state: Seed
-    
-    Returns:
-        Tuple (lista feature selezionate, dict importanze)
-    """
-    if n_jobs is None:
-        n_jobs = int(os.environ.get('OMP_NUM_THREADS', -1))
-    
-    logger.info(f"Training HistGradientBoosting per selezione feature "
-                f"(max_iter={max_iter}, n_jobs={n_jobs})...")
-    
-    # HistGradientBoosting è molto più veloce di RF
-    hgb = HistGradientBoostingClassifier(
-        max_iter=max_iter,
-        max_depth=10,
-        learning_rate=0.1,
-        random_state=random_state,
-        verbose=0,
-        class_weight='balanced'
-    )
-    
-    print(f"   Training HistGradientBoosting: {max_iter} iter su {len(X_train):,} campioni...")
-    print(f"   Core CPU in uso: {n_jobs}")
-    print(f"   Speedup atteso: ~10x rispetto a RF")
-    
-    hgb.fit(X_train, y_train)
-    
-    print("   HistGradientBoosting training completato")
-    
-    # Estrai importanze (solo se sklearn >= 1.0)
-    if hasattr(hgb, 'feature_importances_'):
-        importances = hgb.feature_importances_
-    else:
-        logger.warning("feature_importances_ non disponibile, uso permutation importance")
-        from sklearn.inspection import permutation_importance
-        perm = permutation_importance(hgb, X_train, y_train, n_repeats=5, 
-                                     random_state=random_state, n_jobs=n_jobs)
-        importances = perm.importances_mean
-    
-    feature_names = X_train.columns.tolist()
-    
-    importance_dict = {
-        name: float(imp) 
-        for name, imp in zip(feature_names, importances)
-    }
-    
-    sorted_features = sorted(importance_dict.items(), 
-                            key=lambda x: x[1], 
-                            reverse=True)
-    
-    selected_features = [name for name, _ in sorted_features[:n_features]]
-    
-    logger.info(f"Selezionate {n_features} feature su {len(feature_names)}")
-    
-    del hgb
-    gc.collect()
-    
-    return selected_features, importance_dict
-
-
-def select_features_rfecv(X_train: pd.DataFrame,
-                          y_train: pd.Series,
-                          min_features: int = 10,
-                          cv: int = 3,
-                          n_jobs: int = None,
-                          random_state: int = RANDOM_STATE
-                          ) -> Tuple[List[str], dict]:
-    """
-    FIX #3 (FASE 2): Selezione feature con RFECV + F2 scorer.
-    
-    Recursive Feature Elimination with Cross-Validation.
-    Usa HistGradientBoosting come estimatore base (veloce).
-    Scorer: F2 (beta=2, enfatizza Recall).
-    
-    NOTA: Più lento di importance/histgb ma più robusto.
-          Trova automaticamente il numero ottimale di feature.
-    
-    Args:
-        X_train: Feature training scalate
-        y_train: Target training
-        min_features: Numero minimo feature da mantenere
-        cv: Fold cross-validation (default: 3)
-        n_jobs: Core CPU (None = usa default da environment)
-        random_state: Seed
-    
-    Returns:
-        Tuple (lista feature selezionate, dict importanze)
-    """
-    if n_jobs is None:
-        n_jobs = int(os.environ.get('OMP_NUM_THREADS', -1))
-    
-    logger.info(f"RFECV con F2 scorer (cv={cv}, min_features={min_features})...")
-    
-    # Estimatore base: HistGradientBoosting (veloce)
-    estimator = HistGradientBoostingClassifier(
-        max_iter=50,  # Pochi iter per velocità (RFECV ne fa molti)
-        max_depth=8,
-        learning_rate=0.1,
-        random_state=random_state,
-        verbose=0,
-        class_weight='balanced'
-    )
-    
-    # Scorer F2 (beta=2 enfatizza Recall)
-    f2_scorer = make_scorer(fbeta_score, beta=2, zero_division=0)
-    
-    print(f"   RFECV con HistGradientBoosting come estimatore base")
-    print(f"   Scorer: F2 (beta=2, enfatizza Recall)")
-    print(f"   CV folds: {cv}")
-    print(f"   Min features: {min_features}")
-    print(f"   NOTA: Processo può richiedere alcuni minuti...")
-    
-    # RFECV
-    rfecv = RFECV(
-        estimator=estimator,
-        min_features_to_select=min_features,
-        cv=cv,
-        scoring=f2_scorer,
-        n_jobs=n_jobs,
-        verbose=1
-    )
-    
-    rfecv.fit(X_train, y_train)
-    
-    print(f"   RFECV completato: {rfecv.n_features_} feature ottimali")
-    
-    # Feature selezionate
-    selected_mask = rfecv.support_
-    feature_names = X_train.columns.tolist()
-    selected_features = [name for name, selected in zip(feature_names, selected_mask) if selected]
-    
-    # Ranking come proxy per "importanza"
-    # Ranking 1 = più importante, N = meno importante
-    ranking = rfecv.ranking_
-    importance_dict = {
-        name: float(1.0 / rank)  # Inverti ranking (più alto = più importante)
-        for name, rank in zip(feature_names, ranking)
-    }
-    
-    logger.info(f"RFECV selezionate {len(selected_features)} feature (ottimale trovato da CV)")
-    logger.info(f"CV scores per n_features: {rfecv.cv_results_['mean_test_score'][:10]}...")
-    
-    return selected_features, importance_dict
-
-
 def apply_feature_selection(X: pd.DataFrame,
                             selected_features: List[str]) -> pd.DataFrame:
     """Filtra DataFrame mantenendo solo feature selezionate."""
@@ -461,11 +250,7 @@ def save_artifacts(scaler: StandardScaler,
                    feature_importances: dict,
                    scaler_columns: List[str] = None,
                    output_dir: Path = None) -> None:
-    """
-    Salva artifacts del feature engineering.
-    
-    FIX #2: Aggiunto salvataggio checksum colonne per validazione
-    """
+    """Salva artifacts del feature engineering."""
     if output_dir is None:
         output_dir = get_project_root() / "artifacts"
     
@@ -480,24 +265,9 @@ def save_artifacts(scaler: StandardScaler,
     
     # Salva le colonne usate per fittare lo scaler
     if scaler_columns is not None:
-        # FIX #2: Assicura ordine deterministico
-        scaler_columns_sorted = sorted(scaler_columns)
-        
         with open(output_dir / "scaler_columns.json", 'w') as f:
-            json.dump(scaler_columns_sorted, f, indent=2)
-        logger.info(f"Salvato: scaler_columns.json ({len(scaler_columns_sorted)} colonne)")
-        
-        # FIX #2: Calcola e salva checksum per validazione
-        checksum = compute_column_checksum(scaler_columns_sorted)
-        checksum_data = {
-            'checksum': checksum,
-            'n_columns': len(scaler_columns_sorted),
-            'columns': scaler_columns_sorted[:10]  # Prime 10 per debug
-        }
-        
-        with open(output_dir / "column_checksum.json", 'w') as f:
-            json.dump(checksum_data, f, indent=2)
-        logger.info(f"✓ Salvato checksum colonne: {checksum}")
+            json.dump(scaler_columns, f, indent=2)
+        logger.info(f"Salvato: scaler_columns.json ({len(scaler_columns)} colonne)")
     
     sorted_importances = dict(sorted(feature_importances.items(),
                                      key=lambda x: x[1], 
@@ -507,17 +277,10 @@ def save_artifacts(scaler: StandardScaler,
     logger.info(f"Salvato: feature_importances.json")
 
 
-def load_artifacts(artifacts_dir: Path = None,
-                   validate_columns: bool = True
+def load_artifacts(artifacts_dir: Path = None
                    ) -> Tuple[StandardScaler, List[str], dict, List[str]]:
     """
     Carica artifacts salvati.
-    
-    FIX #2: Aggiunta validazione checksum colonne
-    
-    Args:
-        artifacts_dir: Directory artifacts
-        validate_columns: Se True, valida checksum colonne
     
     Returns:
         Tuple (scaler, selected_features, importances, scaler_columns)
@@ -545,29 +308,6 @@ def load_artifacts(artifacts_dir: Path = None,
     if scaler_columns_path.exists():
         with open(scaler_columns_path, 'r') as f:
             scaler_columns = json.load(f)
-        
-        # FIX #2: Valida checksum se richiesto
-        if validate_columns:
-            checksum_path = artifacts_dir / "column_checksum.json"
-            if checksum_path.exists():
-                with open(checksum_path, 'r') as f:
-                    checksum_data = json.load(f)
-                
-                # Ricalcola checksum e confronta
-                current_checksum = compute_column_checksum(scaler_columns)
-                saved_checksum = checksum_data['checksum']
-                
-                if current_checksum != saved_checksum:
-                    logger.warning(
-                        f"⚠️  Checksum colonne non corrisponde!\n"
-                        f"   Salvato: {saved_checksum}\n"
-                        f"   Calcolato: {current_checksum}\n"
-                        f"   Questo potrebbe indicare corruzione artifacts."
-                    )
-                else:
-                    logger.info(f"✓ Checksum colonne verificato: {current_checksum}")
-            else:
-                logger.warning("⚠️  Checksum colonne non trovato (artifacts vecchi?)")
     
     logger.info(f"Caricati artifacts da {artifacts_dir}")
     
@@ -584,22 +324,11 @@ def run_feature_engineering(train: pd.DataFrame,
                             label_col: str = 'Label_Binary',
                             n_features: int = DEFAULT_N_FEATURES,
                             n_estimators: int = DEFAULT_RF_ESTIMATORS,
-                            selection_method: str = 'importance',
                             n_jobs: int = None,
                             random_state: int = RANDOM_STATE
                             ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame,
                                        pd.Series, pd.Series, pd.Series]:
-    """
-    Esegue pipeline completa di feature engineering.
-    
-    FASE 2: Supporta 3 metodi di selezione feature:
-    - 'importance': RandomForest feature_importances_ (default, backward compatible)
-    - 'histgb': HistGradientBoosting ~10x più veloce
-    - 'rfecv': RFECV con F2 scorer (più robusto, più lento)
-    
-    Args:
-        selection_method: 'importance', 'histgb', 'rfecv'
-    """
+    """Esegue pipeline completa di feature engineering."""
     feature_cols = get_feature_columns(train)
     logger.info(f"Feature iniziali: {len(feature_cols)}")
     
@@ -616,39 +345,13 @@ def run_feature_engineering(train: pd.DataFrame,
     del X_train, X_val, X_test
     gc.collect()
     
-    # FASE 2: Selezione feature con metodo configurabile
-    logger.info(f"Metodo selezione feature: {selection_method}")
-    
-    if selection_method == 'importance':
-        # Default: RF feature importances (backward compatible)
-        selected_features, importances = select_features_by_importance(
-            X_train_scaled, y_train,
-            n_features=n_features,
-            n_estimators=n_estimators,
-            n_jobs=n_jobs,
-            random_state=random_state
-        )
-    elif selection_method == 'histgb':
-        # Fix #4: HistGradientBoosting (~10x speedup)
-        selected_features, importances = select_features_histgb(
-            X_train_scaled, y_train,
-            n_features=n_features,
-            max_iter=100,
-            n_jobs=n_jobs,
-            random_state=random_state
-        )
-    elif selection_method == 'rfecv':
-        # Fix #3: RFECV con F2 scorer
-        selected_features, importances = select_features_rfecv(
-            X_train_scaled, y_train,
-            min_features=max(10, n_features // 2),  # Min = metà delle feature richieste
-            cv=3,
-            n_jobs=n_jobs,
-            random_state=random_state
-        )
-    else:
-        raise ValueError(f"Metodo selezione non valido: {selection_method}. "
-                        f"Usa: 'importance', 'histgb', 'rfecv'")
+    selected_features, importances = select_features_by_importance(
+        X_train_scaled, y_train,
+        n_features=n_features,
+        n_estimators=n_estimators,
+        n_jobs=n_jobs,
+        random_state=random_state
+    )
     
     X_train_final = apply_feature_selection(X_train_scaled, selected_features)
     X_val_final = apply_feature_selection(X_val_scaled, selected_features)
@@ -678,8 +381,6 @@ Esempi:
   python src/feature_engineering.py
   python src/feature_engineering.py --n-jobs 4
   python src/feature_engineering.py --rf-estimators 20  # Test veloce
-  python src/feature_engineering.py --method histgb     # FASE 2: Speedup ~10x
-  python src/feature_engineering.py --method rfecv      # FASE 2: Selezione robusta
         """
     )
     
@@ -687,15 +388,12 @@ Esempi:
                         help=f'Feature da selezionare (default: {DEFAULT_N_FEATURES})')
     parser.add_argument('--rf-estimators', type=int, default=DEFAULT_RF_ESTIMATORS,
                         help=f'Alberi RF (default: {DEFAULT_RF_ESTIMATORS})')
-    parser.add_argument('--method', type=str, default='importance',
-                        choices=['importance', 'histgb', 'rfecv'],
-                        help='Metodo selezione: importance (RF default), histgb (~10x speedup), rfecv (robusto)')
     parser.add_argument('--label-col', type=str, default='Label_Binary',
                         help='Colonna target')
     parser.add_argument('--n-jobs', type=int, default=None,
                         help='Core CPU (default: auto, totale - 2)')
     parser.add_argument('--max-ram', type=int, default=DEFAULT_MAX_RAM,
-                        help='Limite RAM %%')
+                        help='Limite RAM %')
     parser.add_argument('--random-state', type=int, default=RANDOM_STATE,
                         help='Seed random')
     
@@ -720,21 +418,14 @@ def main():
     print("FEATURE ENGINEERING")
     print("=" * 60)
     print(f"\nParametri:")
-    print(f"  Metodo selezione:       {args.method}")
     print(f"  Feature da selezionare: {args.n_features}")
-    if args.method == 'importance':
-        print(f"  RF estimators:          {args.rf_estimators}")
-    elif args.method == 'histgb':
-        print(f"  HGB max_iter:           100")
-    elif args.method == 'rfecv':
-        print(f"  RFECV CV folds:         3")
+    print(f"  RF estimators:          {args.rf_estimators}")
     print(f"  CPU cores:              {n_jobs}/{os.cpu_count()}")
     print(f"  Max RAM:                {args.max_ram}%")
     print()
     
     # Inizializza timing logger
     timer = TimingLogger("feature_engineering", parameters={
-        'selection_method': args.method,
         'n_features': args.n_features,
         'rf_estimators': args.rf_estimators,
         'n_jobs': n_jobs,
@@ -758,7 +449,6 @@ def main():
                 label_col=args.label_col,
                 n_features=args.n_features,
                 n_estimators=args.rf_estimators,
-                selection_method=args.method,
                 n_jobs=n_jobs,
                 random_state=args.random_state
             )
