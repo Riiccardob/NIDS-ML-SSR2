@@ -24,11 +24,15 @@ import time
 import signal
 import logging
 import subprocess
+import warnings
 from pathlib import Path
 from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Optional, Dict, List, Any, Callable, Tuple
 from collections import defaultdict
+
+# Suppress sklearn feature name warnings (we use numpy arrays for speed)
+warnings.filterwarnings('ignore', message='X does not have valid feature names')
 
 import numpy as np
 import pandas as pd
@@ -519,6 +523,32 @@ class SnifferEngine:
         else:
             self.scaler_columns = self.selected_features
         
+        # CRITICAL: Create index-based selector if no selector.pkl exists
+        # but we have both scaler_columns (77 features) and selected_features (30 features)
+        self._selected_indices = None
+        self._use_index_selection = False
+        
+        if self.selector is None and self.scaler_columns is not None and self.selected_features is not None:
+            if len(self.scaler_columns) != len(self.selected_features):
+                # Need to create index-based selection
+                self.logger.info("Creating index-based feature selector from selected_features.json")
+                scaler_cols_lower = {col.strip().lower(): i for i, col in enumerate(self.scaler_columns)}
+                selected_indices = []
+                for feat in self.selected_features:
+                    feat_lower = feat.strip().lower()
+                    if feat_lower in scaler_cols_lower:
+                        selected_indices.append(scaler_cols_lower[feat_lower])
+                    else:
+                        self.logger.warning(f"Feature '{feat}' not found in scaler_columns")
+                
+                if len(selected_indices) == len(self.selected_features):
+                    # CRITICAL: Do NOT sort! Keep original order from selected_features.json
+                    self._selected_indices = selected_indices
+                    self._use_index_selection = True
+                    self.logger.info(f"Index-based selection ready: {len(self._selected_indices)} features")
+                else:
+                    self.logger.error(f"Could not match all selected features!")
+        
         # Load label mapping if available
         labels_path = self.artifacts_dir / 'label_encoder.pkl'
         if labels_path.exists():
@@ -593,12 +623,16 @@ class SnifferEngine:
         else:
             features_scaled = features_df.values
         
-        # Select features if selector exists
+        # Select features
         if self.selector is not None:
+            # Use sklearn selector
             try:
                 features_selected = self.selector.transform(features_scaled)
             except Exception:
                 features_selected = features_scaled
+        elif self._use_index_selection and self._selected_indices is not None:
+            # Use index-based selection (when no selector.pkl exists)
+            features_selected = features_scaled[:, self._selected_indices]
         else:
             features_selected = features_scaled
         
@@ -700,59 +734,114 @@ class SnifferEngine:
         self.stats.unique_dst_ips.add(pkt_info.dst_ip)
         
         # Add to flow manager
-        flow, is_complete = self.flow_manager.add_packet(pkt_info)
+        flow = self.flow_manager.add_packet_from_info(pkt_info)
         
         # Analyze if flow is complete
-        if is_complete and flow is not None:
+        if flow is not None:
             self.analyze_flow(flow)
     
-    def analyze_pcap(self, pcap_path: str, max_packets: Optional[int] = None) -> List[PredictionResult]:
+    def analyze_pcap(
+        self, 
+        pcap_path: str, 
+        max_packets: Optional[int] = None,
+        verbose: bool = False,
+        progress_interval: int = 10000
+    ) -> List[PredictionResult]:
         """
         Analyze a PCAP file and return predictions.
+        
+        Uses streaming to avoid loading entire PCAP into memory.
         
         Args:
             pcap_path: Path to PCAP file
             max_packets: Maximum packets to process (None for all)
+            verbose: Show detailed progress
+            progress_interval: How often to show progress (packets)
             
         Returns:
             List of PredictionResult objects
         """
+        from scapy.utils import PcapReader
+        import os
+        
         self.logger.info(f"Analyzing PCAP: {pcap_path}")
+        
+        # Get file size for progress estimation
+        file_size_mb = os.path.getsize(pcap_path) / (1024 * 1024)
+        self.logger.info(f"File size: {file_size_mb:.1f} MB")
+        
+        if max_packets:
+            self.logger.info(f"Processing up to {max_packets:,} packets")
+        else:
+            self.logger.info("Processing ALL packets (this may take a while for large files)")
+        
         results = []
         
         # Reset stats
         self.stats = SessionStats()
         
         try:
-            # Read PCAP
-            packets = rdpcap(pcap_path)
-            total_packets = len(packets) if max_packets is None else min(len(packets), max_packets)
-            self.logger.info(f"Processing {total_packets} packets...")
+            # Use streaming reader instead of loading all into memory
+            packet_count = 0
+            last_progress_time = time.time()
             
-            # Process each packet
-            for i, packet in enumerate(packets[:total_packets]):
-                self._process_packet(packet)
-                
-                # Progress update every 10000 packets
-                if (i + 1) % 10000 == 0:
-                    self.logger.info(f"Processed {i+1}/{total_packets} packets")
+            with PcapReader(pcap_path) as pcap_reader:
+                for packet in pcap_reader:
+                    # Check max packets limit
+                    if max_packets and packet_count >= max_packets:
+                        break
+                    
+                    # Process packet
+                    self._process_packet(packet)
+                    packet_count += 1
+                    
+                    # Progress update
+                    if packet_count % progress_interval == 0:
+                        elapsed = time.time() - last_progress_time
+                        rate = progress_interval / elapsed if elapsed > 0 else 0
+                        
+                        if verbose:
+                            self.logger.info(
+                                f"Processed {packet_count:,} packets | "
+                                f"Rate: {rate:.0f} pkt/s | "
+                                f"Flows: {self.flow_manager.get_flow_count()} active, "
+                                f"{self.stats.flows_analyzed} analyzed | "
+                                f"Attacks: {self.stats.attacks_detected}"
+                            )
+                        else:
+                            self.logger.info(f"Processed {packet_count:,} packets...")
+                        
+                        last_progress_time = time.time()
+            
+            self.logger.info(f"Finished reading {packet_count:,} packets")
             
             # Analyze any remaining flows
             self.logger.info("Analyzing remaining flows...")
             remaining_flows = self.flow_manager.get_all_flows()
-            for flow in remaining_flows:
+            remaining_count = len(remaining_flows)
+            
+            for i, flow in enumerate(remaining_flows):
                 result = self.analyze_flow(flow)
                 if result:
                     results.append(result)
+                
+                # Progress for remaining flows
+                if (i + 1) % 1000 == 0:
+                    self.logger.info(f"Analyzed {i+1}/{remaining_count} remaining flows")
             
             # Finalize stats
             self.stats.end_time = datetime.now()
             
             # Log summary
-            self.logger.info(
-                f"PCAP analysis complete: {self.stats.flows_analyzed} flows, "
-                f"{self.stats.attacks_detected} attacks detected"
-            )
+            self.logger.info("=" * 50)
+            self.logger.info(f"PCAP ANALYSIS COMPLETE")
+            self.logger.info(f"  Packets processed: {self.stats.packets_processed:,}")
+            self.logger.info(f"  Flows analyzed: {self.stats.flows_analyzed:,}")
+            self.logger.info(f"  Attacks detected: {self.stats.attacks_detected:,}")
+            self.logger.info(f"  Benign flows: {self.stats.benign_flows:,}")
+            self.logger.info(f"  Unique source IPs: {len(self.stats.unique_src_ips):,}")
+            self.logger.info(f"  Unique dest IPs: {len(self.stats.unique_dst_ips):,}")
+            self.logger.info("=" * 50)
             
             return results
             
