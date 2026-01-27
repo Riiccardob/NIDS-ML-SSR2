@@ -400,11 +400,17 @@ def cmd_pcap(args):
         print(f"Error: PCAP file not found: {pcap_path}")
         sys.exit(1)
     
+    # Get verbose flag (default False)
+    verbose = getattr(args, 'verbose', False)
+    
     print("=" * 60)
     print("NIDS-ML PCAP Analysis")
     print("=" * 60)
-    print(f"File:  {pcap_path}")
-    print(f"Model: {config.model.model_type} / {config.model.model_version}")
+    print(f"File:    {pcap_path}")
+    print(f"Model:   {config.model.model_type} / {config.model.model_version}")
+    print(f"Verbose: {verbose}")
+    if args.max_packets:
+        print(f"Limit:   {args.max_packets:,} packets")
     print("=" * 60)
     
     model_dir = config.model.get_model_dir(config.paths)
@@ -418,13 +424,17 @@ def cmd_pcap(args):
     )
     
     try:
-        results = engine.analyze_pcap(str(pcap_path), max_packets=args.max_packets)
+        results = engine.analyze_pcap(
+            str(pcap_path), 
+            max_packets=args.max_packets,
+            verbose=verbose
+        )
         
         attacks = [r for r in results if r.label != 'BENIGN']
         print(f"\nResults: {len(results)} flows analyzed")
         print(f"Attacks detected: {len(attacks)}")
         
-        if attacks and args.verbose:
+        if attacks and verbose:
             print("\nAttack details (top 20):")
             for attack in attacks[:20]:
                 print(f"  - {attack.label} | confidence: {attack.confidence:.2%}")
@@ -594,6 +604,8 @@ Examples:
     pcap_parser.add_argument('--day', help='CIC-IDS2017 day name')
     pcap_parser.add_argument('--max-packets', type=int,
                             help='Maximum packets to process')
+    pcap_parser.add_argument('-v', '--verbose', action='store_true',
+                            help='Verbose output')
     pcap_parser.add_argument('-o', '--output', help='Output JSON file path')
     
     # LIVE command
@@ -602,6 +614,8 @@ Examples:
     live_parser.add_argument('-d', '--duration', type=int,
                             help='Capture duration (seconds)')
     live_parser.add_argument('-f', '--filter', help='BPF filter')
+    live_parser.add_argument('-v', '--verbose', action='store_true',
+                            help='Verbose output')
     live_parser.add_argument('--firewall', action='store_true',
                             help='Enable firewall blocking')
     live_parser.add_argument('--firewall-execute', action='store_true',
