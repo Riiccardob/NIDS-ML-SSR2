@@ -2,7 +2,7 @@
 CONFRONTO TUTTE LE VERSIONI MODELLI
 ================================================================================
 
-Data: 2026-01-26 16:41:25
+Data: 2026-01-27 12:47:15
 Versioni valutate: 47
 Versioni che passano: 47
 
@@ -25,31 +25,31 @@ LIGHTGBM:
 1   bayesian_trials258_cv5_2026-01-25_0   0.9986   0.9991   0.9988 PASS
 2   default                               0.9988   0.9993   0.9987 PASS
 3   random_iter3_cv2_2026-01-24_20.00     0.9984   0.9990   0.9983 PASS
-4   cv7_iter250                           0.9987   0.9993   0.9983 PASS
-5   cv7_iter130                           0.9987   0.9993   0.9983 PASS
-6   cv7_iter220                           0.9987   0.9993   0.9983 PASS
-7   cv5_iter100                           0.9988   0.9993   0.9982 PASS
-8   cv5_iter350                           0.9988   0.9993   0.9982 PASS
-9   cv5_iter130                           0.9988   0.9993   0.9982 PASS
-10  cv2_iter10                            0.9988   0.9993   0.9981 PASS
-11  cv3_iter20                            0.9988   0.9993   0.9981 PASS
-12  cv5_iter400                           0.9988   0.9993   0.9981 PASS
-13  cv5_iter200                           0.9988   0.9993   0.9981 PASS
-14  cv5_iter250                           0.9988   0.9993   0.9981 PASS
-15  cv3_iter30                            0.9988   0.9993   0.9981 PASS
-16  cv7_iter170                           0.9988   0.9993   0.9981 PASS
-17  cv5_iter170                           0.9988   0.9993   0.9979 PASS
-18  cv4_iter50                            0.9988   0.9993   0.9977 PASS
-19  cv5_iter80                            0.9988   0.9993   0.9977 PASS
+4   cv7_iter220                           0.9987   0.9993   0.9982 PASS
+5   cv7_iter130                           0.9987   0.9993   0.9982 PASS
+6   cv7_iter250                           0.9987   0.9993   0.9982 PASS
+7   cv7_iter170                           0.9988   0.9993   0.9981 PASS
+8   cv5_iter130                           0.9988   0.9993   0.9981 PASS
+9   cv5_iter350                           0.9988   0.9993   0.9980 PASS
+10  cv5_iter250                           0.9988   0.9993   0.9980 PASS
+11  cv5_iter100                           0.9988   0.9993   0.9980 PASS
+12  cv5_iter400                           0.9988   0.9993   0.9980 PASS
+13  cv5_iter200                           0.9988   0.9993   0.9980 PASS
+14  cv3_iter20                            0.9988   0.9993   0.9980 PASS
+15  cv2_iter10                            0.9988   0.9993   0.9980 PASS
+16  cv3_iter30                            0.9988   0.9993   0.9980 PASS
+17  cv5_iter170                           0.9988   0.9993   0.9977 PASS
+18  cv5_iter80                            0.9988   0.9993   0.9977 PASS
+19  cv4_iter50                            0.9988   0.9993   0.9977 PASS
 
 RANDOM_FOREST:
 --------------------------------------------------------------------------------
 #   Versione                                  F2   Recall    Score Status
 --------------------------------------------------------------------------------
-1   cv3_iter40                            0.9985   0.9987   0.9956 PASS
-2   default                               0.9985   0.9987   0.9956 PASS
+1   default                               0.9985   0.9987   0.9956 PASS
+2   cv3_iter40                            0.9985   0.9987   0.9956 PASS
 3   cv2_iter5                             0.9981   0.9981   0.9953 PASS
-4   cv3_iter20                            0.9977   0.9987   0.9949 PASS
+4   cv3_iter20                            0.9977   0.9987   0.9948 PASS
 5   random_iter3                          0.9977   0.9987   0.9948 PASS
 6   cv2_iter1                             0.9975   0.9984   0.9948 PASS
 
@@ -60,25 +60,25 @@ XGBOOST:
 1   cv5_iter80_gpu                        0.9986   0.9994   0.9987 PASS
 2   cv5_iter50_gpu                        0.9986   0.9994   0.9987 PASS
 3   cv5_iter130_gpu                       0.9985   0.9994   0.9987 PASS
-4   cv5_iter100_gpu                       0.9985   0.9994   0.9987 PASS
-5   cv5_iter200_gpu                       0.9985   0.9994   0.9987 PASS
-6   cv5_iter170_gpu                       0.9985   0.9994   0.9986 PASS
+4   cv5_iter200_gpu                       0.9985   0.9994   0.9987 PASS
+5   cv5_iter100_gpu                       0.9985   0.9994   0.9987 PASS
+6   cv5_iter170_gpu                       0.9985   0.9994   0.9987 PASS
 7   bayesian_trials497_cv5_2026-01-25_0   0.9983   0.9991   0.9986 PASS
-8   cv5_iter400_gpu                       0.9985   0.9993   0.9986 PASS
-9   cv3_iter30_gpu                        0.9985   0.9994   0.9986 PASS
-10  cv2_iter10_gpu                        0.9985   0.9994   0.9986 PASS
-11  cv3_iter20_gpu                        0.9985   0.9994   0.9986 PASS
-12  cv3_iter50_gpu                        0.9985   0.9994   0.9986 PASS
-13  cv7_iter130_gpu                       0.9985   0.9993   0.9986 PASS
+8   cv2_iter10_gpu                        0.9985   0.9994   0.9986 PASS
+9   cv3_iter20_gpu                        0.9985   0.9994   0.9986 PASS
+10  cv3_iter50_gpu                        0.9985   0.9994   0.9986 PASS
+11  cv3_iter30_gpu                        0.9985   0.9994   0.9986 PASS
+12  cv5_iter400_gpu                       0.9985   0.9993   0.9986 PASS
+13  cv5_iter350_gpu                       0.9985   0.9993   0.9986 PASS
 14  cv7_iter220_gpu                       0.9985   0.9993   0.9986 PASS
-15  cv5_iter350_gpu                       0.9985   0.9993   0.9986 PASS
+15  cv7_iter130_gpu                       0.9985   0.9993   0.9986 PASS
 16  cv7_iter170_gpu                       0.9985   0.9993   0.9986 PASS
-17  cv5_iter250_gpu                       0.9985   0.9993   0.9985 PASS
+17  cv5_iter250_gpu                       0.9985   0.9993   0.9986 PASS
 18  cv4_iter50_gpu                        0.9985   0.9993   0.9985 PASS
-19  default                               0.9985   0.9993   0.9977 PASS
-20  random_iter3_cv2_2026-01-24_20.02     0.9971   0.9982   0.9950 PASS
-21  cv2_iter1_gpu                         0.9947   0.9955   0.9946 PASS
-22  latest                                0.9947   0.9955   0.9946 PASS
+19  default                               0.9985   0.9993   0.9975 PASS
+20  random_iter3_cv2_2026-01-24_20.02     0.9971   0.9982   0.9945 PASS
+21  latest                                0.9947   0.9955   0.9944 PASS
+22  cv2_iter1_gpu                         0.9947   0.9955   0.9944 PASS
 
 ================================================================================
 BEST MODEL OVERALL

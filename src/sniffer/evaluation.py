@@ -21,10 +21,14 @@ import os
 import json
 import time
 import logging
+import warnings
 from pathlib import Path
 from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Optional, Dict, List, Any, Tuple
+
+# Suppress sklearn feature name warnings (we use numpy arrays for speed)
+warnings.filterwarnings('ignore', message='X does not have valid feature names')
 
 import numpy as np
 import pandas as pd
@@ -176,12 +180,25 @@ class SnifferEvaluator:
         # Load scaler
         scaler_path = self.artifacts_dir / 'scaler.pkl'
         self.scaler = joblib.load(scaler_path) if scaler_path.exists() else None
+        if self.scaler:
+            self.logger.info(f"Loaded scaler")
         
-        # Load feature selector
+        # Load feature selector (if exists)
         selector_path = self.artifacts_dir / 'feature_selector.pkl'
         self.selector = joblib.load(selector_path) if selector_path.exists() else None
+        if self.selector:
+            self.logger.info(f"Loaded feature selector")
         
-        # Load selected features
+        # Load scaler columns (features BEFORE selection - typically 77)
+        scaler_cols_path = self.artifacts_dir / 'scaler_columns.json'
+        if scaler_cols_path.exists():
+            with open(scaler_cols_path, 'r') as f:
+                self.scaler_columns = json.load(f)
+            self.logger.info(f"Loaded scaler_columns: {len(self.scaler_columns)} features")
+        else:
+            self.scaler_columns = None
+        
+        # Load selected features (features AFTER selection - typically 30)
         features_path = self.artifacts_dir / 'selected_features.json'
         if not features_path.exists():
             features_path = self.model_dir / 'features_binary.json'
@@ -189,16 +206,63 @@ class SnifferEvaluator:
         if features_path.exists():
             with open(features_path, 'r') as f:
                 self.selected_features = json.load(f)
+            self.logger.info(f"Loaded selected_features: {len(self.selected_features)} features")
         else:
             self.selected_features = None
         
-        # Load scaler columns
-        scaler_cols_path = self.artifacts_dir / 'scaler_columns.json'
-        if scaler_cols_path.exists():
-            with open(scaler_cols_path, 'r') as f:
-                self.scaler_columns = json.load(f)
+        # Determine pipeline strategy
+        # CRITICAL FIX: Handle case where feature_selector.pkl doesn't exist
+        # but we have scaler_columns (77) and selected_features (30)
+        
+        if self.selector is not None and self.scaler_columns is not None:
+            # Best case: we have a selector pickle
+            self.features_to_load = self.scaler_columns
+            self.use_selector = True
+            self.logger.info(f"Pipeline: {len(self.scaler_columns)} features -> scale -> select -> predict")
+            
+        elif self.selector is None and self.scaler_columns is not None and self.selected_features is not None:
+            # No selector pickle, but we have both scaler_columns and selected_features
+            # We need to create a simple selector that picks the right columns
+            self.logger.warning("No feature_selector.pkl found - creating index-based selector from selected_features.json")
+            
+            # Find indices of selected features in scaler_columns
+            scaler_cols_lower = {col.strip().lower(): i for i, col in enumerate(self.scaler_columns)}
+            selected_indices = []
+            for feat in self.selected_features:
+                feat_lower = feat.strip().lower()
+                if feat_lower in scaler_cols_lower:
+                    selected_indices.append(scaler_cols_lower[feat_lower])
+                else:
+                    self.logger.warning(f"Selected feature '{feat}' not found in scaler_columns")
+            
+            if len(selected_indices) == len(self.selected_features):
+                # Create a simple index-based selector function
+                # CRITICAL: Do NOT sort! The order in selected_features.json is the order
+                # the model expects to receive features
+                self._selected_indices = selected_indices  # Keep original order!
+                self.features_to_load = self.scaler_columns
+                self.use_selector = True  # Will use custom selection
+                self.logger.info(f"Pipeline: {len(self.scaler_columns)} features -> scale -> custom select ({len(self._selected_indices)} indices) -> predict")
+            else:
+                # Fallback: try to use selected features directly
+                self.logger.warning("Could not match all selected features, trying direct load")
+                self.features_to_load = self.selected_features
+                self.use_selector = False
+                self._selected_indices = None
+                
+        elif self.selected_features is not None:
+            # No selector, no scaler_columns, but we have selected_features
+            # Assume scaler was fitted on selected features only
+            self.features_to_load = self.selected_features
+            self.use_selector = False
+            self._selected_indices = None
+            self.logger.info(f"Pipeline: {len(self.selected_features)} selected features -> scale -> predict")
         else:
-            self.scaler_columns = self.selected_features
+            # Fallback to all features (will likely fail if model expects fewer)
+            self.features_to_load = get_feature_columns_ordered()
+            self.use_selector = False
+            self._selected_indices = None
+            self.logger.warning("Using default feature list - this may cause issues!")
         
         self.logger.info("Artifacts loaded")
     
@@ -221,18 +285,8 @@ class SnifferEvaluator:
         labels = df[label_col].apply(lambda x: 0 if str(x).strip().upper() == 'BENIGN' else 1)
         labels = labels.values
         
-        # Get feature columns
-        if self.scaler_columns:
-            feature_cols = self.scaler_columns
-        elif self.selected_features:
-            feature_cols = self.selected_features
-        else:
-            # Try to match standard features
-            feature_cols = []
-            for feat in get_feature_columns_ordered():
-                col = find_column(df.columns.tolist(), feat)
-                if col:
-                    feature_cols.append(col)
+        # Use the pre-determined feature list
+        feature_cols = self.features_to_load
         
         # Map column names (handle spacing differences)
         col_mapping = {}
@@ -245,15 +299,20 @@ class SnifferEvaluator:
         
         # Create features DataFrame
         features_data = {}
+        missing_count = 0
         for target_col, source_col in col_mapping.items():
             if source_col and source_col in df.columns:
                 features_data[target_col] = df[source_col].values
             else:
                 features_data[target_col] = np.zeros(len(df))
+                missing_count += 1
+        
+        if missing_count > 0:
+            self.logger.warning(f"{missing_count} features not found in CSV, filled with zeros")
         
         features_df = pd.DataFrame(features_data)
         
-        # Ensure column order
+        # Ensure column order matches expected
         features_df = features_df[feature_cols]
         
         # Handle NaN/Inf
@@ -284,9 +343,16 @@ class SnifferEvaluator:
             scale_time = 0
         
         # Select features
-        if self.selector is not None:
+        if self.use_selector:
             start = time.perf_counter()
-            features_selected = self.selector.transform(features_scaled)
+            if self.selector is not None:
+                # Use sklearn selector
+                features_selected = self.selector.transform(features_scaled)
+            elif hasattr(self, '_selected_indices') and self._selected_indices is not None:
+                # Use custom index-based selection
+                features_selected = features_scaled[:, self._selected_indices]
+            else:
+                features_selected = features_scaled
             select_time = time.perf_counter() - start
         else:
             features_selected = features_scaled
@@ -508,18 +574,58 @@ class LatencyBenchmarker:
         selector_path = self.artifacts_dir / 'feature_selector.pkl'
         self.selector = joblib.load(selector_path) if selector_path.exists() else None
         
-        # Load feature columns
+        # Load scaler columns (features BEFORE selection)
         scaler_cols_path = self.artifacts_dir / 'scaler_columns.json'
         if scaler_cols_path.exists():
             with open(scaler_cols_path, 'r') as f:
-                self.feature_columns = json.load(f)
+                self.scaler_columns = json.load(f)
         else:
-            features_path = self.artifacts_dir / 'selected_features.json'
-            if features_path.exists():
-                with open(features_path, 'r') as f:
-                    self.feature_columns = json.load(f)
+            self.scaler_columns = None
+        
+        # Load selected features (features AFTER selection)
+        features_path = self.artifacts_dir / 'selected_features.json'
+        if features_path.exists():
+            with open(features_path, 'r') as f:
+                self.selected_features = json.load(f)
+        else:
+            self.selected_features = None
+        
+        # Determine feature configuration
+        self._selected_indices = None
+        
+        if self.selector is not None and self.scaler_columns is not None:
+            # Full pipeline: load scaler_columns -> scale -> select -> predict
+            self.feature_columns = self.scaler_columns
+            self.use_selector = True
+            
+        elif self.selector is None and self.scaler_columns is not None and self.selected_features is not None:
+            # No selector pickle, but we have both lists
+            # Create index-based selector
+            scaler_cols_lower = {col.strip().lower(): i for i, col in enumerate(self.scaler_columns)}
+            selected_indices = []
+            for feat in self.selected_features:
+                feat_lower = feat.strip().lower()
+                if feat_lower in scaler_cols_lower:
+                    selected_indices.append(scaler_cols_lower[feat_lower])
+            
+            if len(selected_indices) == len(self.selected_features):
+                # CRITICAL: Do NOT sort! Keep original order from selected_features.json
+                self._selected_indices = selected_indices
+                self.feature_columns = self.scaler_columns
+                self.use_selector = True
             else:
-                self.feature_columns = get_feature_columns_ordered()
+                # Fallback
+                self.feature_columns = self.selected_features
+                self.use_selector = False
+                
+        elif self.selected_features is not None:
+            # No selector: load selected_features directly -> scale -> predict
+            self.feature_columns = self.selected_features
+            self.use_selector = False
+        else:
+            # Fallback
+            self.feature_columns = get_feature_columns_ordered()
+            self.use_selector = False
     
     def benchmark(
         self,
@@ -555,8 +661,13 @@ class LatencyBenchmarker:
         for _ in range(warmup_iterations):
             if self.scaler:
                 scaled = self.scaler.transform(test_data)
-                if self.selector:
-                    selected = self.selector.transform(scaled)
+                if self.use_selector:
+                    if self.selector is not None:
+                        selected = self.selector.transform(scaled)
+                    elif self._selected_indices is not None:
+                        selected = scaled[:, self._selected_indices]
+                    else:
+                        selected = scaled
                     self.model.predict(selected)
                 else:
                     self.model.predict(scaled)
@@ -577,9 +688,14 @@ class LatencyBenchmarker:
                 scale_times.append(0)
             
             # Select
-            if self.selector:
+            if self.use_selector:
                 start = time.perf_counter()
-                selected = self.selector.transform(scaled)
+                if self.selector is not None:
+                    selected = self.selector.transform(scaled)
+                elif self._selected_indices is not None:
+                    selected = scaled[:, self._selected_indices]
+                else:
+                    selected = scaled
                 select_times.append(time.perf_counter() - start)
             else:
                 selected = scaled

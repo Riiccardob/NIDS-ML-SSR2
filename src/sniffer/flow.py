@@ -31,8 +31,12 @@ from dataclasses import dataclass, field
 # Soglia idle in secondi (CICFlowMeter usa 1 secondo)
 IDLE_THRESHOLD = 1.0
 
-# Timeout default per flussi
+# Timeout default per flussi (idle timeout)
 DEFAULT_FLOW_TIMEOUT = 60.0
+
+# Active timeout: forza analisi dopo N secondi di attività continua
+# Importante per attacchi come Slowloris o port scan
+ACTIVE_TIMEOUT = 30.0
 
 # Max pacchetti prima di forzare analisi
 MAX_PACKETS_PER_FLOW = 500
@@ -318,12 +322,48 @@ class Flow:
         }
     
     def is_expired(self, current_time: float, timeout: float = DEFAULT_FLOW_TIMEOUT) -> bool:
-        """Verifica se il flusso è scaduto."""
+        """Verifica se il flusso è scaduto (idle timeout)."""
         return (current_time - self.last_time) > timeout
     
-    def should_analyze(self) -> bool:
-        """Verifica se il flusso ha abbastanza pacchetti per l'analisi."""
-        return self.total_packets >= MAX_PACKETS_PER_FLOW
+    def is_active_timeout(self, current_time: float, active_timeout: float = ACTIVE_TIMEOUT) -> bool:
+        """
+        Verifica se il flusso ha superato l'active timeout.
+        
+        IMPORTANTE per attacchi come:
+        - Slowloris: connessioni aperte a lungo con poco traffico
+        - Port Scan: tanti SYN senza ACK
+        - DoS lenti: traffico costante per lungo tempo
+        
+        Forza l'analisi anche se il flusso non è "completo".
+        """
+        flow_duration = current_time - self.start_time
+        return flow_duration > active_timeout
+    
+    def should_analyze(self, current_time: float = None) -> bool:
+        """
+        Verifica se il flusso deve essere analizzato.
+        
+        Condizioni per analisi:
+        1. Raggiunto MAX_PACKETS_PER_FLOW
+        2. Superato ACTIVE_TIMEOUT (flusso attivo da troppo tempo)
+        3. Visto flag FIN o RST (chiusura connessione)
+        """
+        # Max packets reached
+        if self.total_packets >= MAX_PACKETS_PER_FLOW:
+            return True
+        
+        # Active timeout check
+        if current_time is not None:
+            if self.is_active_timeout(current_time):
+                return True
+        
+        # Connection termination flags
+        if self.fin_count > 0 or self.rst_count > 0:
+            # Aspetta un po' dopo FIN/RST per catturare eventuali ACK finali
+            if self.total_packets >= 4:  # Minimo per una connessione base
+                return True
+        
+        return False
 
 
 # ==============================================================================
@@ -419,8 +459,8 @@ class FlowManager:
                 window_size=window_size
             )
             
-            # Verifica se flusso completo
-            if flow.should_analyze():
+            # Verifica se flusso completo (max packets, active timeout, o FIN/RST)
+            if flow.should_analyze(current_time=timestamp):
                 del self.flows[key]
                 self.total_flows_completed += 1
                 flow.finalize()
@@ -478,6 +518,35 @@ class FlowManager:
         """Numero di flussi attivi."""
         with self.lock:
             return len(self.flows)
+    
+    def add_packet_from_info(self, pkt_info) -> Optional[Flow]:
+        """
+        Aggiunge un pacchetto da un oggetto PacketInfo.
+        
+        Wrapper per add_packet che accetta un oggetto con attributi.
+        
+        Args:
+            pkt_info: Oggetto con attributi (src_ip, dst_ip, src_port, etc.)
+            
+        Returns:
+            Flow se il flusso è completo, None altrimenti
+        """
+        # Calcola packet_len come header + payload
+        packet_len = pkt_info.header_length + pkt_info.payload_size
+        
+        return self.add_packet(
+            src_ip=pkt_info.src_ip,
+            dst_ip=pkt_info.dst_ip,
+            src_port=pkt_info.src_port,
+            dst_port=pkt_info.dst_port,
+            protocol=pkt_info.protocol,
+            packet_len=packet_len,
+            header_len=pkt_info.header_length,
+            payload_len=pkt_info.payload_size,
+            timestamp=pkt_info.timestamp,
+            tcp_flags=getattr(pkt_info, 'tcp_flags', None),
+            window_size=getattr(pkt_info, 'window_size', None)
+        )
     
     def get_stats(self) -> Dict[str, int]:
         """Statistiche del manager."""
