@@ -1,9 +1,9 @@
 {
-  "best_model": "lightgbm/bayesian_trials258_cv5_2026-01-25_06.56",
-  "model_type": "lightgbm",
-  "version_id": "bayesian_trials258_cv5_2026-01-25_06.56",
+  "best_model": "xgboost/bayesian_trials497_cv5_2026-01-25_06.51",
+  "model_type": "xgboost",
+  "version_id": "bayesian_trials497_cv5_2026-01-25_06.51",
   "task": "binary",
-  "selected_at": "2026-01-27T12:47:14.483878",
+  "selected_at": "2026-01-27T23:51:49.609956",
   "constraints": {
     "fpr_threshold": 0.01,
     "latency_threshold_ms": 1.0,
@@ -12,21 +12,21 @@
     "all_pass": "True"
   },
   "metrics": {
-    "accuracy": 0.9984348377382415,
-    "precision": 0.9961679012345679,
-    "recall": 0.9991480762372706,
-    "f1": 0.9976557631628404,
-    "false_positive_rate": 0.0019217815112731306,
-    "false_negative_rate": 0.000851923762729326,
-    "specificity": 0.9980782184887269
+    "accuracy": 0.9989829747328658,
+    "precision": 0.997685643074732,
+    "recall": 0.9992669493204422,
+    "f1": 0.9984756701112563,
+    "false_positive_rate": 0.001159012560922455,
+    "false_negative_rate": 0.0007330506795577922,
+    "specificity": 0.9988409874390776
   },
   "latency": {
-    "latency_total_ms": 0.5978777499962007,
-    "latency_per_sample_ms": 0.0005978777499962007,
-    "latency_std_ms": 0.013160652619213684,
-    "samples_per_second": 1672582.7311793333
+    "latency_total_ms": 0.8652958749735262,
+    "latency_per_sample_ms": 0.0008652958749735262,
+    "latency_std_ms": 0.03116805454326318,
+    "samples_per_second": 1155674.063545715
   },
-  "score": 0.9988060675896576,
-  "f2_component": 0.9985506155923665,
-  "latency_component": 0.9994021222500038
+  "score": 0.9990056122674148,
+  "f2_component": 0.9989502871855813,
+  "latency_component": 0.9991347041250265
 }
