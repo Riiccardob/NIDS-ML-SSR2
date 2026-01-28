@@ -27,3 +27,4 @@ SEMPRE:
 5 - TODO DA REPORT CLAUDE
 * Fix #2: Sostituire undersampling con SMOTE+Tomek
 
+6 - dato che su kaggle faccio aprtire 3 ru diverse, ognua genera i propri artifacts, potrebbe capitare che scelgano featrue diverse per ogni modelli, da verificare e cheidere a claude in caso
