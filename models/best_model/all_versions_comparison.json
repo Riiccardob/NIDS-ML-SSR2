@@ -14,10 +14,10 @@
       "specificity": 0.9989301422514562
     },
     "latency": {
-      "latency_total_ms": 5.74690599933092,
-      "latency_per_sample_ms": 0.00574690599933092,
-      "latency_std_ms": 0.4237848255434105,
-      "samples_per_second": 174006.67422025424
+      "latency_total_ms": 1.8107015021087136,
+      "latency_per_sample_ms": 0.0018107015021087136,
+      "latency_std_ms": 1.6187193274656444,
+      "samples_per_second": 552272.1436058987
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -26,13 +26,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9977213739232007,
+    "score": 0.9989022352723674,
     "f2_component": 0.9992077796042859,
-    "latency_component": 0.9942530940006691,
+    "latency_component": 0.9981892984978913,
     "status": "PASS",
     "training_mode": "tuned_params",
     "fpr_estimated": false,
-    "intra_rank": 12,
+    "intra_rank": 1,
     "total_versions": 19
   },
   {
@@ -47,10 +47,10 @@
       "f1": 0.997981916388026
     },
     "latency": {
-      "latency_total_ms": 4.85103800019715,
-      "latency_per_sample_ms": 0.00485103800019715,
-      "latency_std_ms": 0.10938041416135001,
-      "samples_per_second": 206141.44848161555
+      "latency_total_ms": 6.003973376209615,
+      "latency_per_sample_ms": 0.006003973376209615,
+      "latency_std_ms": 0.49150065745399873,
+      "samples_per_second": 166556.36814820667
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -59,13 +59,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.997704715212959,
+    "score": 0.9973588346001552,
     "f2_component": 0.9988000380185974,
-    "latency_component": 0.9951489619998029,
+    "latency_component": 0.9939960266237904,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 13,
+    "intra_rank": 16,
     "total_versions": 19
   },
   {
@@ -80,10 +80,10 @@
       "f1": 0.9979720037592126
     },
     "latency": {
-      "latency_total_ms": 6.175740374601446,
-      "latency_per_sample_ms": 0.006175740374601446,
-      "latency_std_ms": 0.11179316117734701,
-      "samples_per_second": 161923.90536892274
+      "latency_total_ms": 6.767571625459823,
+      "latency_per_sample_ms": 0.006767571625459823,
+      "latency_std_ms": 0.34851488104202694,
+      "samples_per_second": 147763.4896744894
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -92,13 +92,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9972962123726041,
+    "score": 0.9971186629973466,
     "f2_component": 0.9987841921214066,
-    "latency_component": 0.9938242596253986,
+    "latency_component": 0.9932324283745402,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 19,
+    "intra_rank": 18,
     "total_versions": 19
   },
   {
@@ -113,10 +113,10 @@
       "f1": 0.9979720037592126
     },
     "latency": {
-      "latency_total_ms": 6.120659749285551,
-      "latency_per_sample_ms": 0.006120659749285551,
-      "latency_std_ms": 0.1349620153453325,
-      "samples_per_second": 163381.07997536173
+      "latency_total_ms": 6.780255498597398,
+      "latency_per_sample_ms": 0.006780255498597398,
+      "latency_std_ms": 0.3257319469154903,
+      "samples_per_second": 147487.06744264514
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -125,13 +125,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9973127365601989,
+    "score": 0.9971148578354054,
     "f2_component": 0.9987841921214066,
-    "latency_component": 0.9938793402507144,
+    "latency_component": 0.9932197445014026,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 18,
+    "intra_rank": 19,
     "total_versions": 19
   },
   {
@@ -149,10 +149,10 @@
       "specificity": 0.9982961524745414
     },
     "latency": {
-      "latency_total_ms": 4.647479501727503,
-      "latency_per_sample_ms": 0.004647479501727503,
-      "latency_std_ms": 0.05612140241893679,
-      "samples_per_second": 215170.3949696373
+      "latency_total_ms": 5.335435878805583,
+      "latency_per_sample_ms": 0.005335435878805583,
+      "latency_std_ms": 0.3189229022432209,
+      "samples_per_second": 187426.11151459755
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -161,13 +161,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.99775192181552,
+    "score": 0.9975455349023965,
     "f2_component": 0.998780236665769,
-    "latency_component": 0.9953525204982725,
+    "latency_component": 0.9946645641211944,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 8,
+    "intra_rank": 12,
     "total_versions": 19
   },
   {
@@ -185,10 +185,10 @@
       "specificity": 0.9982961524745414
     },
     "latency": {
-      "latency_total_ms": 4.685772625634854,
-      "latency_per_sample_ms": 0.004685772625634854,
-      "latency_std_ms": 0.11131400382322883,
-      "samples_per_second": 213411.97704071578
+      "latency_total_ms": 4.98506037365587,
+      "latency_per_sample_ms": 0.00498506037365587,
+      "latency_std_ms": 0.16750180481222485,
+      "samples_per_second": 200599.3759442947
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -197,13 +197,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9977404338783478,
+    "score": 0.9976506475539415,
     "f2_component": 0.998780236665769,
-    "latency_component": 0.9953142273743651,
+    "latency_component": 0.9950149396263441,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 11,
+    "intra_rank": 7,
     "total_versions": 19
   },
   {
@@ -221,10 +221,10 @@
       "specificity": 0.9982961524745414
     },
     "latency": {
-      "latency_total_ms": 4.648792250009137,
-      "latency_per_sample_ms": 0.004648792250009137,
-      "latency_std_ms": 0.06680785812028421,
-      "samples_per_second": 215109.6341201383
+      "latency_total_ms": 5.2128397474007215,
+      "latency_per_sample_ms": 0.0052128397474007215,
+      "latency_std_ms": 0.1884523160742223,
+      "samples_per_second": 191834.01916366795
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -233,13 +233,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9977515279910355,
+    "score": 0.997582313741818,
     "f2_component": 0.998780236665769,
-    "latency_component": 0.9953512077499909,
+    "latency_component": 0.9947871602525993,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 9,
+    "intra_rank": 10,
     "total_versions": 19
   },
   {
@@ -257,10 +257,10 @@
       "specificity": 0.9982961524745414
     },
     "latency": {
-      "latency_total_ms": 4.649749000236625,
-      "latency_per_sample_ms": 0.004649749000236625,
-      "latency_std_ms": 0.11951097485513702,
-      "samples_per_second": 215065.3723349605
+      "latency_total_ms": 5.382910623666248,
+      "latency_per_sample_ms": 0.005382910623666248,
+      "latency_std_ms": 0.3114174276611987,
+      "samples_per_second": 185773.10119240094
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -269,13 +269,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9977512409659672,
+    "score": 0.9975312924789383,
     "f2_component": 0.998780236665769,
-    "latency_component": 0.9953502509997634,
+    "latency_component": 0.9946170893763338,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 10,
+    "intra_rank": 13,
     "total_versions": 19
   },
   {
@@ -293,10 +293,10 @@
       "specificity": 0.9982961524745414
     },
     "latency": {
-      "latency_total_ms": 4.61080487457366,
-      "latency_per_sample_ms": 0.00461080487457366,
-      "latency_std_ms": 0.09293268487257049,
-      "samples_per_second": 216881.8735996642
+      "latency_total_ms": 5.007067376936902,
+      "latency_per_sample_ms": 0.005007067376936902,
+      "latency_std_ms": 0.2871899322190194,
+      "samples_per_second": 199717.7039410552
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -305,13 +305,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9977629242036661,
+    "score": 0.9976440454529572,
     "f2_component": 0.998780236665769,
-    "latency_component": 0.9953891951254263,
+    "latency_component": 0.9949929326230631,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 7,
+    "intra_rank": 8,
     "total_versions": 19
   },
   {
@@ -329,10 +329,10 @@
       "specificity": 0.9982961524745414
     },
     "latency": {
-      "latency_total_ms": 4.589939500874607,
-      "latency_per_sample_ms": 0.004589939500874607,
-      "latency_std_ms": 0.05994151560794593,
-      "samples_per_second": 217867.79538367584
+      "latency_total_ms": 5.059123499449925,
+      "latency_per_sample_ms": 0.0050591234994499246,
+      "latency_std_ms": 0.312525697812541,
+      "samples_per_second": 197662.6979176787
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -341,13 +341,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9977691838157758,
+    "score": 0.9976284286162033,
     "f2_component": 0.998780236665769,
-    "latency_component": 0.9954100604991254,
+    "latency_component": 0.9949408765005501,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 6,
+    "intra_rank": 9,
     "total_versions": 19
   },
   {
@@ -362,10 +362,10 @@
       "f1": 0.997952258945265
     },
     "latency": {
-      "latency_total_ms": 5.987644751257903,
-      "latency_per_sample_ms": 0.005987644751257903,
-      "latency_std_ms": 0.1771337433272024,
-      "samples_per_second": 167010.5762019226
+      "latency_total_ms": 6.4752780017443,
+      "latency_per_sample_ms": 0.0064752780017443,
+      "latency_std_ms": 0.3578556610335675,
+      "samples_per_second": 154433.52389358752
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -374,9 +374,9 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9973471034436452,
+    "score": 0.9972008134684992,
     "f2_component": 0.9987762812414608,
-    "latency_component": 0.9940123552487421,
+    "latency_component": 0.9935247219982557,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
@@ -395,10 +395,10 @@
       "f1": 0.9979423868312757
     },
     "latency": {
-      "latency_total_ms": 4.973799748768215,
-      "latency_per_sample_ms": 0.004973799748768215,
-      "latency_std_ms": 0.0447187564370228,
-      "samples_per_second": 201053.53060256492
+      "latency_total_ms": 5.606355996860657,
+      "latency_per_sample_ms": 0.005606355996860657,
+      "latency_std_ms": 0.22410510948350723,
+      "samples_per_second": 178368.97987925872
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -407,9 +407,9 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9976484881693064,
+    "score": 0.9974587212948787,
     "f2_component": 0.9987723258484812,
-    "latency_component": 0.9950262002512318,
+    "latency_component": 0.9943936440031393,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
@@ -428,10 +428,10 @@
       "f1": 0.9979423868312757
     },
     "latency": {
-      "latency_total_ms": 5.00503837611177,
-      "latency_per_sample_ms": 0.00500503837611177,
-      "latency_std_ms": 0.054937787218065824,
-      "samples_per_second": 199798.66783296538
+      "latency_total_ms": 5.511591874892474,
+      "latency_per_sample_ms": 0.005511591874892474,
+      "latency_std_ms": 0.29340872595814643,
+      "samples_per_second": 181435.78528653466
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -440,13 +440,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9976391165811034,
+    "score": 0.9974871505314691,
     "f2_component": 0.9987723258484812,
-    "latency_component": 0.9949949616238882,
+    "latency_component": 0.9944884081251075,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 16,
+    "intra_rank": 14,
     "total_versions": 19
   },
   {
@@ -461,10 +461,10 @@
       "f1": 0.9979423868312757
     },
     "latency": {
-      "latency_total_ms": 4.956295873853378,
-      "latency_per_sample_ms": 0.004956295873853378,
-      "latency_std_ms": 0.05760083665422269,
-      "samples_per_second": 201763.58019210194
+      "latency_total_ms": 5.310984126481344,
+      "latency_per_sample_ms": 0.005310984126481344,
+      "latency_std_ms": 0.26714392947419774,
+      "samples_per_second": 188289.02067582044
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -473,13 +473,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9976537393317808,
+    "score": 0.9975473328559925,
     "f2_component": 0.9987723258484812,
-    "latency_component": 0.9950437041261466,
+    "latency_component": 0.9946890158735187,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 14,
+    "intra_rank": 11,
     "total_versions": 19
   },
   {
@@ -497,10 +497,10 @@
       "specificity": 0.9982466220232199
     },
     "latency": {
-      "latency_total_ms": 3.967845750594279,
-      "latency_per_sample_ms": 0.003967845750594279,
-      "latency_std_ms": 0.11658721730124749,
-      "samples_per_second": 252025.92612130305
+      "latency_total_ms": 4.250817748470581,
+      "latency_per_sample_ms": 0.004250817748470581,
+      "latency_std_ms": 0.19270477896203042,
+      "samples_per_second": 235248.85308474916
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -509,13 +509,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9979197840509979,
+    "score": 0.9978348924516349,
     "f2_component": 0.9987287682516803,
-    "latency_component": 0.9960321542494057,
+    "latency_component": 0.9957491822515294,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 3,
+    "intra_rank": 4,
     "total_versions": 19
   },
   {
@@ -533,10 +533,10 @@
       "specificity": 0.9982466220232199
     },
     "latency": {
-      "latency_total_ms": 4.0586018749309005,
-      "latency_per_sample_ms": 0.0040586018749309005,
-      "latency_std_ms": 0.15916975720268883,
-      "samples_per_second": 246390.26709586426
+      "latency_total_ms": 4.366025003037066,
+      "latency_per_sample_ms": 0.004366025003037066,
+      "latency_std_ms": 0.36654187294703827,
+      "samples_per_second": 229041.290259306
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -545,13 +545,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9978925572136969,
+    "score": 0.9978003302752649,
     "f2_component": 0.9987287682516803,
-    "latency_component": 0.9959413981250691,
+    "latency_component": 0.9956339749969629,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 4,
+    "intra_rank": 6,
     "total_versions": 19
   },
   {
@@ -569,10 +569,10 @@
       "specificity": 0.9982466220232199
     },
     "latency": {
-      "latency_total_ms": 4.072199624715722,
-      "latency_per_sample_ms": 0.004072199624715722,
-      "latency_std_ms": 0.13268080461501097,
-      "samples_per_second": 245567.529138459
+      "latency_total_ms": 4.306277500290889,
+      "latency_per_sample_ms": 0.004306277500290889,
+      "latency_std_ms": 0.3810567469504036,
+      "samples_per_second": 232219.12659656745
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -581,9 +581,9 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9978884778887613,
+    "score": 0.9978182545260889,
     "f2_component": 0.9987287682516803,
-    "latency_component": 0.9959278003752843,
+    "latency_component": 0.9956937224997091,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
@@ -605,10 +605,10 @@
       "specificity": 0.9980881245789912
     },
     "latency": {
-      "latency_total_ms": 2.767365874206007,
-      "latency_per_sample_ms": 0.002767365874206007,
-      "latency_std_ms": 0.11018373021643896,
-      "samples_per_second": 361354.4596039051
+      "latency_total_ms": 3.1601871269231196,
+      "latency_per_sample_ms": 0.0031601871269231196,
+      "latency_std_ms": 0.43506157460003736,
+      "samples_per_second": 316436.95763473306
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -617,13 +617,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9980692484813067,
+    "score": 0.9979514021054916,
     "f2_component": 0.9984277974908123,
-    "latency_component": 0.997232634125794,
+    "latency_component": 0.9968398128730769,
     "status": "PASS",
     "training_mode": "tuned_params",
     "fpr_estimated": false,
-    "intra_rank": 2,
+    "intra_rank": 3,
     "total_versions": 19
   },
   {
@@ -638,10 +638,10 @@
       "f1": 0.9982770571343698
     },
     "latency": {
-      "latency_total_ms": 19.57694337488647,
-      "latency_per_sample_ms": 0.01957694337488647,
-      "latency_std_ms": 4.578497681216963,
-      "samples_per_second": 51080.49713638196
+      "latency_total_ms": 22.392693997971946,
+      "latency_per_sample_ms": 0.022392693997971946,
+      "latency_std_ms": 0.15300545986415168,
+      "samples_per_second": 44657.42264376799
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -650,13 +650,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9930952703146341,
+    "score": 0.9922505451277084,
     "f2_component": 0.9985262190387144,
-    "latency_component": 0.9804230566251135,
+    "latency_component": 0.977607306002028,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 2,
+    "intra_rank": 4,
     "total_versions": 6
   },
   {
@@ -671,10 +671,10 @@
       "f1": 0.9980782184887269
     },
     "latency": {
-      "latency_total_ms": 12.721390249680553,
-      "latency_per_sample_ms": 0.012721390249680553,
-      "latency_std_ms": 3.448970151716369,
-      "samples_per_second": 78607.76065926529
+      "latency_total_ms": 18.22502587310737,
+      "latency_per_sample_ms": 0.01822502587310737,
+      "latency_std_ms": 5.1010705751262355,
+      "samples_per_second": 54869.6066037189
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -683,13 +683,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9948383358672046,
+    "score": 0.9931872451801765,
     "f2_component": 0.9980782184887269,
-    "latency_component": 0.9872786097503194,
+    "latency_component": 0.9817749741268926,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 1,
+    "intra_rank": 2,
     "total_versions": 6
   },
   {
@@ -707,10 +707,10 @@
       "specificity": 0.9968894876570116
     },
     "latency": {
-      "latency_total_ms": 23.484680251385726,
-      "latency_per_sample_ms": 0.023484680251385726,
-      "latency_std_ms": 0.408196458200487,
-      "samples_per_second": 42580.95018947488
+      "latency_total_ms": 16.422283248175518,
+      "latency_per_sample_ms": 0.016422283248175518,
+      "latency_std_ms": 4.929561910401602,
+      "samples_per_second": 60892.87250060664
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -719,13 +719,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9913640583957365,
+    "score": 0.9934827774966996,
     "f2_component": 0.9977278035302175,
-    "latency_component": 0.9765153197486143,
+    "latency_component": 0.9835777167518245,
     "status": "PASS",
     "training_mode": "tuned_params",
     "fpr_estimated": false,
-    "intra_rank": 6,
+    "intra_rank": 1,
     "total_versions": 6
   },
   {
@@ -743,10 +743,10 @@
       "specificity": 0.9968894876570116
     },
     "latency": {
-      "latency_total_ms": 23.326675997850543,
-      "latency_per_sample_ms": 0.023326675997850543,
-      "latency_std_ms": 0.18241263265981725,
-      "samples_per_second": 42869.37410594402
+      "latency_total_ms": 20.53860512569372,
+      "latency_per_sample_ms": 0.02053860512569372,
+      "latency_std_ms": 4.528892271086084,
+      "samples_per_second": 48688.798186640415
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -755,9 +755,9 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9914114596717971,
+    "score": 0.9922478809334441,
     "f2_component": 0.9977278035302175,
-    "latency_component": 0.9766733240021495,
+    "latency_component": 0.9794613948743063,
     "status": "PASS",
     "training_mode": "tuned_params",
     "fpr_estimated": false,
@@ -779,10 +779,10 @@
       "specificity": 0.996869675476483
     },
     "latency": {
-      "latency_total_ms": 22.542116250406252,
-      "latency_per_sample_ms": 0.022542116250406252,
-      "latency_std_ms": 0.21078637498069225,
-      "samples_per_second": 44361.40728277799
+      "latency_total_ms": 19.998068748463993,
+      "latency_per_sample_ms": 0.019998068748463993,
+      "latency_std_ms": 4.362713707859326,
+      "samples_per_second": 50004.8285951016
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -791,13 +791,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9914749366789979,
+    "score": 0.9922381509295806,
     "f2_component": 0.9974822450773141,
-    "latency_component": 0.9774578837495937,
+    "latency_component": 0.980001931251536,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 4,
+    "intra_rank": 6,
     "total_versions": 6
   },
   {
@@ -815,10 +815,10 @@
       "specificity": 0.9988409874390776
     },
     "latency": {
-      "latency_total_ms": 0.8652958749735262,
-      "latency_per_sample_ms": 0.0008652958749735262,
-      "latency_std_ms": 0.03116805454326318,
-      "samples_per_second": 1155674.063545715
+      "latency_total_ms": 0.8946763718995498,
+      "latency_per_sample_ms": 0.0008946763718995498,
+      "latency_std_ms": 0.11132362542927046,
+      "samples_per_second": 1117722.5993761634
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -827,9 +827,9 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9990056122674148,
+    "score": 0.998996798118337,
     "f2_component": 0.9989502871855813,
-    "latency_component": 0.9991347041250265,
+    "latency_component": 0.9991053236281005,
     "status": "PASS",
     "training_mode": "tuned_params",
     "fpr_estimated": false,
@@ -848,10 +848,10 @@
       "f1": 0.9973012248287316
     },
     "latency": {
-      "latency_total_ms": 1.5393026242236374,
-      "latency_per_sample_ms": 0.0015393026242236374,
-      "latency_std_ms": 0.1338427869634177,
-      "samples_per_second": 649644.8354360209
+      "latency_total_ms": 1.4259492472774582,
+      "latency_per_sample_ms": 0.0014259492472774582,
+      "latency_std_ms": 0.01709215502001782,
+      "samples_per_second": 701287.2315822487
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -860,13 +860,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9985155588736311,
+    "score": 0.9985495648867149,
     "f2_component": 0.9985390709441403,
-    "latency_component": 0.9984606973757764,
+    "latency_component": 0.9985740507527225,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 11,
+    "intra_rank": 5,
     "total_versions": 22
   },
   {
@@ -881,10 +881,10 @@
       "f1": 0.9973012248287316
     },
     "latency": {
-      "latency_total_ms": 1.545267625260749,
-      "latency_per_sample_ms": 0.001545267625260749,
-      "latency_std_ms": 0.09194168070448139,
-      "samples_per_second": 647137.0937000377
+      "latency_total_ms": 1.5914992527541472,
+      "latency_per_sample_ms": 0.0015914992527541472,
+      "latency_std_ms": 0.2420115651941906,
+      "samples_per_second": 628338.3408879795
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -893,13 +893,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9985137693733199,
+    "score": 0.9984998998850719,
     "f2_component": 0.9985390709441403,
-    "latency_component": 0.9984547323747393,
+    "latency_component": 0.9984085007472459,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 12,
+    "intra_rank": 9,
     "total_versions": 22
   },
   {
@@ -914,10 +914,10 @@
       "f1": 0.9973012248287316
     },
     "latency": {
-      "latency_total_ms": 1.436357750208117,
-      "latency_per_sample_ms": 0.001436357750208117,
-      "latency_std_ms": 0.08687014914750682,
-      "samples_per_second": 696205.3846648635
+      "latency_total_ms": 1.6692831286491128,
+      "latency_per_sample_ms": 0.0016692831286491128,
+      "latency_std_ms": 0.29921998165392594,
+      "samples_per_second": 599059.5500772011
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -926,13 +926,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9985464423358357,
+    "score": 0.9984765647223035,
     "f2_component": 0.9985390709441403,
-    "latency_component": 0.9985636422497919,
+    "latency_component": 0.9983307168713509,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 8,
+    "intra_rank": 11,
     "total_versions": 22
   },
   {
@@ -947,10 +947,10 @@
       "f1": 0.9973012248287316
     },
     "latency": {
-      "latency_total_ms": 1.4664688733319053,
-      "latency_per_sample_ms": 0.0014664688733319053,
-      "latency_std_ms": 0.11125690241474401,
-      "samples_per_second": 681910.1436008934
+      "latency_total_ms": 1.4970793781685643,
+      "latency_per_sample_ms": 0.0014970793781685643,
+      "latency_std_ms": 0.09677772946763924,
+      "samples_per_second": 667967.2531615117
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -959,13 +959,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9985374089988985,
+    "score": 0.9985282258474476,
     "f2_component": 0.9985390709441403,
-    "latency_component": 0.9985335311266681,
+    "latency_component": 0.9985029206218314,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 9,
+    "intra_rank": 6,
     "total_versions": 22
   },
   {
@@ -980,10 +980,10 @@
       "f1": 0.9972914730827781
     },
     "latency": {
-      "latency_total_ms": 1.078735124792729,
-      "latency_per_sample_ms": 0.001078735124792729,
-      "latency_std_ms": 0.020631664400792844,
-      "samples_per_second": 927011.6240927471
+      "latency_total_ms": 1.0857964989554603,
+      "latency_per_sample_ms": 0.0010857964989554603,
+      "latency_std_ms": 0.11780679337381413,
+      "samples_per_second": 920982.8922473071
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -992,9 +992,9 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9986676061435871,
+    "score": 0.9986654877313382,
     "f2_component": 0.998558895258607,
-    "latency_component": 0.9989212648752073,
+    "latency_component": 0.9989142035010445,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
@@ -1013,10 +1013,10 @@
       "f1": 0.9972914730827781
     },
     "latency": {
-      "latency_total_ms": 1.1040222498195362,
-      "latency_per_sample_ms": 0.0011040222498195362,
-      "latency_std_ms": 0.029296063322639333,
-      "samples_per_second": 905778.8465435912
+      "latency_total_ms": 1.141265123806079,
+      "latency_per_sample_ms": 0.001141265123806079,
+      "latency_std_ms": 0.1619734702208169,
+      "samples_per_second": 876220.5898880317
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1025,9 +1025,9 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.998660020006079,
+    "score": 0.998648847143883,
     "f2_component": 0.998558895258607,
-    "latency_component": 0.9988959777501805,
+    "latency_component": 0.9988587348761939,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
@@ -1046,10 +1046,10 @@
       "f1": 0.9972813998319411
     },
     "latency": {
-      "latency_total_ms": 1.6855108733579982,
-      "latency_per_sample_ms": 0.0016855108733579982,
-      "latency_std_ms": 0.0323764206497294,
-      "samples_per_second": 593291.930539568
+      "latency_total_ms": 1.857255751019693,
+      "latency_per_sample_ms": 0.001857255751019693,
+      "latency_std_ms": 0.36692551887583796,
+      "samples_per_second": 538428.8079070251
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1058,13 +1058,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9984495168445343,
+    "score": 0.9983979933812358,
     "f2_component": 0.9985073858664882,
-    "latency_component": 0.998314489126642,
+    "latency_component": 0.9981427442489803,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 18,
+    "intra_rank": 16,
     "total_versions": 22
   },
   {
@@ -1079,10 +1079,10 @@
       "f1": 0.9972716488730724
     },
     "latency": {
-      "latency_total_ms": 1.1930712516914355,
-      "latency_per_sample_ms": 0.0011930712516914355,
-      "latency_std_ms": 0.021750683219529277,
-      "samples_per_second": 838172.9075964949
+      "latency_total_ms": 1.8245988721901085,
+      "latency_per_sample_ms": 0.0018245988721901085,
+      "latency_std_ms": 0.5843841156632,
+      "samples_per_second": 548065.6681540512
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1091,13 +1091,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9986111263000989,
+    "score": 0.9984216680139493,
     "f2_component": 0.998527210965152,
-    "latency_component": 0.9988069287483086,
+    "latency_component": 0.9981754011278099,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 4,
+    "intra_rank": 15,
     "total_versions": 22
   },
   {
@@ -1115,10 +1115,10 @@
       "specificity": 0.9975829139755121
     },
     "latency": {
-      "latency_total_ms": 1.3488864997270866,
-      "latency_per_sample_ms": 0.0013488864997270866,
-      "latency_std_ms": 0.3180086773460324,
-      "samples_per_second": 741352.2191839898
+      "latency_total_ms": 2.8417258745321305,
+      "latency_per_sample_ms": 0.0028417258745321305,
+      "latency_std_ms": 1.164165947356148,
+      "samples_per_second": 351898.82633019367
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1127,13 +1127,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9985643817256882,
+    "score": 0.9981165299132466,
     "f2_component": 0.998527210965152,
-    "latency_component": 0.9986511135002729,
+    "latency_component": 0.9971582741254679,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 7,
+    "intra_rank": 17,
     "total_versions": 22
   },
   {
@@ -1148,10 +1148,10 @@
       "f1": 0.9972716488730724
     },
     "latency": {
-      "latency_total_ms": 1.3473098752001533,
-      "latency_per_sample_ms": 0.0013473098752001533,
-      "latency_std_ms": 0.2848236501615543,
-      "samples_per_second": 742219.7509325331
+      "latency_total_ms": 1.7282980024901917,
+      "latency_per_sample_ms": 0.0017282980024901917,
+      "latency_std_ms": 0.8696213038549485,
+      "samples_per_second": 578603.9204808229
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1160,13 +1160,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9985648547130462,
+    "score": 0.9984505582748593,
     "f2_component": 0.998527210965152,
-    "latency_component": 0.9986526901247998,
+    "latency_component": 0.9982717019975098,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 6,
+    "intra_rank": 12,
     "total_versions": 22
   },
   {
@@ -1184,10 +1184,10 @@
       "specificity": 0.9975829139755121
     },
     "latency": {
-      "latency_total_ms": 1.2935180011481862,
-      "latency_per_sample_ms": 0.0012935180011481862,
-      "latency_std_ms": 0.227584334493716,
-      "samples_per_second": 773085.4917460398
+      "latency_total_ms": 1.3413068736554123,
+      "latency_per_sample_ms": 0.0013413068736554123,
+      "latency_std_ms": 0.1581481169284669,
+      "samples_per_second": 745541.5458169824
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1196,13 +1196,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9985809922752618,
+    "score": 0.9985666556135097,
     "f2_component": 0.998527210965152,
-    "latency_component": 0.9987064819988518,
+    "latency_component": 0.9986586931263446,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 5,
+    "intra_rank": 4,
     "total_versions": 22
   },
   {
@@ -1217,10 +1217,10 @@
       "f1": 0.9972518238794756
     },
     "latency": {
-      "latency_total_ms": 1.5682242501497967,
-      "latency_per_sample_ms": 0.0015682242501497967,
-      "latency_std_ms": 0.10670739348615543,
-      "samples_per_second": 637663.9054679074
+      "latency_total_ms": 1.4221312503650552,
+      "latency_per_sample_ms": 0.0014221312503650552,
+      "latency_std_ms": 0.06498939683005392,
+      "samples_per_second": 703169.9779772818
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1229,13 +1229,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9984764010439033,
+    "score": 0.9985202289438389,
     "f2_component": 0.9984955261699263,
-    "latency_component": 0.9984317757498502,
+    "latency_component": 0.998577868749635,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
-    "intra_rank": 17,
+    "intra_rank": 7,
     "total_versions": 22
   },
   {
@@ -1253,10 +1253,10 @@
       "specificity": 0.9975829139755121
     },
     "latency": {
-      "latency_total_ms": 1.4810398724875995,
-      "latency_per_sample_ms": 0.0014810398724875995,
-      "latency_std_ms": 0.06401931399649413,
-      "samples_per_second": 675201.2680930526
+      "latency_total_ms": 1.475244875109638,
+      "latency_per_sample_ms": 0.001475244875109638,
+      "latency_std_ms": 0.09809671473106994,
+      "samples_per_second": 677853.5664634533
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1265,13 +1265,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9985025563572021,
+    "score": 0.9985042948564155,
     "f2_component": 0.9984955261699263,
-    "latency_component": 0.9985189601275124,
+    "latency_component": 0.9985247551248904,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 13,
+    "intra_rank": 8,
     "total_versions": 22
   },
   {
@@ -1289,10 +1289,10 @@
       "specificity": 0.9975829139755121
     },
     "latency": {
-      "latency_total_ms": 1.5458683756151004,
-      "latency_per_sample_ms": 0.0015458683756151004,
-      "latency_std_ms": 0.09407625410130535,
-      "samples_per_second": 646885.605381571
+      "latency_total_ms": 1.5167461260716664,
+      "latency_per_sample_ms": 0.0015167461260716664,
+      "latency_std_ms": 0.1276535068628497,
+      "samples_per_second": 659306.1177548377
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1301,13 +1301,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9984831078062638,
+    "score": 0.9984918444811268,
     "f2_component": 0.9984955261699263,
-    "latency_component": 0.9984541316243849,
+    "latency_component": 0.9984832538739283,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 16,
+    "intra_rank": 10,
     "total_versions": 22
   },
   {
@@ -1325,10 +1325,10 @@
       "specificity": 0.9975829139755121
     },
     "latency": {
-      "latency_total_ms": 1.4994581270002527,
-      "latency_per_sample_ms": 0.0014994581270002527,
-      "latency_std_ms": 0.04808778131253263,
-      "samples_per_second": 666907.5861428384
+      "latency_total_ms": 5.163462878044811,
+      "latency_per_sample_ms": 0.005163462878044811,
+      "latency_std_ms": 4.855778300920255,
+      "samples_per_second": 193668.47861965428
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1337,13 +1337,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.998485941070802,
+    "score": 0.9973867396454886,
     "f2_component": 0.998479683584146,
-    "latency_component": 0.9985005418729997,
+    "latency_component": 0.9948365371219552,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 15,
+    "intra_rank": 18,
     "total_versions": 22
   },
   {
@@ -1361,10 +1361,10 @@
       "specificity": 0.9975631017949835
     },
     "latency": {
-      "latency_total_ms": 1.405408500431804,
-      "latency_per_sample_ms": 0.001405408500431804,
-      "latency_std_ms": 0.07747963085833208,
-      "samples_per_second": 711536.894570337
+      "latency_total_ms": 1.5756383745610947,
+      "latency_per_sample_ms": 0.0015756383745610947,
+      "latency_std_ms": 0.18339281506724714,
+      "samples_per_second": 634663.3949421023
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1373,13 +1373,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9984975317772122,
+    "score": 0.9984464628149734,
     "f2_component": 0.9984559347533455,
-    "latency_component": 0.9985945914995682,
+    "latency_component": 0.9984243616254389,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 14,
+    "intra_rank": 13,
     "total_versions": 22
   },
   {
@@ -1397,10 +1397,10 @@
       "specificity": 0.9975631017949835
     },
     "latency": {
-      "latency_total_ms": 1.3147037498129066,
-      "latency_per_sample_ms": 0.0013147037498129066,
-      "latency_std_ms": 0.005435107094796343,
-      "samples_per_second": 760627.6319986981
+      "latency_total_ms": 1.5850097479415126,
+      "latency_per_sample_ms": 0.0015850097479415126,
+      "latency_std_ms": 0.24615741756511147,
+      "samples_per_second": 630910.946319871
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1409,13 +1409,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9985247432023978,
+    "score": 0.9984436514029593,
     "f2_component": 0.9984559347533455,
-    "latency_component": 0.9986852962501871,
+    "latency_component": 0.9984149902520585,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 10,
+    "intra_rank": 14,
     "total_versions": 22
   },
   {
@@ -1433,10 +1433,10 @@
       "specificity": 0.9964040892340611
     },
     "latency": {
-      "latency_total_ms": 11.549972874490777,
-      "latency_per_sample_ms": 0.011549972874490777,
-      "latency_std_ms": 0.26035353473457173,
-      "samples_per_second": 86580.28991640282
+      "latency_total_ms": 15.366120500402758,
+      "latency_per_sample_ms": 0.015366120500402758,
+      "latency_std_ms": 1.1712883438997725,
+      "samples_per_second": 65078.23493729528
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1445,13 +1445,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9945317861999777,
+    "score": 0.9933869419122041,
     "f2_component": 0.99713825437475,
-    "latency_component": 0.9884500271255092,
+    "latency_component": 0.9846338794995972,
     "status": "PASS",
     "training_mode": "tuned_params",
     "fpr_estimated": false,
-    "intra_rank": 20,
+    "intra_rank": 22,
     "total_versions": 22
   },
   {
@@ -1469,10 +1469,10 @@
       "specificity": 0.9958196299084677
     },
     "latency": {
-      "latency_total_ms": 6.719780498315231,
-      "latency_per_sample_ms": 0.006719780498315231,
-      "latency_std_ms": 0.05957594889047834,
-      "samples_per_second": 148814.38467383242
+      "latency_total_ms": 7.741681500192499,
+      "latency_per_sample_ms": 0.007741681500192499,
+      "latency_std_ms": 0.47707996427818755,
+      "samples_per_second": 129170.90427643333
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1481,9 +1481,9 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9942756841793976,
+    "score": 0.9939691138788345,
     "f2_component": 0.9947023118984174,
-    "latency_component": 0.9932802195016848,
+    "latency_component": 0.9922583184998075,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
@@ -1505,10 +1505,10 @@
       "specificity": 0.9958196299084677
     },
     "latency": {
-      "latency_total_ms": 6.767807499272749,
-      "latency_per_sample_ms": 0.006767807499272749,
-      "latency_std_ms": 0.10427524879967652,
-      "samples_per_second": 147758.33977362054
+      "latency_total_ms": 7.098923499142984,
+      "latency_per_sample_ms": 0.007098923499142984,
+      "latency_std_ms": 0.11023454245912112,
+      "samples_per_second": 140866.42856775745
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1517,13 +1517,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9942612760791103,
+    "score": 0.9941619412791494,
     "f2_component": 0.9947023118984174,
-    "latency_component": 0.9932321925007273,
+    "latency_component": 0.992901076500857,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 22,
+    "intra_rank": 20,
     "total_versions": 22
   },
   {
@@ -1538,10 +1538,10 @@
       "f1": 0.9982770571343698
     },
     "latency": {
-      "latency_total_ms": 22.116509748229873,
-      "latency_per_sample_ms": 0.022116509748229873,
-      "latency_std_ms": 0.13037242448876935,
-      "samples_per_second": 45215.090960726135
+      "latency_total_ms": 22.10182800263283,
+      "latency_per_sample_ms": 0.02210182800263283,
+      "latency_std_ms": 0.15568732873451868,
+      "samples_per_second": 45245.12632533731
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1550,9 +1550,9 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9923334004026311,
+    "score": 0.9923378049263102,
     "f2_component": 0.9985262190387144,
-    "latency_component": 0.9778834902517701,
+    "latency_component": 0.9778981719973672,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": true,
@@ -1574,10 +1574,10 @@
       "specificity": 0.9975829139755121
     },
     "latency": {
-      "latency_total_ms": 4.978842999662447,
-      "latency_per_sample_ms": 0.004978842999662447,
-      "latency_std_ms": 0.09754200178447349,
-      "samples_per_second": 200849.87617962595
+      "latency_total_ms": 5.329454874299699,
+      "latency_per_sample_ms": 0.0053294548742996994,
+      "latency_std_ms": 0.13679742845347767,
+      "samples_per_second": 187636.45130430002
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1586,9 +1586,9 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9974421256090034,
+    "score": 0.9973369420466122,
     "f2_component": 0.998479683584146,
-    "latency_component": 0.9950211570003376,
+    "latency_component": 0.9946705451257003,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
@@ -1610,10 +1610,10 @@
       "specificity": 0.9982961524745414
     },
     "latency": {
-      "latency_total_ms": 2.117164749506628,
-      "latency_per_sample_ms": 0.002117164749506628,
-      "latency_std_ms": 0.15435383993896365,
-      "samples_per_second": 472329.7987239936
+      "latency_total_ms": 2.776128749246709,
+      "latency_per_sample_ms": 0.002776128749246709,
+      "latency_std_ms": 0.6729445891401166,
+      "samples_per_second": 360213.8410444205
     },
     "constraints": {
       "fpr_threshold": 0.01,
@@ -1622,13 +1622,13 @@
       "latency_pass": 1,
       "all_pass": 1
     },
-    "score": 0.9985110162411863,
+    "score": 0.9983133270412643,
     "f2_component": 0.998780236665769,
-    "latency_component": 0.9978828352504934,
+    "latency_component": 0.9972238712507533,
     "status": "PASS",
     "training_mode": "unknown",
     "fpr_estimated": false,
-    "intra_rank": 1,
+    "intra_rank": 2,
     "total_versions": 19
   }
 ]

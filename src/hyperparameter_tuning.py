@@ -484,9 +484,25 @@ def main():
         scaler, selected_features, _, _ = load_artifacts()
         
         label_col = 'Label_Binary' if args.task == 'binary' else 'Label_Multiclass'
-        feature_cols = get_feature_columns(train)
-        
+
+        # --- FIX INIZIO ---
+        # Recupera le feature che lo scaler si aspetta (necessario se usato statistical preprocessing)
+        if hasattr(scaler, 'feature_names_in_'):
+            # Usa le feature memorizzate nello scaler (più sicuro)
+            feature_cols = list(scaler.feature_names_in_)
+            print(f"   Scaler feature alignment: {len(feature_cols)} feature richieste")
+        else:
+            # Fallback
+            feature_cols = get_feature_columns(train)
+            
+        # Verifica che tutte le feature richieste siano presenti nel train
+        missing_cols = set(feature_cols) - set(train.columns)
+        if missing_cols:
+            raise ValueError(f"Mancano {len(missing_cols)} feature richieste dallo scaler nel dataset (es. {list(missing_cols)[:3]})")
+            
         X_train, y_train = prepare_xy(train, label_col, feature_cols)
+        # --- FIX FINE ---
+        
         X_train_scaled = transform_data(X_train, scaler)
         X_train_final = apply_feature_selection(X_train_scaled, selected_features)
         
