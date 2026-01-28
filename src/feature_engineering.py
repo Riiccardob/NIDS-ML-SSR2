@@ -222,7 +222,7 @@ def statistical_preprocessing(X_train: pd.DataFrame,
 def get_feature_columns(df: pd.DataFrame) -> List[str]:
     """Estrae nomi colonne feature, escludendo label."""
     feature_cols = [c for c in df.columns if c not in LABEL_COLUMNS]
-    return sorted(feature_cols)
+    return feature_cols
 
 
 def prepare_xy(df: pd.DataFrame,
@@ -367,17 +367,17 @@ def save_artifacts(scaler,
     logger.info(f"Salvato: selected_features.json")
     
     if scaler_columns is not None:
-        scaler_columns_sorted = sorted(scaler_columns)
+        #scaler_columns_sorted = sorted(scaler_columns)
         
         with open(output_dir / "scaler_columns.json", 'w') as f:
-            json.dump(scaler_columns_sorted, f, indent=2)
-        logger.info(f"Salvato: scaler_columns.json ({len(scaler_columns_sorted)} colonne)")
+            json.dump(scaler_columns, f, indent=2)
+        logger.info(f"Salvato: scaler_columns.json ({len(scaler_columns)} colonne)")
         
-        checksum = compute_column_checksum(scaler_columns_sorted)
+        checksum = compute_column_checksum(scaler_columns)
         checksum_data = {
             'checksum': checksum,
-            'n_columns': len(scaler_columns_sorted),
-            'columns': scaler_columns_sorted[:10]
+            'n_columns': len(scaler_columns),
+            'columns': scaler_columns[:10]
         }
         
         with open(output_dir / "column_checksum.json", 'w') as f:

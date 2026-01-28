@@ -625,7 +625,7 @@ def compute_column_checksum(columns: List[str]) -> str:
     import hashlib
     
     # Crea stringa deterministica
-    columns_str = '|'.join(sorted(columns))
+    columns_str = '|'.join(columns)
     
     # Calcola hash
     hash_obj = hashlib.sha256(columns_str.encode('utf-8'))

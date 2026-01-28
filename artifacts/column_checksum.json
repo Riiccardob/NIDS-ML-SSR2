@@ -1,16 +1,16 @@
 {
-  "checksum": "2fd9541623be6663",
+  "checksum": "83bb6226bbe20df1",
   "n_columns": 44,
   "columns": [
-    "ACK Flag Count",
-    "Active Max",
-    "Active Mean",
-    "Active Min",
-    "Active Std",
-    "Average Packet Size",
-    "Avg Bwd Segment Size",
-    "Avg Fwd Segment Size",
-    "Bwd Header Length",
-    "Bwd IAT Max"
+    "Flow Duration",
+    "Total Fwd Packets",
+    "Total Length of Fwd Packets",
+    "Fwd Packet Length Max",
+    "Fwd Packet Length Min",
+    "Fwd Packet Length Mean",
+    "Bwd Packet Length Max",
+    "Bwd Packet Length Min",
+    "Flow Bytes/s",
+    "Flow Packets/s"
   ]
 }
