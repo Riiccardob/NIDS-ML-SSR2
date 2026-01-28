@@ -1,6 +1,6 @@
 python src/preprocessing.py
 
-python3 src/feature_engineering.py --use-statistical --use-robust
+python3 src/feature_engineering.py
 
 tuning sui 3 algorimti
 python src/hyperparameter_tuning.py --model random_forest --n-trials 1000 --timeout 41400 #11.5h
@@ -8,3 +8,4 @@ python src/hyperparameter_tuning.py --model xgboost --n-trials 5000 --timeout 41
 python src/hyperparameter_tuning.py --model lightgbm --n-trials 5000 --timeout 41400 
 
 poi training
+

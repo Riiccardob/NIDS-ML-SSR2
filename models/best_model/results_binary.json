@@ -1,41 +1,40 @@
 {
   "model_name": "XGBoost",
   "task": "binary",
-  "training_mode": "tuned_params",
   "best_params": {
-    "n_estimators": 202,
-    "max_depth": 16,
-    "learning_rate": 0.29991875120641226,
-    "subsample": 0.9331356821921575,
-    "colsample_bytree": 0.8268703257365275,
+    "subsample": 0.9,
+    "reg_lambda": 1,
+    "reg_alpha": 0.1,
+    "n_estimators": 300,
     "min_child_weight": 1,
-    "gamma": 3.983326613715721,
-    "reg_alpha": 0.0004134042156456878,
-    "reg_lambda": 9.43729997694997e-07,
-    "scale_pos_weight": 9.995185975755126
+    "max_depth": 15,
+    "learning_rate": 0.1,
+    "gamma": 0,
+    "colsample_bytree": 0.7
   },
-  "best_cv_score": null,
+  "best_cv_score": 0.9971500977255356,
   "validation_metrics": {
-    "accuracy": 0.9989829747328658,
-    "precision": 0.997685643074732,
-    "recall": 0.9992669493204422,
-    "f1": 0.9984756701112563,
-    "false_positive_rate": 0.001159012560922455,
-    "false_negative_rate": 0.0007330506795577922,
-    "specificity": 0.9988409874390776
+    "accuracy": 0.9981904875117222,
+    "precision": 0.9951862373737373,
+    "recall": 0.9994056345841423,
+    "f1": 0.9972914730827781
   },
-  "train_time_seconds": 4.550757,
+  "train_time_seconds": 1850.828281,
   "train_samples": 706632,
   "n_features": 30,
   "early_stopping_used": true,
-  "best_iteration": 51,
-  "n_jobs": 14,
+  "best_iteration": 183,
+  "n_jobs": 2,
   "gpu_used": true,
   "version": {
-    "version_id": "bayesian_trials497_cv5_2026-01-25_06.51",
+    "version_id": "cv5_iter80_gpu",
     "model_type": "xgboost",
-    "training_mode": "tuned_params",
-    "tuning_source": "/home/enea/Desktop/NIDS-ML-SSR2/tuning_results/xgboost/bayesian_trials497_cv5_2026-01-25_06.51.json",
-    "created_at": "2026-01-27T23:51:29.590319"
+    "n_iter": 80,
+    "cv": 5,
+    "extra_params": {
+      "gpu": true,
+      "early_stopping": true
+    },
+    "created_at": "2026-01-21T19:29:39.850600"
   }
 }

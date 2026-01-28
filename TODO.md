@@ -24,12 +24,6 @@ SEMPRE:
 
 4 - README
 
-5- sistemare jupyer phase 1 tuning
-
-
-6 - TODO DA REPORT CLAUDE
+5 - TODO DA REPORT CLAUDE
 * Fix #2: Sostituire undersampling con SMOTE+Tomek
 
-
-chweck fix dentro tuning
-check allienamento modifiche di feature engineering
