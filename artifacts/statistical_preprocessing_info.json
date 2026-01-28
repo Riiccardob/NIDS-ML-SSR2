@@ -1,0 +1,53 @@
+{
+  "original_features": 77,
+  "step1_variance": {
+    "removed_count": 8,
+    "removed_features": [
+      "Bwd Avg Bulk Rate",
+      "Bwd Avg Bytes/Bulk",
+      "Bwd Avg Packets/Bulk",
+      "Bwd PSH Flags",
+      "Bwd URG Flags",
+      "Fwd Avg Bulk Rate",
+      "Fwd Avg Bytes/Bulk",
+      "Fwd Avg Packets/Bulk"
+    ],
+    "kept_count": 69
+  },
+  "step2_correlation": {
+    "removed_count": 25,
+    "removed_features": [
+      "Fwd IAT Total",
+      "SYN Flag Count",
+      "Total Length of Fwd Packets",
+      "Fwd URG Flags",
+      "Max Packet Length",
+      "Fwd Packet Length Mean",
+      "Fwd IAT Max",
+      "Bwd Packet Length Max",
+      "Fwd Packets/s",
+      "Total Fwd Packets",
+      "Fwd Header Length.1",
+      "Total Length of Bwd Packets",
+      "Packet Length Std",
+      "Flow IAT Std",
+      "Bwd Packet Length Mean",
+      "Bwd Packet Length Std",
+      "Total Backward Packets",
+      "Idle Mean",
+      "Fwd Packet Length Std",
+      "Idle Max",
+      "Subflow Fwd Packets",
+      "Idle Min",
+      "RST Flag Count",
+      "Subflow Bwd Packets",
+      "Packet Length Mean"
+    ],
+    "kept_count": 44
+  },
+  "summary": {
+    "total_removed": 33,
+    "final_features": 44,
+    "reduction_percent": 42.85714285714286
+  }
+}
