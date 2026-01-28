@@ -31,4 +31,5 @@ SEMPRE:
 * Fix #2: Sostituire undersampling con SMOTE+Tomek
 
 
-CHECK: dopo il cabmi in feature engineering co xgboost si ha che i mdoello xgboost ha perforamto moto meglio, ma alleanendo il lightgbmha performato peggio
+chweck fix dentro tuning
+check allienamento modifiche di feature engineering

@@ -426,11 +426,16 @@ def main():
         try:
             print("\n2. Caricamento artifacts...")
             with timer.time_operation("preparazione_features"):
-                scaler, selected_features, _, _ = load_artifacts()
+                scaler, selected_features, _, scaler_columns = load_artifacts()  # ← FIX: carica scaler_columns
                 
-                feature_cols = get_feature_columns(train)
-                X_train, y_train = prepare_xy(train, label_col, feature_cols)
-                X_val, y_val = prepare_xy(val, label_col, feature_cols)
+                # FIX: Usa scaler_columns invece di get_feature_columns(train)
+                if scaler_columns is None:
+                    # Fallback se scaler_columns non esiste (artifacts vecchi)
+                    scaler_columns = get_feature_columns(train)
+                    logger.warning("⚠️  scaler_columns non trovato, uso get_feature_columns (potrebbe causare errori)")
+                
+                X_train, y_train = prepare_xy(train, label_col, scaler_columns)  # ← FIX: usa scaler_columns
+                X_val, y_val = prepare_xy(val, label_col, scaler_columns)  # ← FIX: usa scaler_columns
                 
                 X_train_scaled = transform_data(X_train, scaler)
                 X_val_scaled = transform_data(X_val, scaler)

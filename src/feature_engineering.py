@@ -5,37 +5,36 @@ NIDS-ML - Feature Engineering v2
 
 CHANGELOG v2:
 -------------
-Statistical Preprocessing (NEW)
+Statistical Preprocessing (DEFAULT ON)
    - Remove low-variance features (quasi-costanti)
    - Remove high-correlation features (ridondanti)
    
-RobustScaler (NEW - migliore di StandardScaler per NIDS)
+RobustScaler (DEFAULT ON - migliore di StandardScaler per NIDS)
    - Usa mediana e IQR invece di media e std
    - Resistente agli outlier (critici in NIDS)
 
 Feature Selection
    - Solo Random Forest Importance (metodo più affidabile)
    - Rimossi HistGradientBoosting e RFECV (risultati insoddisfacenti)
-   
-Backward compatible
-   - Tutti i parametri core funzionano come prima
-   - Parametri --use-statistical e --use-robust per nuove funzionalità
 
 USAGE:
 ------
-# Con Statistical + RobustScaler (CONSIGLIATO):
-python src/feature_engineering.py --use-statistical --use-robust
-
-# Solo RobustScaler (senza statistical):
-python src/feature_engineering.py --use-robust
-
-# Modalità originale (backward compatible):
+# Default (CONSIGLIATO - statistical + robust ON):
 python src/feature_engineering.py
+
+# Disabilita statistical:
+python src/feature_engineering.py --no-statistical
+
+# Disabilita robust (usa StandardScaler):
+python src/feature_engineering.py --no-robust
+
+# Configura soglie statistical:
+python src/feature_engineering.py --variance-threshold 0.01 --correlation-threshold 0.90
 
 ================================================================================
 """
 
-# Setup limiti CPU (mantieni originale)
+# Setup limiti CPU
 import sys
 import os
 import argparse
@@ -103,43 +102,30 @@ logger = get_logger(__name__)
 DEFAULT_N_FEATURES = 30
 DEFAULT_RF_ESTIMATORS = 100
 DEFAULT_MAX_RAM = 85
+DEFAULT_VARIANCE_THRESHOLD = 0.00
+DEFAULT_CORRELATION_THRESHOLD = 0.95
 
 
 # ==============================================================================
-# STATISTICAL PREPROCESSING (NEW - PHASE 2)
+# STATISTICAL PREPROCESSING
 # ==============================================================================
 
 def statistical_preprocessing(X_train: pd.DataFrame,
-                               X_val: pd.DataFrame,
-                               X_test: pd.DataFrame,
-                               variance_threshold: float = 0.00,
-                               correlation_threshold: float = 0.95
-                               ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict]:
+                              X_val: pd.DataFrame,
+                              X_test: pd.DataFrame,
+                              variance_threshold: float = DEFAULT_VARIANCE_THRESHOLD,
+                              correlation_threshold: float = DEFAULT_CORRELATION_THRESHOLD
+                              ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict]:
     """
     Statistical preprocessing: rimuove feature problematiche.
     
-    IMPORTANTE: Questo step va SEMPRE eseguito PRIMA dello scaling.
-    
-    Steps:
-    1. Remove low-variance features (quasi-costanti, inutili)
-    2. Remove high-correlation features (ridondanti)
-    
-    Perché è importante:
-    - Feature quasi-costanti non hanno potere predittivo
-    - Feature correlate sono ridondanti (confondono il modello)
-    - Migliora F1 (~+0.001) e riduce latency (~-20%)
-    
     Args:
         X_train, X_val, X_test: DataFrame feature
-        variance_threshold: Soglia varianza (default: 0.01)
+        variance_threshold: Soglia varianza (default: 0.00)
         correlation_threshold: Soglia correlazione (default: 0.95)
     
     Returns:
         Tuple (X_train_filtered, X_val_filtered, X_test_filtered, info_dict)
-    
-    Example:
-        >>> X_tr, X_val, X_te, info = statistical_preprocessing(X_train, X_val, X_test)
-        >>> print(f"Riduzione: {info['summary']['reduction_percent']:.1f}%")
     """
     original_features = X_train.shape[1]
     info = {'original_features': original_features}
@@ -148,9 +134,7 @@ def statistical_preprocessing(X_train: pd.DataFrame,
     logger.info("STATISTICAL PREPROCESSING")
     logger.info("="*60)
     
-    # =========================================================================
-    # STEP 1: Low Variance Filter
-    # =========================================================================
+    # Step 1: Low Variance Filter
     logger.info(f"Step 1: Removing low-variance features (threshold={variance_threshold})...")
     
     variance_selector = VarianceThreshold(threshold=variance_threshold)
@@ -173,34 +157,24 @@ def statistical_preprocessing(X_train: pd.DataFrame,
         'kept_count': len(kept_features_var)
     }
     
-    # =========================================================================
-    # STEP 2: High Correlation Filter
-    # =========================================================================
+    # Step 2: High Correlation Filter
     logger.info(f"Step 2: Removing high-correlation features (threshold={correlation_threshold})...")
     
-    # Converti in DataFrame per calcolare correlazione
     X_train_df = pd.DataFrame(X_train_var, columns=kept_features_var, index=X_train.index)
-    
-    # Calcola matrice correlazione
     corr_matrix = X_train_df.corr().abs()
     
-    # Upper triangle (evita duplicati)
     upper_triangle = corr_matrix.where(
         np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)
     )
     
-    # Trova feature da rimuovere (correlation > threshold)
     to_drop = []
     for column in upper_triangle.columns:
         if any(upper_triangle[column] > correlation_threshold):
             to_drop.append(column)
     
-    # Rimuovi duplicati (mantieni solo prima occorrenza)
     to_drop = list(set(to_drop))
-    
     kept_features_corr = [f for f in kept_features_var if f not in to_drop]
     
-    # Applica filtro a tutti i set
     keep_indices = [i for i, f in enumerate(kept_features_var) if f in kept_features_corr]
     X_train_corr = X_train_var[:, keep_indices]
     X_val_corr = X_val_var[:, keep_indices]
@@ -218,15 +192,14 @@ def statistical_preprocessing(X_train: pd.DataFrame,
         'kept_count': len(kept_features_corr)
     }
     
-    # =========================================================================
     # Summary
-    # =========================================================================
-    reduction_pct = (1 - len(kept_features_corr) / original_features) * 100
+    final_features = len(kept_features_corr)
+    reduction_pct = ((original_features - final_features) / original_features) * 100
     
     info['summary'] = {
-        'total_removed': original_features - len(kept_features_corr),
-        'final_features': len(kept_features_corr),
-        'reduction_percent': reduction_pct
+        'final_features': final_features,
+        'reduction_percent': reduction_pct,
+        'kept_features': kept_features_corr
     }
     
     logger.info("="*60)
@@ -235,27 +208,15 @@ def statistical_preprocessing(X_train: pd.DataFrame,
     logger.info("="*60)
     
     # Converti back to DataFrame
-    X_train_final = pd.DataFrame(
-        X_train_corr,
-        columns=kept_features_corr,
-        index=X_train.index
-    )
-    X_val_final = pd.DataFrame(
-        X_val_corr,
-        columns=kept_features_corr,
-        index=X_val.index
-    )
-    X_test_final = pd.DataFrame(
-        X_test_corr,
-        columns=kept_features_corr,
-        index=X_test.index
-    )
+    X_train_final = pd.DataFrame(X_train_corr, columns=kept_features_corr, index=X_train.index)
+    X_val_final = pd.DataFrame(X_val_corr, columns=kept_features_corr, index=X_val.index)
+    X_test_final = pd.DataFrame(X_test_corr, columns=kept_features_corr, index=X_test.index)
     
     return X_train_final, X_val_final, X_test_final, info
 
 
 # ==============================================================================
-# PREPARAZIONE FEATURE (mantieni originale)
+# PREPARAZIONE FEATURE
 # ==============================================================================
 
 def get_feature_columns(df: pd.DataFrame) -> List[str]:
@@ -281,58 +242,41 @@ def prepare_xy(df: pd.DataFrame,
 
 
 # ==============================================================================
-# SCALING (UPDATED - RobustScaler support)
+# SCALING
 # ==============================================================================
 
 def fit_scaler(X_train: pd.DataFrame, use_robust: bool = True):
     """
-    Fit scaler sui dati di training.
+    Fit scaler su training set.
     
     Args:
-        X_train: DataFrame training
-        use_robust: Se True usa RobustScaler (CONSIGLIATO per NIDS), 
-                    altrimenti StandardScaler
+        X_train: Training features
+        use_robust: Se True usa RobustScaler (DEFAULT), altrimenti StandardScaler
     
     Returns:
         Scaler fitted
-    
-    Note:
-        RobustScaler è migliore per NIDS perché:
-        - Usa mediana e IQR (resistente outlier)
-        - NIDS ha molti outlier legittimi (attacchi = valori estremi)
-        - StandardScaler usa media/std (sensibile outlier)
     """
-    scaler_type = "RobustScaler" if use_robust else "StandardScaler"
-    logger.info(f"Fitting {scaler_type} su {len(X_train):,} campioni, "
-                f"{X_train.shape[1]} feature")
-    
     if use_robust:
         scaler = RobustScaler()
+        logger.info("Using RobustScaler (outlier-resistant) - DEFAULT")
     else:
         scaler = StandardScaler()
+        logger.info("Using StandardScaler")
     
     scaler.fit(X_train)
+    logger.info(f"Scaler fitted su {X_train.shape[1]} feature")
     
     return scaler
 
 
-def transform_data(X: pd.DataFrame, 
-                   scaler,
-                   expected_columns: List[str] = None) -> pd.DataFrame:
-    """Applica trasformazione scaler."""
-    if expected_columns is not None:
-        validate_column_consistency(
-            expected_columns=expected_columns,
-            actual_columns=list(X.columns),
-            context="transform_data"
-        )
-    
+def transform_data(X: pd.DataFrame, scaler) -> pd.DataFrame:
+    """Trasforma dati con scaler."""
     X_scaled = scaler.transform(X)
     return pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
 
 
 # ==============================================================================
-# SELEZIONE FEATURE (mantieni metodi originali)
+# FEATURE SELECTION
 # ==============================================================================
 
 def select_features_by_importance(X_train: pd.DataFrame,
@@ -342,66 +286,59 @@ def select_features_by_importance(X_train: pd.DataFrame,
                                   n_jobs: int = None,
                                   random_state: int = RANDOM_STATE
                                   ) -> Tuple[List[str], dict]:
-    """Seleziona feature piu importanti usando Random Forest."""
-    if n_jobs is None:
-        n_jobs = int(os.environ.get('OMP_NUM_THREADS', -1))
+    """
+    Feature selection con Random Forest importance.
     
-    logger.info(f"Training RF per selezione feature "
-                f"(n_estimators={n_estimators}, n_jobs={n_jobs})...")
+    Args:
+        X_train: Training features
+        y_train: Training target
+        n_features: Numero feature da selezionare
+        n_estimators: Alberi RF
+        n_jobs: Core CPU
+        random_state: Seed random
+    
+    Returns:
+        Tuple (selected_features, feature_importances)
+    """
+    logger.info(f"Feature selection con Random Forest (n_estimators={n_estimators})...")
+    
+    if n_jobs is None:
+        n_jobs = _n_cores
     
     rf = RandomForestClassifier(
         n_estimators=n_estimators,
-        max_depth=20,
-        min_samples_split=10,
-        random_state=random_state,
+        max_depth=10,
+        min_samples_split=100,
+        min_samples_leaf=50,
         n_jobs=n_jobs,
-        class_weight='balanced',
-        verbose=0,
-        warm_start=False
+        random_state=random_state,
+        class_weight='balanced'
     )
-    
-    print(f"   Training RF: {n_estimators} alberi su {len(X_train):,} campioni...")
-    print(f"   Core CPU in uso: {n_jobs}")
-    print(f"   Questo puo richiedere 1-2 minuti...")
     
     rf.fit(X_train, y_train)
     
-    print("   RF training completato")
+    importances = dict(zip(X_train.columns, rf.feature_importances_))
+    sorted_features = sorted(importances.items(), key=lambda x: x[1], reverse=True)
     
-    importances = rf.feature_importances_
-    feature_names = X_train.columns.tolist()
+    selected_features = [f for f, _ in sorted_features[:n_features]]
     
-    importance_dict = {
-        name: float(imp) 
-        for name, imp in zip(feature_names, importances)
-    }
+    logger.info(f"Selezionate {len(selected_features)} feature (top {n_features})")
+    logger.info(f"Top 5: {selected_features[:5]}")
     
-    sorted_features = sorted(importance_dict.items(), 
-                             key=lambda x: x[1], 
-                             reverse=True)
-    
-    selected_features = [name for name, _ in sorted_features[:n_features]]
-    
-    logger.info(f"Selezionate {n_features} feature su {len(feature_names)}")
-    
-    del rf
-    gc.collect()
-    
-    return selected_features, importance_dict
+    return selected_features, importances
 
 
-def apply_feature_selection(X: pd.DataFrame,
-                            selected_features: List[str]) -> pd.DataFrame:
-    """Filtra DataFrame mantenendo solo feature selezionate."""
+def apply_feature_selection(X: pd.DataFrame, selected_features: List[str]) -> pd.DataFrame:
+    """Applica selezione feature."""
     missing = set(selected_features) - set(X.columns)
     if missing:
-        raise KeyError(f"Feature mancanti: {missing}")
+        raise KeyError(f"Feature mancanti in X: {missing}")
     
     return X[selected_features].copy()
 
 
 # ==============================================================================
-# SALVATAGGIO ARTIFACTS (mantieni originale)
+# SALVATAGGIO ARTIFACTS
 # ==============================================================================
 
 def save_artifacts(scaler,
@@ -410,7 +347,13 @@ def save_artifacts(scaler,
                    scaler_columns: List[str] = None,
                    output_dir: Path = None,
                    statistical_info: dict = None) -> None:
-    """Salva artifacts del feature engineering."""
+    """
+    Salva artifacts del feature engineering.
+    
+    IMPORTANTE:
+    - scaler_columns deve contenere le colonne CHE LO SCALER SI ASPETTA
+    - Se statistical preprocessing è abilitato, queste sono meno delle colonne originali
+    """
     if output_dir is None:
         output_dir = get_project_root() / "artifacts"
     
@@ -448,7 +391,6 @@ def save_artifacts(scaler,
         json.dump(sorted_importances, f, indent=2)
     logger.info(f"Salvato: feature_importances.json")
     
-    # NEW: Salva info statistical preprocessing se presente
     if statistical_info is not None:
         with open(output_dir / "statistical_preprocessing_info.json", 'w') as f:
             json.dump(statistical_info, f, indent=2)
@@ -505,7 +447,7 @@ def load_artifacts(artifacts_dir: Path = None,
 
 
 # ==============================================================================
-# PIPELINE COMPLETA (UPDATED)
+# PIPELINE COMPLETA
 # ==============================================================================
 
 def run_feature_engineering(train: pd.DataFrame,
@@ -516,18 +458,21 @@ def run_feature_engineering(train: pd.DataFrame,
                             n_estimators: int = DEFAULT_RF_ESTIMATORS,
                             use_statistical: bool = True,
                             use_robust: bool = True,
+                            variance_threshold: float = DEFAULT_VARIANCE_THRESHOLD,
+                            correlation_threshold: float = DEFAULT_CORRELATION_THRESHOLD,
                             n_jobs: int = None,
                             random_state: int = RANDOM_STATE
                             ) -> Tuple:
     """
     Pipeline completa feature engineering.
     
-    NOVITÀ v2:
-    - use_statistical: Applica statistical preprocessing (CONSIGLIATO)
-    - use_robust: Usa RobustScaler invece di StandardScaler (CONSIGLIATO)
+    DEFAULT v2:
+    - use_statistical=True: Applica statistical preprocessing (DEFAULT)
+    - use_robust=True: Usa RobustScaler (DEFAULT)
     
-    Feature Selection:
-    - Usa Random Forest feature importance (metodo più affidabile per NIDS)
+    Args:
+        variance_threshold: Soglia per low-variance filter
+        correlation_threshold: Soglia per correlation filter
     """
     feature_cols = get_feature_columns(train)
     logger.info(f"Feature iniziali: {len(feature_cols)}")
@@ -538,14 +483,20 @@ def run_feature_engineering(train: pd.DataFrame,
     
     statistical_info = None
     
-    # NEW: Statistical preprocessing (se abilitato)
+    # Statistical preprocessing (DEFAULT ON)
     if use_statistical:
         X_train, X_val, X_test, statistical_info = statistical_preprocessing(
-            X_train, X_val, X_test
+            X_train, X_val, X_test,
+            variance_threshold=variance_threshold,
+            correlation_threshold=correlation_threshold
         )
         logger.info(f"Dopo statistical: {X_train.shape[1]} feature")
     
-    # Scaling (con scelta RobustScaler o StandardScaler)
+    # FIX CRITICO: Usa le colonne CORRETTE (dopo statistical preprocessing)
+    scaler_columns = X_train.columns.tolist()
+    logger.info(f"✓ Scaler verrà fittato su {len(scaler_columns)} colonne")
+    
+    # Scaling (DEFAULT: RobustScaler)
     scaler = fit_scaler(X_train, use_robust=use_robust)
     
     X_train_scaled = transform_data(X_train, scaler)
@@ -573,17 +524,19 @@ def run_feature_engineering(train: pd.DataFrame,
     del X_train_scaled, X_val_scaled, X_test_scaled
     gc.collect()
     
+    # Salva artifacts con colonne corrette
     save_artifacts(scaler, selected_features, importances, 
-                   scaler_columns=feature_cols,
+                   scaler_columns=scaler_columns,
                    statistical_info=statistical_info)
     
-    logger.info(f"Feature engineering completato")
+    logger.info(f"✓ Feature engineering completato")
+    logger.info(f"✓ Artifacts salvati con {len(scaler_columns)} scaler_columns")
     
     return X_train_final, X_val_final, X_test_final, y_train, y_val, y_test
 
 
 # ==============================================================================
-# ARGUMENT PARSER (UPDATED)
+# ARGUMENT PARSER
 # ==============================================================================
 
 def parse_arguments():
@@ -591,19 +544,19 @@ def parse_arguments():
         description='Feature Engineering v2 per NIDS-ML',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-v2 - NOVITÀ:
-  --use-statistical    Abilita statistical preprocessing (variance + correlation)
-  --use-robust         Usa RobustScaler (migliore per NIDS con outlier)
+v2 - DEFAULT:
+  Statistical preprocessing: ON (usa --no-statistical per disabilitare)
+  RobustScaler: ON (usa --no-robust per StandardScaler)
 
 Esempi:
-  # v2 CONSIGLIATO (statistical + robust):
-  python src/feature_engineering.py --use-statistical --use-robust
-  
-  # Solo robust (senza statistical):
-  python src/feature_engineering.py --use-robust
-  
-  # Originale (backward compatible):
+  # Default (CONSIGLIATO):
   python src/feature_engineering.py
+  
+  # Disabilita statistical:
+  python src/feature_engineering.py --no-statistical
+  
+  # Configura soglie:
+  python src/feature_engineering.py --variance-threshold 0.01 --correlation-threshold 0.90
         """
     )
     
@@ -614,11 +567,19 @@ Esempi:
     parser.add_argument('--label-col', type=str, default='Label_Binary',
                         help='Colonna target')
     
-    # NEW v2 parameters
-    parser.add_argument('--use-statistical', action='store_true',
-                        help='Abilita statistical preprocessing (CONSIGLIATO)')
-    parser.add_argument('--use-robust', action='store_true',
-                        help='Usa RobustScaler invece di StandardScaler (CONSIGLIATO)')
+    # Statistical preprocessing (DEFAULT ON)
+    parser.add_argument('--no-statistical', dest='use_statistical', action='store_false',
+                        help='Disabilita statistical preprocessing')
+    parser.add_argument('--variance-threshold', type=float, default=DEFAULT_VARIANCE_THRESHOLD,
+                        help=f'Soglia varianza (default: {DEFAULT_VARIANCE_THRESHOLD})')
+    parser.add_argument('--correlation-threshold', type=float, default=DEFAULT_CORRELATION_THRESHOLD,
+                        help=f'Soglia correlazione (default: {DEFAULT_CORRELATION_THRESHOLD})')
+    parser.set_defaults(use_statistical=True)
+    
+    # RobustScaler (DEFAULT ON)
+    parser.add_argument('--no-robust', dest='use_robust', action='store_false',
+                        help='Usa StandardScaler invece di RobustScaler')
+    parser.set_defaults(use_robust=True)
     
     parser.add_argument('--n-jobs', type=int, default=None,
                         help='Core CPU (default: auto)')
@@ -644,8 +605,11 @@ def main():
     print("FEATURE ENGINEERING v2")
     print("=" * 60)
     print(f"\nParametri:")
-    print(f"  Statistical preprocessing: {'ABILITATO' if args.use_statistical else 'Disabilitato'}")
-    print(f"  Scaler:                    {'RobustScaler' if args.use_robust else 'StandardScaler'}")
+    print(f"  Statistical preprocessing: {'ON (DEFAULT)' if args.use_statistical else 'OFF'}")
+    if args.use_statistical:
+        print(f"    - Variance threshold:    {args.variance_threshold}")
+        print(f"    - Correlation threshold: {args.correlation_threshold}")
+    print(f"  Scaler:                    {'RobustScaler (DEFAULT)' if args.use_robust else 'StandardScaler'}")
     print(f"  Metodo selezione:          Random Forest Importance")
     print(f"  Feature da selezionare:    {args.n_features}")
     print(f"  RF estimators:             {args.rf_estimators}")
@@ -654,6 +618,8 @@ def main():
     
     timer = TimingLogger("feature_engineering_v2", parameters={
         'use_statistical': args.use_statistical,
+        'variance_threshold': args.variance_threshold,
+        'correlation_threshold': args.correlation_threshold,
         'use_robust': args.use_robust,
         'n_features': args.n_features,
         'rf_estimators': args.rf_estimators,
@@ -678,6 +644,8 @@ def main():
                 n_estimators=args.rf_estimators,
                 use_statistical=args.use_statistical,
                 use_robust=args.use_robust,
+                variance_threshold=args.variance_threshold,
+                correlation_threshold=args.correlation_threshold,
                 n_jobs=n_jobs,
                 random_state=args.random_state
             )
@@ -706,12 +674,15 @@ def main():
         print(f"   Salvati in {processed_dir}")
         
         print("\n   Top 10 feature selezionate:")
-        _, selected_features, importances, _ = load_artifacts()
+        _, selected_features, importances, scaler_columns = load_artifacts()
         for i, feat in enumerate(selected_features[:10]):
             print(f"   {i+1:2}. {feat}: {importances[feat]:.4f}")
         
+        print(f"\n✓ Scaler columns salvate: {len(scaler_columns)}")
+        
         timer.add_metric("train_samples", len(train))
         timer.add_metric("n_features_selected", len(selected_features))
+        timer.add_metric("n_scaler_columns", len(scaler_columns))
         timing_path = timer.save()
         
         print("\n" + "=" * 60)
@@ -721,12 +692,11 @@ def main():
         print(f"Shape:     ({X_train.shape[0]:,}, {X_train.shape[1]})")
         print(f"Timing:    {timing_path}")
         
-        if args.use_statistical or args.use_robust:
-            print(f"\n Miglioramenti v2 applicati:")
-            if args.use_statistical:
-                print(f"   - Statistical preprocessing: ABILITATO")
-            if args.use_robust:
-                print(f"   - RobustScaler: ABILITATO")
+        print(f"\n✓ Configurazione v2 (DEFAULT):")
+        if args.use_statistical:
+            print(f"   - Statistical preprocessing: ON")
+        if args.use_robust:
+            print(f"   - RobustScaler: ON")
         
         print(f"\nProssimo step: python src/training/random_forest.py")
         
