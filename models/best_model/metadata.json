@@ -1,9 +1,9 @@
 {
-  "best_model": "lightgbm/bayesian_trials76_cv5_2026-01-29_07.33",
+  "best_model": "lightgbm/bayesian_trials258_cv5_2026-01-25_06.56",
   "model_type": "lightgbm",
-  "version_id": "bayesian_trials76_cv5_2026-01-29_07.33",
+  "version_id": "bayesian_trials258_cv5_2026-01-25_06.56",
   "task": "binary",
-  "selected_at": "2026-01-29T13:50:35.841567",
+  "selected_at": "2026-01-29T13:54:20.970085",
   "constraints": {
     "fpr_threshold": 0.01,
     "latency_threshold_ms": 1.0,
@@ -12,21 +12,21 @@
     "all_pass": "True"
   },
   "metrics": {
-    "accuracy": 0.9989433503718086,
-    "precision": 0.9976263005894687,
-    "recall": 0.9992075127788564,
-    "f1": 0.9984162806350715,
-    "false_positive_rate": 0.0011887308317153386,
-    "false_negative_rate": 0.000792487221143559,
-    "specificity": 0.9988112691682847
+    "accuracy": 0.999022599093923,
+    "precision": 0.997784371909001,
+    "recall": 0.9992867615009708,
+    "f1": 0.9985350015837821,
+    "false_positive_rate": 0.0011094821096009828,
+    "false_negative_rate": 0.0007132384990292032,
+    "specificity": 0.9988905178903991
   },
   "latency": {
-    "latency_total_ms": 0.7653239999996231,
-    "latency_per_sample_ms": 0.0007653239999996231,
-    "latency_std_ms": 0.009015204026955222,
-    "samples_per_second": 1306636.1436469946
+    "latency_total_ms": 0.8261990000022479,
+    "latency_per_sample_ms": 0.0008261990000022479,
+    "latency_std_ms": 0.02433681519126561,
+    "samples_per_second": 1210362.1524563443
   },
-  "score": 0.9989940114353735,
-  "f2_component": 0.9988908694791049,
-  "latency_component": 0.9992346760000004
+  "score": 0.9990422855191748,
+  "f2_component": 0.9989859217416794,
+  "latency_component": 0.9991738009999978
 }

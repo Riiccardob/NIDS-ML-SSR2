@@ -16,15 +16,15 @@
   },
   "best_cv_score": null,
   "validation_metrics": {
-    "accuracy": 0.998857497589518,
-    "precision": 0.997487884482247,
-    "recall": 0.999088639695685,
-    "f1": 0.9982876203862258,
-    "false_positive_rate": 0.0012580734635654,
-    "false_negative_rate": 0.0009113603043150929,
-    "specificity": 0.9987419265364346
+    "accuracy": 0.9988839138302228,
+    "precision": 0.997507763514449,
+    "recall": 0.9991480762372706,
+    "f1": 0.9983272460927834,
+    "false_positive_rate": 0.0012481673733011054,
+    "false_negative_rate": 0.000851923762729326,
+    "specificity": 0.9987518326266989
   },
-  "train_time_seconds": 5.318787,
+  "train_time_seconds": 5.2296,
   "train_samples": 706632,
   "n_features": 30,
   "early_stopping_used": true,
@@ -36,6 +36,6 @@
     "model_type": "xgboost",
     "training_mode": "tuned_params",
     "tuning_source": "/home/enea/Desktop/NIDS-ML-SSR2/tuning_results/xgboost/bayesian_trials593_cv5_2026-01-29_07.31.json",
-    "created_at": "2026-01-29T13:50:27.479572"
+    "created_at": "2026-01-29T13:54:01.278217"
   }
 }

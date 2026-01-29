@@ -3,38 +3,38 @@
   "task": "binary",
   "training_mode": "tuned_params",
   "best_params": {
-    "n_estimators": 823,
-    "max_depth": 26,
-    "learning_rate": 0.29945627074418724,
-    "num_leaves": 143,
-    "subsample": 0.9983487506068253,
-    "colsample_bytree": 0.9154080824823315,
-    "min_child_samples": 43,
-    "reg_alpha": 9.851988671336949,
-    "reg_lambda": 4.235071782385719e-05,
-    "class_weight": null
+    "n_estimators": 689,
+    "max_depth": 28,
+    "learning_rate": 0.29820485303384614,
+    "num_leaves": 158,
+    "subsample": 0.571237456279496,
+    "colsample_bytree": 0.9804508998424974,
+    "min_child_samples": 89,
+    "reg_alpha": 4.4698997170354415,
+    "reg_lambda": 6.790637434577999e-06,
+    "class_weight": "balanced"
   },
   "best_cv_score": null,
   "validation_metrics": {
-    "accuracy": 0.9989433503718086,
-    "precision": 0.9976263005894687,
-    "recall": 0.9992075127788564,
-    "f1": 0.9984162806350715,
-    "false_positive_rate": 0.0011887308317153386,
-    "false_negative_rate": 0.000792487221143559,
-    "specificity": 0.9988112691682847
+    "accuracy": 0.999022599093923,
+    "precision": 0.997784371909001,
+    "recall": 0.9992867615009708,
+    "f1": 0.9985350015837821,
+    "false_positive_rate": 0.0011094821096009828,
+    "false_negative_rate": 0.0007132384990292032,
+    "specificity": 0.9988905178903991
   },
-  "train_time_seconds": 1.601036,
+  "train_time_seconds": 1.74288,
   "train_samples": 706632,
   "n_features": 30,
   "early_stopping_used": true,
-  "best_iteration": 60,
+  "best_iteration": 77,
   "n_jobs": 14,
   "version": {
-    "version_id": "bayesian_trials76_cv5_2026-01-29_07.33",
+    "version_id": "bayesian_trials258_cv5_2026-01-25_06.56",
     "model_type": "lightgbm",
     "training_mode": "tuned_params",
-    "tuning_source": "/home/enea/Desktop/NIDS-ML-SSR2/tuning_results/lightgbm/bayesian_trials76_cv5_2026-01-29_07.33.json",
-    "created_at": "2026-01-29T13:48:22.838967"
+    "tuning_source": "/home/enea/Desktop/NIDS-ML-SSR2/tuning_results/lightgbm/bayesian_trials258_cv5_2026-01-25_06.56.json",
+    "created_at": "2026-01-29T13:48:03.441806"
   }
 }
