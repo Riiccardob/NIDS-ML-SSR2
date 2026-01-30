@@ -1,476 +1,166 @@
 """
-================================================================================
-NIDS-ML - Feature Definitions & Extraction
-================================================================================
-
-Definizione centralizzata delle 77 feature CIC-IDS2017.
-Questo modulo garantisce consistenza tra training e inference.
-
-IMPORTANTE:
------------
-Le feature DEVONO essere estratte esattamente nello stesso modo
-in cui CICFlowMeter le estrae, altrimenti il modello non funzionerà.
+NIDS-ML Sniffer - Feature Extraction (77 feature CIC-IDS2017)
 
 Unità di misura CIC-IDS2017:
 - Durata: MICROSECONDI
-- IAT (Inter-Arrival Time): MICROSECONDI
+- IAT: MICROSECONDI  
 - Bytes: BYTES
 - Rates: BYTES/SECONDO o PACKETS/SECONDO
-
-================================================================================
 """
 
-from typing import Dict, List, Optional
 import numpy as np
+from typing import Dict, List, TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from .flow import Flow
 
-# ==============================================================================
-# FEATURE NAMES - Ordine esatto del dataset CIC-IDS2017
-# ==============================================================================
 
 FEATURE_NAMES = [
-    # Flow identifiers (da rimuovere prima del training)
-    # 'Flow ID', 'Source IP', 'Source Port', 'Destination IP', 'Destination Port', 
-    # 'Protocol', 'Timestamp',
-    
-    # Flow duration
-    'Flow Duration',
-    
-    # Packet counts
-    'Total Fwd Packets',
-    'Total Backward Packets',
-    
-    # Byte counts
-    'Total Length of Fwd Packets',
-    'Total Length of Bwd Packets',
-    
-    # Forward packet length statistics
-    'Fwd Packet Length Max',
-    'Fwd Packet Length Min',
-    'Fwd Packet Length Mean',
-    'Fwd Packet Length Std',
-    
-    # Backward packet length statistics
-    'Bwd Packet Length Max',
-    'Bwd Packet Length Min',
-    'Bwd Packet Length Mean',
-    'Bwd Packet Length Std',
-    
-    # Flow rates
-    'Flow Bytes/s',
-    'Flow Packets/s',
-    
-    # Flow IAT (Inter-Arrival Time)
-    'Flow IAT Mean',
-    'Flow IAT Std',
-    'Flow IAT Max',
-    'Flow IAT Min',
-    
-    # Forward IAT
-    'Fwd IAT Total',
-    'Fwd IAT Mean',
-    'Fwd IAT Std',
-    'Fwd IAT Max',
-    'Fwd IAT Min',
-    
-    # Backward IAT
-    'Bwd IAT Total',
-    'Bwd IAT Mean',
-    'Bwd IAT Std',
-    'Bwd IAT Max',
-    'Bwd IAT Min',
-    
-    # PSH Flags
-    'Fwd PSH Flags',
-    'Bwd PSH Flags',
-    
-    # URG Flags
-    'Fwd URG Flags',
-    'Bwd URG Flags',
-    
-    # Header lengths
-    'Fwd Header Length',
-    'Bwd Header Length',
-    
-    # Packet rates
-    'Fwd Packets/s',
-    'Bwd Packets/s',
-    
-    # Packet length statistics (combined)
-    'Min Packet Length',
-    'Max Packet Length',
-    'Packet Length Mean',
-    'Packet Length Std',
-    'Packet Length Variance',
-    
-    # Flags
-    'FIN Flag Count',
-    'SYN Flag Count',
-    'RST Flag Count',
-    'PSH Flag Count',
-    'ACK Flag Count',
-    'URG Flag Count',
-    'CWE Flag Count',
-    'ECE Flag Count',
-    
-    # Down/Up Ratio
-    'Down/Up Ratio',
-    
-    # Average packet/segment size
-    'Average Packet Size',
-    'Avg Fwd Segment Size',
-    'Avg Bwd Segment Size',
-    
-    # Duplicate header (CIC-IDS2017 quirk)
+    'Flow Duration', 'Total Fwd Packets', 'Total Backward Packets',
+    'Total Length of Fwd Packets', 'Total Length of Bwd Packets',
+    'Fwd Packet Length Max', 'Fwd Packet Length Min', 'Fwd Packet Length Mean', 'Fwd Packet Length Std',
+    'Bwd Packet Length Max', 'Bwd Packet Length Min', 'Bwd Packet Length Mean', 'Bwd Packet Length Std',
+    'Flow Bytes/s', 'Flow Packets/s',
+    'Flow IAT Mean', 'Flow IAT Std', 'Flow IAT Max', 'Flow IAT Min',
+    'Fwd IAT Total', 'Fwd IAT Mean', 'Fwd IAT Std', 'Fwd IAT Max', 'Fwd IAT Min',
+    'Bwd IAT Total', 'Bwd IAT Mean', 'Bwd IAT Std', 'Bwd IAT Max', 'Bwd IAT Min',
+    'Fwd PSH Flags', 'Bwd PSH Flags', 'Fwd URG Flags', 'Bwd URG Flags',
+    'Fwd Header Length', 'Bwd Header Length', 'Fwd Packets/s', 'Bwd Packets/s',
+    'Min Packet Length', 'Max Packet Length', 'Packet Length Mean', 'Packet Length Std', 'Packet Length Variance',
+    'FIN Flag Count', 'SYN Flag Count', 'RST Flag Count', 'PSH Flag Count', 'ACK Flag Count', 'URG Flag Count', 'CWE Flag Count', 'ECE Flag Count',
+    'Down/Up Ratio', 'Average Packet Size', 'Avg Fwd Segment Size', 'Avg Bwd Segment Size',
     'Fwd Header Length.1',
-    
-    # Bulk features
-    'Fwd Avg Bytes/Bulk',
-    'Fwd Avg Packets/Bulk',
-    'Fwd Avg Bulk Rate',
-    'Bwd Avg Bytes/Bulk',
-    'Bwd Avg Packets/Bulk',
-    'Bwd Avg Bulk Rate',
-    
-    # Subflow features
-    'Subflow Fwd Packets',
-    'Subflow Fwd Bytes',
-    'Subflow Bwd Packets',
-    'Subflow Bwd Bytes',
-    
-    # Init window
-    'Init_Win_bytes_forward',
-    'Init_Win_bytes_backward',
-    
-    # Active data packets
-    'act_data_pkt_fwd',
-    
-    # Min segment size
-    'min_seg_size_forward',
-    
-    # Active/Idle statistics
-    'Active Mean',
-    'Active Std',
-    'Active Max',
-    'Active Min',
-    'Idle Mean',
-    'Idle Std',
-    'Idle Max',
-    'Idle Min',
-    
-    # Label (da gestire separatamente)
-    # 'Label'
+    'Fwd Avg Bytes/Bulk', 'Fwd Avg Packets/Bulk', 'Fwd Avg Bulk Rate',
+    'Bwd Avg Bytes/Bulk', 'Bwd Avg Packets/Bulk', 'Bwd Avg Bulk Rate',
+    'Subflow Fwd Packets', 'Subflow Fwd Bytes', 'Subflow Bwd Packets', 'Subflow Bwd Bytes',
+    'Init_Win_bytes_forward', 'Init_Win_bytes_backward', 'act_data_pkt_fwd', 'min_seg_size_forward',
+    'Active Mean', 'Active Std', 'Active Max', 'Active Min',
+    'Idle Mean', 'Idle Std', 'Idle Max', 'Idle Min',
 ]
 
-# Feature critiche per la detection (top 30 da feature importance)
-CRITICAL_FEATURES = [
-    'Bwd Packet Length Std',
-    'Bwd Packet Length Max',
-    'Avg Bwd Segment Size',
-    'Packet Length Variance',
-    'Bwd Packet Length Mean',
-    'Packet Length Std',
-    'Subflow Bwd Bytes',
-    'Total Fwd Packets',
-    'Average Packet Size',
-    'Packet Length Mean',
-    'Max Packet Length',
-    'Subflow Fwd Packets',
-    'Fwd Header Length.1',
-    'Total Length of Bwd Packets',
-    'Total Backward Packets',
-    'Fwd Packet Length Max',
-    'Bwd Packets/s',
-    'Subflow Bwd Packets',
-    'Subflow Fwd Bytes',
-    'Fwd Header Length',
-    'Init_Win_bytes_forward',
-    'Bwd Packet Length Min',
-    'Bwd Header Length',
-    'Init_Win_bytes_backward',
-    'Avg Fwd Segment Size',
-    'Total Length of Fwd Packets',
-    'Fwd IAT Mean',
-    'Fwd IAT Std',
-    'Fwd Packet Length Mean',
-    'Fwd IAT Max',
-]
-
-
-# ==============================================================================
-# FEATURE EXTRACTOR
-# ==============================================================================
 
 class FeatureExtractor:
-    """
-    Estrae feature CIC-IDS2017 compatibili da un flusso di rete.
-    
-    Questa classe centralizza la logica di estrazione per garantire
-    che lo sniffer produca feature identiche a quelle del training.
-    """
-    
-    def __init__(self, validate: bool = True):
-        """
-        Args:
-            validate: Se True, valida che tutte le feature siano presenti
-        """
-        self.validate = validate
-        self._warnings = []
+    """Estrae le 77 feature CIC-IDS2017 da un Flow."""
     
     @staticmethod
-    def safe_mean(values: List[float]) -> float:
-        """Calcola media in modo sicuro."""
-        if not values:
-            return 0.0
-        return float(np.mean(values))
-    
+    def _mean(vals): return float(np.mean(vals)) if vals else 0.0
     @staticmethod
-    def safe_std(values: List[float]) -> float:
-        """Calcola deviazione standard in modo sicuro (ddof=0 come CICFlowMeter)."""
-        if not values or len(values) < 1:
-            return 0.0
-        return float(np.std(values, ddof=0))
-    
+    def _std(vals): return float(np.std(vals, ddof=0)) if len(vals) >= 2 else 0.0
     @staticmethod
-    def safe_max(values: List[float]) -> float:
-        """Calcola massimo in modo sicuro."""
-        if not values:
-            return 0.0
-        return float(max(values))
-    
+    def _min(vals): return float(min(vals)) if vals else 0.0
     @staticmethod
-    def safe_min(values: List[float]) -> float:
-        """Calcola minimo in modo sicuro."""
-        if not values:
-            return 0.0
-        return float(min(values))
-    
+    def _max(vals): return float(max(vals)) if vals else 0.0
     @staticmethod
-    def safe_sum(values: List[float]) -> float:
-        """Calcola somma in modo sicuro."""
-        if not values:
-            return 0.0
-        return float(sum(values))
-    
+    def _sum(vals): return float(sum(vals)) if vals else 0.0
     @staticmethod
-    def safe_var(values: List[float]) -> float:
-        """Calcola varianza in modo sicuro (ddof=0)."""
-        if not values or len(values) < 1:
-            return 0.0
-        return float(np.var(values, ddof=0))
+    def _var(vals): return float(np.var(vals, ddof=0)) if vals else 0.0
     
     def extract(self, flow: 'Flow') -> Dict[str, float]:
-        """
-        Estrae tutte le feature da un oggetto Flow.
+        """Estrae tutte le 77 feature."""
+        f = {}
         
-        Args:
-            flow: Oggetto Flow con dati aggregati
-        
-        Returns:
-            Dict con tutte le 77 feature CIC-IDS2017
-        """
-        features = {}
-        
-        # Duration in MICROSECONDI
         duration_sec = flow.duration
-        duration_us = duration_sec * 1e6
-        features['Flow Duration'] = duration_us
+        duration_us = duration_sec * 1_000_000
+        f['Flow Duration'] = duration_us
         
-        # Packet counts
-        features['Total Fwd Packets'] = flow.fwd_packets
-        features['Total Backward Packets'] = flow.bwd_packets
+        f['Total Fwd Packets'] = float(flow.fwd_packets)
+        f['Total Backward Packets'] = float(flow.bwd_packets)
+        f['Total Length of Fwd Packets'] = float(flow.fwd_bytes)
+        f['Total Length of Bwd Packets'] = float(flow.bwd_bytes)
         
-        # Byte counts
-        features['Total Length of Fwd Packets'] = flow.fwd_bytes
-        features['Total Length of Bwd Packets'] = flow.bwd_bytes
+        f['Fwd Packet Length Max'] = self._max(flow.fwd_lengths)
+        f['Fwd Packet Length Min'] = self._min(flow.fwd_lengths)
+        f['Fwd Packet Length Mean'] = self._mean(flow.fwd_lengths)
+        f['Fwd Packet Length Std'] = self._std(flow.fwd_lengths)
         
-        # Forward packet length stats
-        features['Fwd Packet Length Max'] = self.safe_max(flow.fwd_lengths)
-        features['Fwd Packet Length Min'] = self.safe_min(flow.fwd_lengths)
-        features['Fwd Packet Length Mean'] = self.safe_mean(flow.fwd_lengths)
-        features['Fwd Packet Length Std'] = self.safe_std(flow.fwd_lengths)
+        f['Bwd Packet Length Max'] = self._max(flow.bwd_lengths)
+        f['Bwd Packet Length Min'] = self._min(flow.bwd_lengths)
+        f['Bwd Packet Length Mean'] = self._mean(flow.bwd_lengths)
+        f['Bwd Packet Length Std'] = self._std(flow.bwd_lengths)
         
-        # Backward packet length stats
-        features['Bwd Packet Length Max'] = self.safe_max(flow.bwd_lengths)
-        features['Bwd Packet Length Min'] = self.safe_min(flow.bwd_lengths)
-        features['Bwd Packet Length Mean'] = self.safe_mean(flow.bwd_lengths)
-        features['Bwd Packet Length Std'] = self.safe_std(flow.bwd_lengths)
-        
-        # Flow rates (bytes/sec, packets/sec)
         if duration_sec > 0:
-            features['Flow Bytes/s'] = flow.total_bytes / duration_sec
-            features['Flow Packets/s'] = flow.total_packets / duration_sec
-            features['Fwd Packets/s'] = flow.fwd_packets / duration_sec
-            features['Bwd Packets/s'] = flow.bwd_packets / duration_sec
+            f['Flow Bytes/s'] = flow.total_bytes / duration_sec
+            f['Flow Packets/s'] = flow.total_packets / duration_sec
+            f['Fwd Packets/s'] = flow.fwd_packets / duration_sec
+            f['Bwd Packets/s'] = flow.bwd_packets / duration_sec
         else:
-            features['Flow Bytes/s'] = 0.0
-            features['Flow Packets/s'] = 0.0
-            features['Fwd Packets/s'] = 0.0
-            features['Bwd Packets/s'] = 0.0
+            f['Flow Bytes/s'] = f['Flow Packets/s'] = f['Fwd Packets/s'] = f['Bwd Packets/s'] = 0.0
         
-        # IAT in MICROSECONDI
-        all_iats = flow.fwd_iats + flow.bwd_iats
+        # IAT in microsecondi
+        all_iats = [iat * 1e6 for iat in flow.iats]
+        f['Flow IAT Mean'] = self._mean(all_iats)
+        f['Flow IAT Std'] = self._std(all_iats)
+        f['Flow IAT Max'] = self._max(all_iats)
+        f['Flow IAT Min'] = self._min(all_iats)
         
-        # Flow IAT
-        features['Flow IAT Mean'] = self.safe_mean(all_iats) * 1e6
-        features['Flow IAT Std'] = self.safe_std(all_iats) * 1e6
-        features['Flow IAT Max'] = self.safe_max(all_iats) * 1e6
-        features['Flow IAT Min'] = self.safe_min(all_iats) * 1e6
+        fwd_iats = [iat * 1e6 for iat in flow.fwd_iats]
+        f['Fwd IAT Total'] = self._sum(fwd_iats)
+        f['Fwd IAT Mean'] = self._mean(fwd_iats)
+        f['Fwd IAT Std'] = self._std(fwd_iats)
+        f['Fwd IAT Max'] = self._max(fwd_iats)
+        f['Fwd IAT Min'] = self._min(fwd_iats)
         
-        # Forward IAT
-        features['Fwd IAT Total'] = self.safe_sum(flow.fwd_iats) * 1e6
-        features['Fwd IAT Mean'] = self.safe_mean(flow.fwd_iats) * 1e6
-        features['Fwd IAT Std'] = self.safe_std(flow.fwd_iats) * 1e6
-        features['Fwd IAT Max'] = self.safe_max(flow.fwd_iats) * 1e6
-        features['Fwd IAT Min'] = self.safe_min(flow.fwd_iats) * 1e6
+        bwd_iats = [iat * 1e6 for iat in flow.bwd_iats]
+        f['Bwd IAT Total'] = self._sum(bwd_iats)
+        f['Bwd IAT Mean'] = self._mean(bwd_iats)
+        f['Bwd IAT Std'] = self._std(bwd_iats)
+        f['Bwd IAT Max'] = self._max(bwd_iats)
+        f['Bwd IAT Min'] = self._min(bwd_iats)
         
-        # Backward IAT
-        features['Bwd IAT Total'] = self.safe_sum(flow.bwd_iats) * 1e6
-        features['Bwd IAT Mean'] = self.safe_mean(flow.bwd_iats) * 1e6
-        features['Bwd IAT Std'] = self.safe_std(flow.bwd_iats) * 1e6
-        features['Bwd IAT Max'] = self.safe_max(flow.bwd_iats) * 1e6
-        features['Bwd IAT Min'] = self.safe_min(flow.bwd_iats) * 1e6
+        f['Fwd PSH Flags'] = float(flow.fwd_psh_flags)
+        f['Bwd PSH Flags'] = float(flow.bwd_psh_flags)
+        f['Fwd URG Flags'] = float(flow.fwd_urg_flags)
+        f['Bwd URG Flags'] = float(flow.bwd_urg_flags)
         
-        # PSH/URG Flags per direzione
-        features['Fwd PSH Flags'] = flow.fwd_psh_flags
-        features['Bwd PSH Flags'] = flow.bwd_psh_flags
-        features['Fwd URG Flags'] = flow.fwd_urg_flags
-        features['Bwd URG Flags'] = flow.bwd_urg_flags
+        f['Fwd Header Length'] = float(flow.fwd_header_length)
+        f['Bwd Header Length'] = float(flow.bwd_header_length)
         
-        # Header lengths
-        # NOTA: CICFlowMeter somma tutti gli header length dei pacchetti
-        features['Fwd Header Length'] = flow.fwd_header_bytes
-        features['Bwd Header Length'] = flow.bwd_header_bytes
-        features['Fwd Header Length.1'] = flow.fwd_header_bytes  # Duplicato in CIC-IDS2017
-        
-        # Packet length stats (combined)
         all_lengths = flow.fwd_lengths + flow.bwd_lengths
-        features['Min Packet Length'] = self.safe_min(all_lengths)
-        features['Max Packet Length'] = self.safe_max(all_lengths)
-        features['Packet Length Mean'] = self.safe_mean(all_lengths)
-        features['Packet Length Std'] = self.safe_std(all_lengths)
-        features['Packet Length Variance'] = self.safe_var(all_lengths)
+        f['Min Packet Length'] = self._min(all_lengths)
+        f['Max Packet Length'] = self._max(all_lengths)
+        f['Packet Length Mean'] = self._mean(all_lengths)
+        f['Packet Length Std'] = self._std(all_lengths)
+        f['Packet Length Variance'] = self._var(all_lengths)
         
-        # TCP Flags counts
-        features['FIN Flag Count'] = flow.fin_count
-        features['SYN Flag Count'] = flow.syn_count
-        features['RST Flag Count'] = flow.rst_count
-        features['PSH Flag Count'] = flow.psh_count
-        features['ACK Flag Count'] = flow.ack_count
-        features['URG Flag Count'] = flow.urg_count
-        features['CWE Flag Count'] = flow.cwe_count
-        features['ECE Flag Count'] = flow.ece_count
+        f['FIN Flag Count'] = float(flow.fin_flag_count)
+        f['SYN Flag Count'] = float(flow.syn_flag_count)
+        f['RST Flag Count'] = float(flow.rst_flag_count)
+        f['PSH Flag Count'] = float(flow.psh_flag_count)
+        f['ACK Flag Count'] = float(flow.ack_flag_count)
+        f['URG Flag Count'] = float(flow.urg_flag_count)
+        f['CWE Flag Count'] = float(flow.cwe_flag_count)
+        f['ECE Flag Count'] = float(flow.ece_flag_count)
         
-        # Down/Up Ratio
-        if flow.fwd_packets > 0:
-            features['Down/Up Ratio'] = flow.bwd_packets / flow.fwd_packets
-        else:
-            features['Down/Up Ratio'] = 0.0
+        f['Down/Up Ratio'] = flow.bwd_packets / flow.fwd_packets if flow.fwd_packets > 0 else 0.0
+        f['Average Packet Size'] = flow.total_bytes / flow.total_packets if flow.total_packets > 0 else 0.0
+        f['Avg Fwd Segment Size'] = f['Fwd Packet Length Mean']
+        f['Avg Bwd Segment Size'] = f['Bwd Packet Length Mean']
+        f['Fwd Header Length.1'] = f['Fwd Header Length']
         
-        # Average sizes
-        if flow.total_packets > 0:
-            features['Average Packet Size'] = flow.total_bytes / flow.total_packets
-        else:
-            features['Average Packet Size'] = 0.0
+        # Bulk features (tipicamente 0)
+        for key in ['Fwd Avg Bytes/Bulk', 'Fwd Avg Packets/Bulk', 'Fwd Avg Bulk Rate',
+                    'Bwd Avg Bytes/Bulk', 'Bwd Avg Packets/Bulk', 'Bwd Avg Bulk Rate']:
+            f[key] = 0.0
         
-        features['Avg Fwd Segment Size'] = features['Fwd Packet Length Mean']
-        features['Avg Bwd Segment Size'] = features['Bwd Packet Length Mean']
+        f['Subflow Fwd Packets'] = float(flow.fwd_packets)
+        f['Subflow Fwd Bytes'] = float(flow.fwd_bytes)
+        f['Subflow Bwd Packets'] = float(flow.bwd_packets)
+        f['Subflow Bwd Bytes'] = float(flow.bwd_bytes)
         
-        # Bulk features (placeholder - difficili da calcolare senza info bulk)
-        features['Fwd Avg Bytes/Bulk'] = 0.0
-        features['Fwd Avg Packets/Bulk'] = 0.0
-        features['Fwd Avg Bulk Rate'] = 0.0
-        features['Bwd Avg Bytes/Bulk'] = 0.0
-        features['Bwd Avg Packets/Bulk'] = 0.0
-        features['Bwd Avg Bulk Rate'] = 0.0
+        f['Init_Win_bytes_forward'] = float(flow.init_win_bytes_forward)
+        f['Init_Win_bytes_backward'] = float(flow.init_win_bytes_backward)
+        f['act_data_pkt_fwd'] = float(flow.act_data_pkt_fwd)
+        f['min_seg_size_forward'] = self._min(flow.fwd_lengths) if flow.fwd_lengths else 0.0
         
-        # Subflow (uguale ai totali per singolo subflow)
-        features['Subflow Fwd Packets'] = flow.fwd_packets
-        features['Subflow Fwd Bytes'] = flow.fwd_bytes
-        features['Subflow Bwd Packets'] = flow.bwd_packets
-        features['Subflow Bwd Bytes'] = flow.bwd_bytes
+        active_us = [t * 1e6 for t in flow.active_times]
+        idle_us = [t * 1e6 for t in flow.idle_times]
+        f['Active Mean'] = self._mean(active_us)
+        f['Active Std'] = self._std(active_us)
+        f['Active Max'] = self._max(active_us)
+        f['Active Min'] = self._min(active_us)
+        f['Idle Mean'] = self._mean(idle_us)
+        f['Idle Std'] = self._std(idle_us)
+        f['Idle Max'] = self._max(idle_us)
+        f['Idle Min'] = self._min(idle_us)
         
-        # Init window
-        features['Init_Win_bytes_forward'] = flow.init_win_fwd if flow.init_win_fwd else 65535
-        features['Init_Win_bytes_backward'] = flow.init_win_bwd if flow.init_win_bwd else 65535
-        
-        # Active data packets
-        features['act_data_pkt_fwd'] = flow.act_data_pkt_fwd
-        
-        # Min segment size
-        features['min_seg_size_forward'] = self.safe_min(flow.fwd_lengths) if flow.fwd_lengths else 0
-        
-        # Active/Idle statistics
-        # NOTA: Questi richiedono tracking di periodi attivi/idle
-        # Per ora placeholder, ma potrebbero essere calcolati
-        features['Active Mean'] = self.safe_mean(flow.active_times) * 1e6 if flow.active_times else 0.0
-        features['Active Std'] = self.safe_std(flow.active_times) * 1e6 if flow.active_times else 0.0
-        features['Active Max'] = self.safe_max(flow.active_times) * 1e6 if flow.active_times else 0.0
-        features['Active Min'] = self.safe_min(flow.active_times) * 1e6 if flow.active_times else 0.0
-        features['Idle Mean'] = self.safe_mean(flow.idle_times) * 1e6 if flow.idle_times else 0.0
-        features['Idle Std'] = self.safe_std(flow.idle_times) * 1e6 if flow.idle_times else 0.0
-        features['Idle Max'] = self.safe_max(flow.idle_times) * 1e6 if flow.idle_times else 0.0
-        features['Idle Min'] = self.safe_min(flow.idle_times) * 1e6 if flow.idle_times else 0.0
-        
-        # Validazione
-        if self.validate:
-            self._validate_features(features)
-        
-        return features
-    
-    def _validate_features(self, features: Dict[str, float]) -> None:
-        """Valida che le feature siano ragionevoli."""
-        for name, value in features.items():
-            # Check per NaN o Inf
-            if np.isnan(value) or np.isinf(value):
-                self._warnings.append(f"Feature '{name}' ha valore invalido: {value}")
-                features[name] = 0.0
-            
-            # Check per valori negativi dove non dovrebbero esserci
-            if value < 0 and 'Ratio' not in name:
-                self._warnings.append(f"Feature '{name}' ha valore negativo: {value}")
-    
-    @property
-    def warnings(self) -> List[str]:
-        """Restituisce warning accumulati."""
-        return self._warnings
-    
-    def clear_warnings(self) -> None:
-        """Pulisce i warning."""
-        self._warnings = []
-
-
-# ==============================================================================
-# UTILITY
-# ==============================================================================
-
-def get_feature_columns_ordered() -> List[str]:
-    """
-    Restituisce i nomi delle feature nell'ordine corretto.
-    
-    Questo ordine DEVE corrispondere all'ordine usato durante il training.
-    """
-    return FEATURE_NAMES.copy()
-
-
-def validate_feature_dict(features: Dict[str, float], 
-                          required_features: List[str] = None) -> List[str]:
-    """
-    Valida un dizionario di feature.
-    
-    Args:
-        features: Dizionario feature name -> value
-        required_features: Lista feature richieste (default: FEATURE_NAMES)
-    
-    Returns:
-        Lista di feature mancanti
-    """
-    if required_features is None:
-        required_features = FEATURE_NAMES
-    
-    missing = []
-    for feat in required_features:
-        if feat not in features:
-            missing.append(feat)
-    
-    return missing
+        return f

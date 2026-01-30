@@ -3,7 +3,7 @@
   "model_type": "lightgbm",
   "version_id": "bayesian_trials258_cv5_2026-01-25_06.56",
   "task": "binary",
-  "selected_at": "2026-01-29T13:54:20.970085",
+  "selected_at": "2026-01-30T10:52:01.237880",
   "constraints": {
     "fpr_threshold": 0.01,
     "latency_threshold_ms": 1.0,
@@ -21,12 +21,12 @@
     "specificity": 0.9988905178903991
   },
   "latency": {
-    "latency_total_ms": 0.8261990000022479,
-    "latency_per_sample_ms": 0.0008261990000022479,
-    "latency_std_ms": 0.02433681519126561,
-    "samples_per_second": 1210362.1524563443
+    "latency_total_ms": 3.6917361248924863,
+    "latency_per_sample_ms": 0.0036917361248924863,
+    "latency_std_ms": 0.31172568268017287,
+    "samples_per_second": 270875.2646911141
   },
-  "score": 0.9990422855191748,
+  "score": 0.9981826243817078,
   "f2_component": 0.9989859217416794,
-  "latency_component": 0.9991738009999978
+  "latency_component": 0.9963082638751075
 }
