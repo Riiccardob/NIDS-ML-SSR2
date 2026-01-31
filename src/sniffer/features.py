@@ -6,6 +6,11 @@ Unita di misura CIC-IDS2017:
 - IAT: MICROSECONDI  
 - Bytes: BYTES
 - Rates: BYTES/SECONDO o PACKETS/SECONDO
+
+CORREZIONI:
+- Conversione corretta in microsecondi per IAT e duration
+- Gestione robusta divisioni per zero
+- Calcolo corretto variance e std
 """
 
 import numpy as np
@@ -39,7 +44,6 @@ FEATURE_NAMES = [
 ]
 
 
-# Feature critiche per la detection (basate su feature importance del modello)
 CRITICAL_FEATURES = [
     'Bwd Packet Length Max',
     'Packet Length Variance',
@@ -73,31 +77,57 @@ class FeatureExtractor:
     """Estrae le 77 feature CIC-IDS2017 da un Flow."""
     
     @staticmethod
-    def _mean(vals): 
-        return float(np.mean(vals)) if vals else 0.0
+    def _mean(vals: List) -> float:
+        """Media robusta."""
+        if not vals:
+            return 0.0
+        return float(np.mean(vals))
     
     @staticmethod
-    def _std(vals): 
-        return float(np.std(vals, ddof=0)) if len(vals) >= 2 else 0.0
+    def _std(vals: List) -> float:
+        """Deviazione standard (population, ddof=0)."""
+        if len(vals) < 2:
+            return 0.0
+        return float(np.std(vals, ddof=0))
     
     @staticmethod
-    def _min(vals): 
-        return float(min(vals)) if vals else 0.0
+    def _min(vals: List) -> float:
+        """Minimo robusto."""
+        if not vals:
+            return 0.0
+        return float(min(vals))
     
     @staticmethod
-    def _max(vals): 
-        return float(max(vals)) if vals else 0.0
+    def _max(vals: List) -> float:
+        """Massimo robusto."""
+        if not vals:
+            return 0.0
+        return float(max(vals))
     
     @staticmethod
-    def _sum(vals): 
-        return float(sum(vals)) if vals else 0.0
+    def _sum(vals: List) -> float:
+        """Somma robusta."""
+        if not vals:
+            return 0.0
+        return float(sum(vals))
     
     @staticmethod
-    def _var(vals): 
-        return float(np.var(vals, ddof=0)) if vals else 0.0
+    def _var(vals: List) -> float:
+        """Varianza (population, ddof=0)."""
+        if not vals:
+            return 0.0
+        return float(np.var(vals, ddof=0))
     
     def extract(self, flow: 'Flow') -> Dict[str, float]:
-        """Estrae tutte le 77 feature."""
+        """
+        Estrae tutte le 77 feature da un Flow.
+        
+        Args:
+            flow: Oggetto Flow con dati aggregati
+        
+        Returns:
+            Dizionario feature_name -> value
+        """
         f = {}
         
         duration_sec = flow.duration
@@ -130,26 +160,25 @@ class FeatureExtractor:
             f['Fwd Packets/s'] = 0.0
             f['Bwd Packets/s'] = 0.0
         
-        # IAT in microsecondi
-        all_iats = [iat * 1e6 for iat in flow.iats]
-        f['Flow IAT Mean'] = self._mean(all_iats)
-        f['Flow IAT Std'] = self._std(all_iats)
-        f['Flow IAT Max'] = self._max(all_iats)
-        f['Flow IAT Min'] = self._min(all_iats)
+        all_iats_us = [iat * 1_000_000 for iat in flow.iats]
+        f['Flow IAT Mean'] = self._mean(all_iats_us)
+        f['Flow IAT Std'] = self._std(all_iats_us)
+        f['Flow IAT Max'] = self._max(all_iats_us)
+        f['Flow IAT Min'] = self._min(all_iats_us)
         
-        fwd_iats = [iat * 1e6 for iat in flow.fwd_iats]
-        f['Fwd IAT Total'] = self._sum(fwd_iats)
-        f['Fwd IAT Mean'] = self._mean(fwd_iats)
-        f['Fwd IAT Std'] = self._std(fwd_iats)
-        f['Fwd IAT Max'] = self._max(fwd_iats)
-        f['Fwd IAT Min'] = self._min(fwd_iats)
+        fwd_iats_us = [iat * 1_000_000 for iat in flow.fwd_iats]
+        f['Fwd IAT Total'] = self._sum(fwd_iats_us)
+        f['Fwd IAT Mean'] = self._mean(fwd_iats_us)
+        f['Fwd IAT Std'] = self._std(fwd_iats_us)
+        f['Fwd IAT Max'] = self._max(fwd_iats_us)
+        f['Fwd IAT Min'] = self._min(fwd_iats_us)
         
-        bwd_iats = [iat * 1e6 for iat in flow.bwd_iats]
-        f['Bwd IAT Total'] = self._sum(bwd_iats)
-        f['Bwd IAT Mean'] = self._mean(bwd_iats)
-        f['Bwd IAT Std'] = self._std(bwd_iats)
-        f['Bwd IAT Max'] = self._max(bwd_iats)
-        f['Bwd IAT Min'] = self._min(bwd_iats)
+        bwd_iats_us = [iat * 1_000_000 for iat in flow.bwd_iats]
+        f['Bwd IAT Total'] = self._sum(bwd_iats_us)
+        f['Bwd IAT Mean'] = self._mean(bwd_iats_us)
+        f['Bwd IAT Std'] = self._std(bwd_iats_us)
+        f['Bwd IAT Max'] = self._max(bwd_iats_us)
+        f['Bwd IAT Min'] = self._min(bwd_iats_us)
         
         f['Fwd PSH Flags'] = float(flow.fwd_psh_flags)
         f['Bwd PSH Flags'] = float(flow.bwd_psh_flags)
@@ -175,16 +204,27 @@ class FeatureExtractor:
         f['CWE Flag Count'] = float(flow.cwe_flag_count)
         f['ECE Flag Count'] = float(flow.ece_flag_count)
         
-        f['Down/Up Ratio'] = flow.bwd_packets / flow.fwd_packets if flow.fwd_packets > 0 else 0.0
-        f['Average Packet Size'] = flow.total_bytes / flow.total_packets if flow.total_packets > 0 else 0.0
+        if flow.fwd_packets > 0:
+            f['Down/Up Ratio'] = flow.bwd_packets / flow.fwd_packets
+        else:
+            f['Down/Up Ratio'] = 0.0
+        
+        if flow.total_packets > 0:
+            f['Average Packet Size'] = flow.total_bytes / flow.total_packets
+        else:
+            f['Average Packet Size'] = 0.0
+        
         f['Avg Fwd Segment Size'] = f['Fwd Packet Length Mean']
         f['Avg Bwd Segment Size'] = f['Bwd Packet Length Mean']
+        
         f['Fwd Header Length.1'] = f['Fwd Header Length']
         
-        # Bulk features (tipicamente 0)
-        for key in ['Fwd Avg Bytes/Bulk', 'Fwd Avg Packets/Bulk', 'Fwd Avg Bulk Rate',
-                    'Bwd Avg Bytes/Bulk', 'Bwd Avg Packets/Bulk', 'Bwd Avg Bulk Rate']:
-            f[key] = 0.0
+        f['Fwd Avg Bytes/Bulk'] = 0.0
+        f['Fwd Avg Packets/Bulk'] = 0.0
+        f['Fwd Avg Bulk Rate'] = 0.0
+        f['Bwd Avg Bytes/Bulk'] = 0.0
+        f['Bwd Avg Packets/Bulk'] = 0.0
+        f['Bwd Avg Bulk Rate'] = 0.0
         
         f['Subflow Fwd Packets'] = float(flow.fwd_packets)
         f['Subflow Fwd Bytes'] = float(flow.fwd_bytes)
@@ -194,14 +234,19 @@ class FeatureExtractor:
         f['Init_Win_bytes_forward'] = float(flow.init_win_bytes_forward)
         f['Init_Win_bytes_backward'] = float(flow.init_win_bytes_backward)
         f['act_data_pkt_fwd'] = float(flow.act_data_pkt_fwd)
-        f['min_seg_size_forward'] = self._min(flow.fwd_lengths) if flow.fwd_lengths else 0.0
         
-        active_us = [t * 1e6 for t in flow.active_times]
-        idle_us = [t * 1e6 for t in flow.idle_times]
+        if flow.fwd_lengths:
+            f['min_seg_size_forward'] = self._min(flow.fwd_lengths)
+        else:
+            f['min_seg_size_forward'] = 0.0
+        
+        active_us = [t * 1_000_000 for t in flow.active_times]
         f['Active Mean'] = self._mean(active_us)
         f['Active Std'] = self._std(active_us)
         f['Active Max'] = self._max(active_us)
         f['Active Min'] = self._min(active_us)
+        
+        idle_us = [t * 1_000_000 for t in flow.idle_times]
         f['Idle Mean'] = self._mean(idle_us)
         f['Idle Std'] = self._std(idle_us)
         f['Idle Max'] = self._max(idle_us)
@@ -213,3 +258,8 @@ class FeatureExtractor:
         """Estrae solo le feature selezionate."""
         all_features = self.extract(flow)
         return {k: all_features.get(k, 0.0) for k in selected_features}
+    
+    def extract_as_array(self, flow: 'Flow', feature_order: List[str]) -> np.ndarray:
+        """Estrae feature come array numpy nell'ordine specificato."""
+        all_features = self.extract(flow)
+        return np.array([all_features.get(f, 0.0) for f in feature_order])

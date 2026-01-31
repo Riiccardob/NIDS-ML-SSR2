@@ -1,11 +1,13 @@
 """
-NIDS-ML Sniffer - Flow Aggregation Module
+NIDS-ML Sniffer - Flow Aggregation Module (Corrected)
 
 Aggrega pacchetti in flussi bidirezionali (5-tupla).
 
-FIXES:
+CORREZIONI:
 - Migliorata gestione timeout con expire_flows
+- Corretto calcolo IAT per flussi unidirezionali  
 - Aggiunto tracking eta flusso per garbage collection
+- Gestione robusta active/idle times
 """
 
 import time
@@ -70,6 +72,7 @@ class Flow:
     
     @property
     def flow_key(self) -> Tuple:
+        """Chiave univoca bidirezionale per il flusso."""
         if (self.src_ip, self.src_port) < (self.dst_ip, self.dst_port):
             return (self.src_ip, self.dst_ip, self.src_port, self.dst_port, self.protocol)
         return (self.dst_ip, self.src_ip, self.dst_port, self.src_port, self.protocol)
@@ -84,6 +87,7 @@ class Flow:
     
     @property
     def duration(self) -> float:
+        """Durata del flusso in secondi."""
         return max(0.0, self.last_time - self.start_time)
     
     @property
@@ -93,43 +97,41 @@ class Flow:
     
     @property
     def iats(self) -> List[float]:
+        """Inter-arrival times per tutti i pacchetti (in secondi)."""
         if len(self.timestamps) < 2:
             return []
-        return [
-            self.timestamps[i] - self.timestamps[i-1] 
-            for i in range(1, len(self.timestamps))
-        ]
+        sorted_ts = sorted(self.timestamps)
+        return [sorted_ts[i] - sorted_ts[i-1] for i in range(1, len(sorted_ts))]
     
     @property
     def fwd_iats(self) -> List[float]:
+        """Inter-arrival times per pacchetti forward (in secondi)."""
         if len(self.fwd_timestamps) < 2:
             return []
-        return [
-            self.fwd_timestamps[i] - self.fwd_timestamps[i-1] 
-            for i in range(1, len(self.fwd_timestamps))
-        ]
+        sorted_ts = sorted(self.fwd_timestamps)
+        return [sorted_ts[i] - sorted_ts[i-1] for i in range(1, len(sorted_ts))]
     
     @property
     def bwd_iats(self) -> List[float]:
+        """Inter-arrival times per pacchetti backward (in secondi)."""
         if len(self.bwd_timestamps) < 2:
             return []
-        return [
-            self.bwd_timestamps[i] - self.bwd_timestamps[i-1] 
-            for i in range(1, len(self.bwd_timestamps))
-        ]
+        sorted_ts = sorted(self.bwd_timestamps)
+        return [sorted_ts[i] - sorted_ts[i-1] for i in range(1, len(sorted_ts))]
     
     def add_packet(
-        self, 
-        timestamp: float, 
-        is_forward: bool, 
-        payload_size: int, 
-        header_length: int, 
-        tcp_flags: Optional[Dict[str, bool]] = None, 
+        self,
+        timestamp: float,
+        is_forward: bool,
+        payload_size: int,
+        header_length: int,
+        tcp_flags: Optional[Dict[str, bool]] = None,
         window_size: int = 0
     ):
         """Aggiunge un pacchetto al flusso."""
         if self._last_packet_time is not None:
             gap = timestamp - self._last_packet_time
+            
             if gap > IDLE_THRESHOLD:
                 self.idle_times.append(gap)
                 if self._last_active_start is not None:
@@ -145,6 +147,7 @@ class Flow:
         self._last_packet_time = timestamp
         self.last_time = timestamp
         self.timestamps.append(timestamp)
+        
         packet_size = header_length + payload_size
         
         if is_forward:
@@ -153,9 +156,11 @@ class Flow:
             self.fwd_lengths.append(packet_size)
             self.fwd_timestamps.append(timestamp)
             self.fwd_header_length += header_length
+            
             if not self._fwd_win_set and window_size > 0:
                 self.init_win_bytes_forward = window_size
                 self._fwd_win_set = True
+            
             if payload_size > 0:
                 self.act_data_pkt_fwd += 1
         else:
@@ -164,6 +169,7 @@ class Flow:
             self.bwd_lengths.append(packet_size)
             self.bwd_timestamps.append(timestamp)
             self.bwd_header_length += header_length
+            
             if not self._bwd_win_set and window_size > 0:
                 self.init_win_bytes_backward = window_size
                 self._bwd_win_set = True
@@ -172,34 +178,42 @@ class Flow:
             self._process_flags(tcp_flags, is_forward)
     
     def _process_flags(self, flags: Dict[str, bool], is_forward: bool):
-        if flags.get('FIN'): 
+        """Processa flag TCP."""
+        if flags.get('FIN'):
             self.fin_flag_count += 1
-        if flags.get('SYN'): 
+        if flags.get('SYN'):
             self.syn_flag_count += 1
-        if flags.get('RST'): 
+        if flags.get('RST'):
             self.rst_flag_count += 1
         if flags.get('PSH'):
             self.psh_flag_count += 1
-            if is_forward: 
+            if is_forward:
                 self.fwd_psh_flags += 1
-            else: 
+            else:
                 self.bwd_psh_flags += 1
-        if flags.get('ACK'): 
+        if flags.get('ACK'):
             self.ack_flag_count += 1
         if flags.get('URG'):
             self.urg_flag_count += 1
-            if is_forward: 
+            if is_forward:
                 self.fwd_urg_flags += 1
-            else: 
+            else:
                 self.bwd_urg_flags += 1
-        if flags.get('ECE'): 
+        if flags.get('ECE'):
             self.ece_flag_count += 1
-        if flags.get('CWR'): 
+        if flags.get('CWR'):
             self.cwe_flag_count += 1
     
     def is_complete(self) -> bool:
         """Verifica se il flusso e' completo (FIN o RST ricevuto)."""
         return self.fin_flag_count > 0 or self.rst_flag_count > 0
+    
+    def finalize(self):
+        """Finalizza calcoli quando il flusso termina."""
+        if self._last_active_start is not None and self._last_packet_time is not None:
+            final_active = self._last_packet_time - self._last_active_start
+            if final_active > 0:
+                self.active_times.append(final_active)
 
 
 @dataclass
@@ -221,13 +235,16 @@ class FlowManager:
     """
     Gestisce flussi attivi.
     
-    FIX: Migliorata gestione memoria con expire_flows() per garbage collection
-    proattivo durante cattura live prolungata.
+    Funzionalita:
+    - Aggregazione pacchetti in flussi bidirezionali
+    - Timeout automatico per flussi inattivi
+    - Completamento su FIN/RST o max packets
+    - Garbage collection per prevenire memory leak
     """
     
     def __init__(
-        self, 
-        flow_timeout: float = DEFAULT_FLOW_TIMEOUT, 
+        self,
+        flow_timeout: float = DEFAULT_FLOW_TIMEOUT,
         max_packets: int = DEFAULT_MAX_PACKETS
     ):
         self.flow_timeout = flow_timeout
@@ -250,19 +267,19 @@ class FlowManager:
         - Riceve flag FIN o RST
         """
         key = self._make_key(
-            pkt.src_ip, pkt.dst_ip, 
-            pkt.src_port, pkt.dst_port, 
+            pkt.src_ip, pkt.dst_ip,
+            pkt.src_port, pkt.dst_port,
             pkt.protocol
         )
         
         if key not in self._flows:
             self._flows[key] = Flow(
-                src_ip=pkt.src_ip, 
+                src_ip=pkt.src_ip,
                 dst_ip=pkt.dst_ip,
-                src_port=pkt.src_port, 
+                src_port=pkt.src_port,
                 dst_port=pkt.dst_port,
                 protocol=pkt.protocol,
-                start_time=pkt.timestamp, 
+                start_time=pkt.timestamp,
                 last_time=pkt.timestamp
             )
             self.flows_created += 1
@@ -271,17 +288,18 @@ class FlowManager:
         is_forward = (pkt.src_ip == flow.src_ip and pkt.src_port == flow.src_port)
         
         flow.add_packet(
-            timestamp=pkt.timestamp, 
+            timestamp=pkt.timestamp,
             is_forward=is_forward,
-            payload_size=pkt.payload_size, 
+            payload_size=pkt.payload_size,
             header_length=pkt.header_length,
-            tcp_flags=pkt.tcp_flags, 
+            tcp_flags=pkt.tcp_flags,
             window_size=pkt.window_size
         )
         
         if flow.total_packets >= self.max_packets or flow.is_complete():
             del self._flows[key]
             self.flows_completed += 1
+            flow.finalize()
             return flow
         
         return None
@@ -306,6 +324,7 @@ class FlowManager:
         
         for key, flow in self._flows.items():
             if (current_time - flow.last_time) > self.flow_timeout:
+                flow.finalize()
                 expired.append(flow)
                 to_remove.append(key)
         
@@ -317,7 +336,10 @@ class FlowManager:
     
     def get_all_flows(self) -> List[Flow]:
         """Restituisce tutti i flussi e svuota il manager."""
-        flows = list(self._flows.values())
+        flows = []
+        for flow in self._flows.values():
+            flow.finalize()
+            flows.append(flow)
         self._flows.clear()
         return flows
     
@@ -331,7 +353,7 @@ class FlowManager:
         }
     
     @staticmethod
-    def _make_key(src_ip, dst_ip, src_port, dst_port, protocol) -> Tuple:
+    def _make_key(src_ip: str, dst_ip: str, src_port: int, dst_port: int, protocol: int) -> Tuple:
         """Crea chiave bidirezionale per il flusso."""
         if (src_ip, src_port) < (dst_ip, dst_port):
             return (src_ip, dst_ip, src_port, dst_port, protocol)
