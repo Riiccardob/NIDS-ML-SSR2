@@ -12,3 +12,4 @@ scapy>=2.5.0
 psutil>=5.9.0
 dill>=0.4.1
 optuna
+pip install pyyaml
