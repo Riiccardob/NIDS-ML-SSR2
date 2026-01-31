@@ -1,7 +1,7 @@
 """
 NIDS-ML Sniffer - Feature Extraction (77 feature CIC-IDS2017)
 
-Unità di misura CIC-IDS2017:
+Unita di misura CIC-IDS2017:
 - Durata: MICROSECONDI
 - IAT: MICROSECONDI  
 - Bytes: BYTES
@@ -39,21 +39,62 @@ FEATURE_NAMES = [
 ]
 
 
+# Feature critiche per la detection (basate su feature importance del modello)
+CRITICAL_FEATURES = [
+    'Bwd Packet Length Max',
+    'Packet Length Variance',
+    'Packet Length Mean',
+    'Fwd IAT Mean',
+    'Bwd Packet Length Min',
+    'Total Fwd Packets',
+    'Bwd Packets/s',
+    'Fwd Header Length',
+    'Fwd Packet Length Max',
+    'Init_Win_bytes_backward',
+    'Total Length of Fwd Packets',
+    'Fwd IAT Std',
+    'Init_Win_bytes_forward',
+    'Min Packet Length',
+    'Flow Packets/s',
+    'Fwd Packet Length Min',
+    'Flow IAT Mean',
+    'Fwd Packet Length Mean',
+    'Flow IAT Std',
+    'Bwd Header Length',
+]
+
+
+def get_feature_columns_ordered() -> List[str]:
+    """Restituisce lista feature nell'ordine standard CIC-IDS2017."""
+    return FEATURE_NAMES.copy()
+
+
 class FeatureExtractor:
     """Estrae le 77 feature CIC-IDS2017 da un Flow."""
     
     @staticmethod
-    def _mean(vals): return float(np.mean(vals)) if vals else 0.0
+    def _mean(vals): 
+        return float(np.mean(vals)) if vals else 0.0
+    
     @staticmethod
-    def _std(vals): return float(np.std(vals, ddof=0)) if len(vals) >= 2 else 0.0
+    def _std(vals): 
+        return float(np.std(vals, ddof=0)) if len(vals) >= 2 else 0.0
+    
     @staticmethod
-    def _min(vals): return float(min(vals)) if vals else 0.0
+    def _min(vals): 
+        return float(min(vals)) if vals else 0.0
+    
     @staticmethod
-    def _max(vals): return float(max(vals)) if vals else 0.0
+    def _max(vals): 
+        return float(max(vals)) if vals else 0.0
+    
     @staticmethod
-    def _sum(vals): return float(sum(vals)) if vals else 0.0
+    def _sum(vals): 
+        return float(sum(vals)) if vals else 0.0
+    
     @staticmethod
-    def _var(vals): return float(np.var(vals, ddof=0)) if vals else 0.0
+    def _var(vals): 
+        return float(np.var(vals, ddof=0)) if vals else 0.0
     
     def extract(self, flow: 'Flow') -> Dict[str, float]:
         """Estrae tutte le 77 feature."""
@@ -84,7 +125,10 @@ class FeatureExtractor:
             f['Fwd Packets/s'] = flow.fwd_packets / duration_sec
             f['Bwd Packets/s'] = flow.bwd_packets / duration_sec
         else:
-            f['Flow Bytes/s'] = f['Flow Packets/s'] = f['Fwd Packets/s'] = f['Bwd Packets/s'] = 0.0
+            f['Flow Bytes/s'] = 0.0
+            f['Flow Packets/s'] = 0.0
+            f['Fwd Packets/s'] = 0.0
+            f['Bwd Packets/s'] = 0.0
         
         # IAT in microsecondi
         all_iats = [iat * 1e6 for iat in flow.iats]
@@ -164,3 +208,8 @@ class FeatureExtractor:
         f['Idle Min'] = self._min(idle_us)
         
         return f
+    
+    def extract_selected(self, flow: 'Flow', selected_features: List[str]) -> Dict[str, float]:
+        """Estrae solo le feature selezionate."""
+        all_features = self.extract(flow)
+        return {k: all_features.get(k, 0.0) for k in selected_features}
