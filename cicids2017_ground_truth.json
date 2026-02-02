@@ -1,0 +1,245 @@
+{
+  "dataset": "CIC-IDS2017",
+  "description": "Ground truth for labeling flows extracted from PCAP files",
+  "notes": [
+    "Time windows are approximate based on dataset documentation",
+    "Attacker IP is 172.16.0.1 for most attacks",
+    "Victim network is 192.168.10.0/24",
+    "Time format: HH:MM (24h, Eastern Time)"
+  ],
+  "days": {
+    "monday": {
+      "date": "2017-07-03",
+      "pcap": "Monday-WorkingHours.pcap",
+      "csv": "Monday-WorkingHours.pcap_ISCX.csv",
+      "description": "Benign traffic only - normal activity",
+      "attacks": []
+    },
+    "tuesday": {
+      "date": "2017-07-04",
+      "pcap": "Tuesday-WorkingHours.pcap",
+      "csv": "Tuesday-WorkingHours.pcap_ISCX.csv",
+      "description": "Brute Force attacks (FTP-Patator, SSH-Patator)",
+      "attacks": [
+        {
+          "name": "FTP-Patator",
+          "label": "FTP-Patator",
+          "start_time": "09:20",
+          "end_time": "10:20",
+          "attacker_ip": "172.16.0.1",
+          "victim_ip": "192.168.10.50",
+          "victim_port": 21,
+          "protocol": "TCP",
+          "description": "FTP brute force attack using Patator tool"
+        },
+        {
+          "name": "SSH-Patator",
+          "label": "SSH-Patator",
+          "start_time": "14:00",
+          "end_time": "15:00",
+          "attacker_ip": "172.16.0.1",
+          "victim_ip": "192.168.10.50",
+          "victim_port": 22,
+          "protocol": "TCP",
+          "description": "SSH brute force attack using Patator tool"
+        }
+      ]
+    },
+    "wednesday": {
+      "date": "2017-07-05",
+      "pcap": "Wednesday-workingHours.pcap",
+      "csv": "Wednesday-workingHours.pcap_ISCX.csv",
+      "description": "DoS and Heartbleed attacks",
+      "attacks": [
+        {
+          "name": "DoS slowloris",
+          "label": "DoS slowloris",
+          "start_time": "09:47",
+          "end_time": "10:10",
+          "attacker_ip": "172.16.0.1",
+          "victim_ip": "192.168.10.50",
+          "victim_port": 80,
+          "protocol": "TCP",
+          "description": "Slowloris DoS attack"
+        },
+        {
+          "name": "DoS Slowhttptest",
+          "label": "DoS Slowhttptest",
+          "start_time": "10:14",
+          "end_time": "10:35",
+          "attacker_ip": "172.16.0.1",
+          "victim_ip": "192.168.10.50",
+          "victim_port": 80,
+          "protocol": "TCP",
+          "description": "Slow HTTP test DoS attack"
+        },
+        {
+          "name": "DoS Hulk",
+          "label": "DoS Hulk",
+          "start_time": "10:43",
+          "end_time": "11:00",
+          "attacker_ip": "172.16.0.1",
+          "victim_ip": "192.168.10.50",
+          "victim_port": 80,
+          "protocol": "TCP",
+          "description": "HULK DoS attack"
+        },
+        {
+          "name": "DoS GoldenEye",
+          "label": "DoS GoldenEye",
+          "start_time": "11:10",
+          "end_time": "11:23",
+          "attacker_ip": "172.16.0.1",
+          "victim_ip": "192.168.10.50",
+          "victim_port": 80,
+          "protocol": "TCP",
+          "description": "GoldenEye DoS attack"
+        },
+        {
+          "name": "Heartbleed",
+          "label": "Heartbleed",
+          "start_time": "15:12",
+          "end_time": "15:32",
+          "attacker_ip": "172.16.0.1",
+          "victim_ip": "192.168.10.51",
+          "victim_port": 443,
+          "protocol": "TCP",
+          "description": "Heartbleed vulnerability exploitation"
+        }
+      ]
+    },
+    "thursday": {
+      "date": "2017-07-06",
+      "pcap": "Thursday-WorkingHours.pcap",
+      "csv_morning": "Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv",
+      "csv_afternoon": "Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv",
+      "description": "Web Attacks (morning) and Infiltration (afternoon)",
+      "attacks": [
+        {
+          "name": "Web Attack - Brute Force",
+          "label": "Web Attack - Brute Force",
+          "start_time": "09:20",
+          "end_time": "10:00",
+          "attacker_ip": "172.16.0.1",
+          "victim_ip": "192.168.10.50",
+          "victim_port": 80,
+          "protocol": "TCP",
+          "description": "Web application brute force"
+        },
+        {
+          "name": "Web Attack - XSS",
+          "label": "Web Attack - XSS",
+          "start_time": "10:15",
+          "end_time": "10:35",
+          "attacker_ip": "172.16.0.1",
+          "victim_ip": "192.168.10.50",
+          "victim_port": 80,
+          "protocol": "TCP",
+          "description": "Cross-site scripting attack"
+        },
+        {
+          "name": "Web Attack - Sql Injection",
+          "label": "Web Attack - Sql Injection",
+          "start_time": "10:40",
+          "end_time": "10:42",
+          "attacker_ip": "172.16.0.1",
+          "victim_ip": "192.168.10.50",
+          "victim_port": 80,
+          "protocol": "TCP",
+          "description": "SQL injection attack"
+        },
+        {
+          "name": "Infiltration",
+          "label": "Infiltration",
+          "start_time": "14:19",
+          "end_time": "14:21",
+          "attacker_ip": "172.16.0.1",
+          "victim_ip": "192.168.10.8",
+          "victim_port": null,
+          "protocol": "TCP",
+          "description": "Infiltration attack (Dropbox download, then nmap/portscan)",
+          "notes": "Very few samples in dataset (36 flows)"
+        },
+        {
+          "name": "Infiltration - Portscan",
+          "label": "Infiltration",
+          "start_time": "14:33",
+          "end_time": "14:35",
+          "attacker_ip": "192.168.10.8",
+          "victim_ip": "192.168.10.0/24",
+          "victim_port": null,
+          "protocol": "TCP",
+          "description": "Portscan from compromised host"
+        }
+      ]
+    },
+    "friday": {
+      "date": "2017-07-07",
+      "pcap": "Friday-WorkingHours.pcap",
+      "csv_morning": "Friday-WorkingHours-Morning.pcap_ISCX.csv",
+      "csv_portscan": "Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv",
+      "csv_ddos": "Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv",
+      "description": "Botnet (morning), PortScan and DDoS (afternoon)",
+      "attacks": [
+        {
+          "name": "Bot",
+          "label": "Bot",
+          "start_time": "10:02",
+          "end_time": "11:02",
+          "attacker_ip": "192.168.10.8",
+          "victim_ip": "multiple",
+          "victim_port": null,
+          "protocol": "TCP/UDP",
+          "description": "ARES botnet traffic",
+          "notes": "Infected host 192.168.10.8 communicates with C&C and performs attacks"
+        },
+        {
+          "name": "PortScan",
+          "label": "PortScan",
+          "start_time": "13:55",
+          "end_time": "14:35",
+          "attacker_ip": "172.16.0.1",
+          "victim_ip": "192.168.10.50",
+          "victim_port": null,
+          "protocol": "TCP",
+          "description": "Port scanning using nmap"
+        },
+        {
+          "name": "DDoS - LOIT",
+          "label": "DDoS",
+          "start_time": "15:56",
+          "end_time": "16:16",
+          "attacker_ip": "172.16.0.1",
+          "victim_ip": "192.168.10.50",
+          "victim_port": 80,
+          "protocol": "TCP",
+          "description": "DDoS attack using LOIT tool"
+        }
+      ]
+    }
+  },
+  "known_ips": {
+    "attacker": ["172.16.0.1"],
+    "victim_network": "192.168.10.0/24",
+    "victim_servers": ["192.168.10.50", "192.168.10.51"],
+    "compromised_hosts": ["192.168.10.8"],
+    "notes": "172.16.0.1 is the main attacker IP for most attacks"
+  },
+  "labeling_rules": {
+    "simple": {
+      "description": "Simple rule: any flow involving 172.16.0.1 during attack windows is ATTACK",
+      "rules": [
+        "If src_ip == 172.16.0.1 AND time in attack_window -> ATTACK",
+        "If dst_ip == 172.16.0.1 AND time in attack_window -> ATTACK",
+        "Else -> BENIGN"
+      ]
+    },
+    "strict": {
+      "description": "Strict rule: match IP, port, and time window",
+      "rules": [
+        "If src_ip == attacker_ip AND dst_ip == victim_ip AND dst_port == victim_port AND time in window -> ATTACK",
+        "Else -> BENIGN"
+      ]
+    }
+  }
+}
