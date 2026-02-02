@@ -1,24 +1,13 @@
 #!/usr/bin/env python3
 """
-NIDS-ML Sniffer - Main Entry Point (Corrected)
+NIDS-ML Sniffer - Main Entry Point (Corrected v2)
 
-CLI unificato per tutte le operazioni NIDS:
-- evaluate: Valuta modello su CSV (default: dataset completo)
-- pcap: Analizza file PCAP (default: tutti i pacchetti)  
-- live: Cattura live da interfaccia di rete
-- benchmark: Test latenza inferenza
-- config: Mostra configurazione
+CLI unificato per tutte le operazioni NIDS.
 
-CORREZIONI:
+CORREZIONI v2:
+- Flag -v/--verbose propagato correttamente a tutti i subcommand
+- Gestione corretta nomi colonne CSV CIC-IDS2017
 - Default sample_size=None (processa TUTTO)
-- Parametri completamente configurabili
-- Output dettagliato e strutturato
-- Gestione errori robusta
-
-Usage:
-    python -m src.sniffer.main evaluate --csv data/raw/Tuesday.csv
-    python -m src.sniffer.main pcap --file data/pcap/Tuesday.pcap
-    sudo python -m src.sniffer.main live --interface eth0 --duration 300
 """
 
 import os
@@ -97,16 +86,18 @@ CICIDS2017_FILES = {
 
 def get_csv_path(day: str, base_dir: str = 'data/raw') -> Path:
     """Ottiene path CSV per giorno CIC-IDS2017."""
-    if day.lower() not in CICIDS2017_FILES:
+    day_lower = day.lower().replace('-', '_').replace(' ', '_')
+    if day_lower not in CICIDS2017_FILES:
         raise ValueError(f"Giorno non valido: {day}. Validi: {list(CICIDS2017_FILES.keys())}")
-    return Path(base_dir) / CICIDS2017_FILES[day.lower()]['csv']
+    return Path(base_dir) / CICIDS2017_FILES[day_lower]['csv']
 
 
 def get_pcap_path(day: str, base_dir: str = 'data/pcap') -> Path:
     """Ottiene path PCAP per giorno CIC-IDS2017."""
-    if day.lower() not in CICIDS2017_FILES:
+    day_lower = day.lower().replace('-', '_').replace(' ', '_')
+    if day_lower not in CICIDS2017_FILES:
         raise ValueError(f"Giorno non valido: {day}. Validi: {list(CICIDS2017_FILES.keys())}")
-    return Path(base_dir) / CICIDS2017_FILES[day.lower()]['pcap']
+    return Path(base_dir) / CICIDS2017_FILES[day_lower]['pcap']
 
 
 def cmd_config(args):
@@ -188,6 +179,8 @@ def cmd_evaluate(args):
         print(f"Errore: CSV non trovato: {csv_path}")
         sys.exit(1)
     
+    verbose = getattr(args, 'verbose', False)
+    
     print("=" * 60)
     print("NIDS-ML Model Evaluation")
     print("=" * 60)
@@ -259,8 +252,11 @@ def cmd_evaluate_all(args):
             
             all_results[day] = result.to_dict()
             
+            # print(f"\nSummary: F1={result.f1_score:.4f} | FPR={result.false_positive_rate:.4f} | "
+            #       f"Recall={result.recall:.4f} | Features: {result.features_matched}/{result.features_matched + result.features_missing}")
+
             print(f"\nSummary: F1={result.f1_score:.4f} | FPR={result.false_positive_rate:.4f} | "
-                  f"Recall={result.recall:.4f}")
+                f"Recall={result.recall:.4f} | Features: {result.features_matched}")
             
         except Exception as e:
             print(f"Errore: {e}")
@@ -301,12 +297,15 @@ def cmd_pcap(args):
         print(f"Errore: PCAP non trovato: {pcap_path}")
         sys.exit(1)
     
+    verbose = getattr(args, 'verbose', False)
+    
     print("=" * 60)
     print("NIDS-ML PCAP Analysis")
     print("=" * 60)
     print(f"File:        {pcap_path}")
     print(f"Model:       {args.model_dir}")
     print(f"Max packets: {args.max_packets if args.max_packets else 'ALL'}")
+    print(f"Verbose:     {verbose}")
     print("=" * 60)
     
     engine = SnifferEngine(
@@ -320,12 +319,12 @@ def cmd_pcap(args):
         results = engine.analyze_pcap(
             str(pcap_path),
             max_packets=args.max_packets,
-            verbose=True
+            verbose=verbose
         )
         
         print(f"\nAttacks detected: {len(results)}")
         
-        if results and args.verbose:
+        if results and verbose:
             print("\nAttack details (top 20):")
             for r in results[:20]:
                 print(f"  - {r.label} | {r.src_ip}:{r.src_port} -> {r.dst_ip}:{r.dst_port} | "
@@ -352,6 +351,8 @@ def cmd_live(args):
     """Cattura live."""
     from src.sniffer.engine import SnifferEngine
     
+    verbose = getattr(args, 'verbose', False)
+    
     print("=" * 60)
     print("NIDS-ML Live Capture")
     print("=" * 60)
@@ -375,7 +376,7 @@ def cmd_live(args):
             duration=args.duration,
             filter_str=args.filter or 'ip',
             promisc=not args.no_promisc,
-            verbose=True
+            verbose=verbose
         )
     except KeyboardInterrupt:
         print("\nCapture interrupted")
@@ -432,8 +433,8 @@ Examples:
   # Evaluate with sampling
   %(prog)s evaluate --day tuesday --sample 50000
   
-  # Analyze PCAP (all packets)
-  %(prog)s pcap --file data/pcap/Tuesday-WorkingHours.pcap
+  # Analyze PCAP (all packets) with verbose
+  %(prog)s pcap --file data/pcap/Tuesday-WorkingHours.pcap --verbose
   
   # Live capture
   sudo %(prog)s live --interface eth0 --duration 300
@@ -464,12 +465,14 @@ Available days: monday, tuesday, wednesday, thursday_morning, thursday_afternoon
                             help='Sample size (default: FULL dataset)')
     eval_parser.add_argument('--batch-size', type=int, default=50000, help='Batch size')
     eval_parser.add_argument('-o', '--output', help='Output JSON path')
+    eval_parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
     
     eval_all_parser = subparsers.add_parser('evaluate-all', help='Evaluate on all CIC-IDS2017 days')
     eval_all_parser.add_argument('--sample', type=int, default=None,
                                 help='Sample size per file (default: FULL)')
     eval_all_parser.add_argument('--batch-size', type=int, default=50000, help='Batch size')
     eval_all_parser.add_argument('-o', '--output', help='Output JSON path')
+    eval_all_parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
     
     pcap_parser = subparsers.add_parser('pcap', help='Analyze PCAP file')
     pcap_parser.add_argument('--file', help='PCAP file path')
@@ -477,6 +480,7 @@ Available days: monday, tuesday, wednesday, thursday_morning, thursday_afternoon
     pcap_parser.add_argument('--max-packets', type=int, default=None,
                             help='Max packets (default: ALL)')
     pcap_parser.add_argument('-o', '--output', help='Output JSON path')
+    pcap_parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
     
     live_parser = subparsers.add_parser('live', help='Live capture')
     live_parser.add_argument('-i', '--interface', default='eth0', help='Network interface')
@@ -487,12 +491,14 @@ Available days: monday, tuesday, wednesday, thursday_morning, thursday_afternoon
                             help='Actually execute firewall rules')
     live_parser.add_argument('--no-promisc', action='store_true', help='Disable promiscuous mode')
     live_parser.add_argument('-o', '--output', help='Output JSON path')
+    live_parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
     
     bench_parser = subparsers.add_parser('benchmark', help='Latency benchmark')
     bench_parser.add_argument('--samples', type=int, default=1000, help='Samples per iteration')
     bench_parser.add_argument('--iterations', type=int, default=10, help='Iterations')
     bench_parser.add_argument('--warmup', type=int, default=3, help='Warmup iterations')
     bench_parser.add_argument('-o', '--output', help='Output JSON path')
+    bench_parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
     
     args = parser.parse_args()
     

@@ -1,12 +1,12 @@
 """
-NIDS-ML Sniffer - Flow Aggregation Module (Corrected)
+NIDS-ML Sniffer - Flow Aggregation Module (Corrected v2)
 
 Aggrega pacchetti in flussi bidirezionali (5-tupla).
 
-CORREZIONI:
+CORREZIONI v2:
+- Aggiunto flag is_asymmetric per rilevare flussi unidirezionali
 - Migliorata gestione timeout con expire_flows
 - Corretto calcolo IAT per flussi unidirezionali  
-- Aggiunto tracking eta flusso per garbage collection
 - Gestione robusta active/idle times
 """
 
@@ -94,6 +94,29 @@ class Flow:
     def age(self) -> float:
         """Eta del flusso dall'ultimo pacchetto."""
         return time.time() - self.last_time
+    
+    @property
+    def is_asymmetric(self) -> bool:
+        """
+        Indica se il flusso e' unidirezionale (asimmetrico).
+        
+        In reti con routing asimmetrico, potresti vedere solo una direzione.
+        Questo flag permette di identificare questi flussi "monchi" per
+        un'analisi piu accurata.
+        """
+        return self.fwd_packets == 0 or self.bwd_packets == 0
+    
+    @property
+    def asymmetry_ratio(self) -> float:
+        """
+        Rapporto di asimmetria del flusso.
+        
+        0.0 = perfettamente simmetrico
+        1.0 = completamente unidirezionale
+        """
+        if self.total_packets == 0:
+            return 1.0
+        return abs(self.fwd_packets - self.bwd_packets) / self.total_packets
     
     @property
     def iats(self) -> List[float]:
@@ -240,6 +263,7 @@ class FlowManager:
     - Timeout automatico per flussi inattivi
     - Completamento su FIN/RST o max packets
     - Garbage collection per prevenire memory leak
+    - Tracking flussi asimmetrici
     """
     
     def __init__(
@@ -253,6 +277,7 @@ class FlowManager:
         self.flows_created = 0
         self.flows_completed = 0
         self.flows_expired = 0
+        self.flows_asymmetric = 0
     
     def get_flow_count(self) -> int:
         """Numero flussi attivi."""
@@ -299,6 +324,8 @@ class FlowManager:
         if flow.total_packets >= self.max_packets or flow.is_complete():
             del self._flows[key]
             self.flows_completed += 1
+            if flow.is_asymmetric:
+                self.flows_asymmetric += 1
             flow.finalize()
             return flow
         
@@ -307,11 +334,6 @@ class FlowManager:
     def expire_flows(self, current_time: float) -> List[Flow]:
         """
         Rimuove e restituisce flussi scaduti (inattivi per piu di flow_timeout).
-        
-        Chiamare periodicamente per prevenire memory leak durante:
-        - Cattura live prolungata
-        - Attacchi con IP spoofing
-        - Connessioni half-open (slowloris)
         
         Args:
             current_time: Timestamp corrente (dal pacchetto o time.time())
@@ -327,6 +349,8 @@ class FlowManager:
                 flow.finalize()
                 expired.append(flow)
                 to_remove.append(key)
+                if flow.is_asymmetric:
+                    self.flows_asymmetric += 1
         
         for key in to_remove:
             del self._flows[key]
@@ -339,6 +363,8 @@ class FlowManager:
         flows = []
         for flow in self._flows.values():
             flow.finalize()
+            if flow.is_asymmetric:
+                self.flows_asymmetric += 1
             flows.append(flow)
         self._flows.clear()
         return flows
@@ -349,7 +375,8 @@ class FlowManager:
             'active_flows': len(self._flows),
             'flows_created': self.flows_created,
             'flows_completed': self.flows_completed,
-            'flows_expired': self.flows_expired
+            'flows_expired': self.flows_expired,
+            'flows_asymmetric': self.flows_asymmetric
         }
     
     @staticmethod

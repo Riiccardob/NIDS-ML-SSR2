@@ -1,24 +1,20 @@
 """
-NIDS-ML Sniffer - Preprocessing Module per Pipeline
+NIDS-ML Sniffer - Preprocessing Module v4 (WORKING VERSION)
 
-Gestisce il preprocessing delle feature per allinearsi al pipeline di training:
-1. Estrazione 77 feature CIC-IDS2017 -> filtra a 44 (scaler_columns.json)
-2. RobustScaler su 44 feature
-3. Selezione 30 feature per indice (selected_features.json, ordine importanza)
+Pipeline CORRETTA (identica al training):
+1. Extract 44 features (scaler_columns.json)
+2. RobustScaler
+3. Clip(-10, 10)
 
-CRITICO: L'ordine delle feature deve essere ESATTAMENTE quello che il modello si aspetta!
-
-CORREZIONI:
-- Gestione robusta feature mancanti
-- Normalizzazione nomi case-insensitive
-- Validazione coerenza artifacts
+NO feature selection post-scaling!
+Il modello è stato trainato su 44 feature, quindi passiamo 44 feature.
 """
 
 import json
 import logging
 import warnings
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 
 import numpy as np
@@ -27,179 +23,127 @@ import joblib
 
 logger = logging.getLogger(__name__)
 
+CLIP_VALUE = 10.0
+
+
+def normalize_name(name: str) -> str:
+    """Normalizza nome colonna."""
+    return name.strip().lower()
+
 
 @dataclass
 class PipelineArtifacts:
-    """Container per tutti gli artifacts necessari all'inference."""
+    """Container per artifacts."""
     scaler: Any
-    scaler_columns: List[str]
-    selected_features: List[str]
-    selected_indices: List[int]
-    statistical_info: Optional[Dict] = None
-    checksum: Optional[str] = None
+    scaler_columns: List[str]  # 44 features
+    is_booster: bool = False  # True if LightGBM Booster
     
     def __post_init__(self):
-        if len(self.selected_indices) != len(self.selected_features):
-            raise ValueError(
-                f"Mismatch: {len(self.selected_indices)} indices vs "
-                f"{len(self.selected_features)} features"
-            )
+        logger.info(f"Pipeline: {len(self.scaler_columns)} features -> scale -> clip -> predict")
 
 
 def load_pipeline_artifacts(
     artifacts_dir: str = 'artifacts',
     model_dir: Optional[str] = None
 ) -> PipelineArtifacts:
-    """
-    Carica tutti gli artifacts necessari per l'inference.
-    
-    Args:
-        artifacts_dir: Directory contenente scaler e metadata
-        model_dir: Directory modello (opzionale, per features specifiche)
-    
-    Returns:
-        PipelineArtifacts con tutti i componenti
-    """
+    """Carica artifacts."""
     artifacts_path = Path(artifacts_dir)
     
+    # Scaler
     scaler_path = artifacts_path / 'scaler.pkl'
     if not scaler_path.exists():
-        raise FileNotFoundError(f"Scaler non trovato: {scaler_path}")
+        raise FileNotFoundError(f"Scaler not found: {scaler_path}")
     
     with warnings.catch_warnings():
-        warnings.filterwarnings('ignore', category=UserWarning, message='.*version.*')
+        warnings.filterwarnings('ignore')
         scaler = joblib.load(scaler_path)
     logger.info(f"Scaler caricato: {type(scaler).__name__}")
     
-    scaler_columns_path = artifacts_path / 'scaler_columns.json'
-    if scaler_columns_path.exists():
-        with open(scaler_columns_path, 'r') as f:
-            scaler_columns = json.load(f)
-    elif hasattr(scaler, 'feature_names_in_'):
-        scaler_columns = list(scaler.feature_names_in_)
-        logger.warning("scaler_columns.json non trovato, uso feature_names_in_ da scaler")
-    else:
-        raise FileNotFoundError(f"scaler_columns.json non trovato: {scaler_columns_path}")
-    logger.info(f"Scaler columns: {len(scaler_columns)} feature")
+    # Scaler columns
+    scaler_cols_path = artifacts_path / 'scaler_columns.json'
+    if not scaler_cols_path.exists():
+        raise FileNotFoundError(f"scaler_columns.json not found")
     
-    selected_features = None
-    search_paths = [
-        artifacts_path / 'selected_features.json',
-    ]
-    if model_dir:
-        search_paths.append(Path(model_dir) / 'features_binary.json')
-    
-    for path in search_paths:
-        if path and path.exists():
-            with open(path, 'r') as f:
-                selected_features = json.load(f)
-            logger.info(f"Selected features caricati da: {path}")
-            break
-    
-    if selected_features is None:
-        raise FileNotFoundError("selected_features.json non trovato")
-    logger.info(f"Selected features: {len(selected_features)}")
-    
-    scaler_cols_map = {col.strip().lower(): idx for idx, col in enumerate(scaler_columns)}
-    selected_indices = []
-    missing_features = []
-    
-    for feat in selected_features:
-        feat_lower = feat.strip().lower()
-        if feat_lower in scaler_cols_map:
-            selected_indices.append(scaler_cols_map[feat_lower])
-        else:
-            feat_underscore = feat_lower.replace(' ', '_')
-            feat_space = feat_lower.replace('_', ' ')
-            found = False
-            for variant in [feat_underscore, feat_space]:
-                if variant in scaler_cols_map:
-                    selected_indices.append(scaler_cols_map[variant])
-                    found = True
-                    break
-            if not found:
-                missing_features.append(feat)
-    
-    if missing_features:
-        raise ValueError(f"Feature non trovate in scaler_columns: {missing_features}")
-    
-    statistical_info = None
-    stat_path = artifacts_path / 'statistical_preprocessing_info.json'
-    if stat_path.exists():
-        with open(stat_path, 'r') as f:
-            statistical_info = json.load(f)
-    
-    checksum = None
-    checksum_path = artifacts_path / 'column_checksum.json'
-    if checksum_path.exists():
-        with open(checksum_path, 'r') as f:
-            checksum = json.load(f).get('checksum')
+    with open(scaler_cols_path, 'r') as f:
+        scaler_columns = json.load(f)
+    logger.info(f"Scaler columns: {len(scaler_columns)} features")
     
     return PipelineArtifacts(
         scaler=scaler,
-        scaler_columns=scaler_columns,
-        selected_features=selected_features,
-        selected_indices=selected_indices,
-        statistical_info=statistical_info,
-        checksum=checksum
+        scaler_columns=scaler_columns
     )
 
 
 class InferencePipeline:
-    """Pipeline di preprocessing per inference in tempo reale."""
+    """
+    Pipeline di preprocessing per inference.
     
-    def __init__(self, artifacts: PipelineArtifacts):
+    Pipeline:
+        features dict → 44 values → scale → clip → ready for model
+    """
+    
+    def __init__(self, artifacts: PipelineArtifacts, clip_value: float = CLIP_VALUE):
         self.artifacts = artifacts
         self.scaler = artifacts.scaler
         self.scaler_columns = artifacts.scaler_columns
-        self.selected_features = artifacts.selected_features
-        self.selected_indices = artifacts.selected_indices
+        self.clip_value = clip_value
         
-        self._scaler_cols_lower = {}
+        # Build lookup index
+        self._cols_index = {}
         for i, col in enumerate(self.scaler_columns):
-            col_lower = col.strip().lower()
-            self._scaler_cols_lower[col_lower] = i
-            self._scaler_cols_lower[col_lower.replace(' ', '_')] = i
-            self._scaler_cols_lower[col_lower.replace('_', ' ')] = i
+            norm = normalize_name(col)
+            self._cols_index[norm] = i
+            self._cols_index[norm.replace(' ', '_')] = i
+            self._cols_index[norm.replace('_', ' ')] = i
         
-        logger.info(
-            f"Pipeline: {len(self.scaler_columns)} -> scale -> "
-            f"select {len(self.selected_features)} features"
-        )
+        logger.info(f"Pipeline: {len(self.scaler_columns)} -> scale -> clip")
     
     def transform(self, features: Dict[str, float]) -> np.ndarray:
         """
         Trasforma dict feature in array per predizione.
         
         Args:
-            features: Dizionario {feature_name: value}
+            features: Dict {feature_name: value}
         
         Returns:
-            Array shape (1, n_selected_features)
+            Array shape (1, 44)
         """
-        features_lower = {k.strip().lower(): v for k, v in features.items()}
+        # Normalize feature names
+        features_norm = {normalize_name(k): v for k, v in features.items()}
         
-        for k, v in list(features_lower.items()):
-            features_lower[k.replace(' ', '_')] = v
-            features_lower[k.replace('_', ' ')] = v
-        
+        # Build value vector in correct order
         values = []
         for col in self.scaler_columns:
-            col_lower = col.strip().lower()
-            if col_lower in features_lower:
-                values.append(features_lower[col_lower])
+            col_norm = normalize_name(col)
+            
+            if col_norm in features_norm:
+                val = features_norm[col_norm]
             else:
-                values.append(0.0)
+                # Try variants
+                val = 0.0
+                for var in [col_norm.replace(' ', '_'), col_norm.replace('_', ' ')]:
+                    if var in features_norm:
+                        val = features_norm[var]
+                        break
+            
+            # Handle inf/nan
+            if isinstance(val, (int, float)):
+                if np.isinf(val) or np.isnan(val):
+                    val = 0.0
+            
+            values.append(float(val))
         
-        arr = np.array([values], dtype=np.float64)
-        
-        arr = np.nan_to_num(arr, nan=0.0, posinf=1e10, neginf=-1e10)
+        # Scale
+        X = np.array([values], dtype=np.float64)
         
         with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', message='X does not have valid feature names')
-            scaled = self.scaler.transform(arr)
+            warnings.filterwarnings('ignore')
+            X_scaled = self.scaler.transform(X)
         
-        return scaled[:, self.selected_indices]
+        # Clip
+        X_clipped = np.clip(X_scaled, -self.clip_value, self.clip_value)
+        
+        return X_clipped
     
     def transform_dataframe(self, df: pd.DataFrame) -> np.ndarray:
         """
@@ -209,44 +153,52 @@ class InferencePipeline:
             df: DataFrame con colonne feature
         
         Returns:
-            Array shape (n_samples, n_selected_features)
+            Array shape (n_samples, 44)
         """
-        col_map = {}
-        for col in df.columns:
-            col_lower = col.strip().lower()
-            col_map[col_lower] = col
-            col_map[col_lower.replace(' ', '_')] = col
-            col_map[col_lower.replace('_', ' ')] = col
+        # Build column name lookup
+        df_cols_norm = {normalize_name(c): c for c in df.columns}
         
-        cols_to_use = []
-        for scaler_col in self.scaler_columns:
-            scaler_col_lower = scaler_col.strip().lower()
+        # Extract values in correct order
+        n_rows = len(df)
+        n_cols = len(self.scaler_columns)
+        X = np.zeros((n_rows, n_cols), dtype=np.float64)
+        
+        for i, col in enumerate(self.scaler_columns):
+            col_norm = normalize_name(col)
             
-            if scaler_col_lower in col_map:
-                cols_to_use.append(col_map[scaler_col_lower])
+            df_col = None
+            if col_norm in df_cols_norm:
+                df_col = df_cols_norm[col_norm]
             else:
-                df[scaler_col] = 0.0
-                cols_to_use.append(scaler_col)
+                for var in [col_norm.replace(' ', '_'), col_norm.replace('_', ' ')]:
+                    if var in df_cols_norm:
+                        df_col = df_cols_norm[var]
+                        break
+            
+            if df_col and df_col in df.columns:
+                X[:, i] = df[df_col].values
         
-        df_ordered = df[cols_to_use].copy()
+        # Handle inf/nan
+        X = np.where(np.isinf(X), 0, X)
+        X = np.where(np.isnan(X), 0, X)
         
-        df_ordered = df_ordered.replace([np.inf, -np.inf], np.nan)
-        df_ordered = df_ordered.fillna(0.0)
-        
+        # Scale
         with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', message='X does not have valid feature names')
-            scaled = self.scaler.transform(df_ordered.values)
+            warnings.filterwarnings('ignore')
+            X_scaled = self.scaler.transform(X)
         
-        return scaled[:, self.selected_indices]
+        # Clip
+        X_clipped = np.clip(X_scaled, -self.clip_value, self.clip_value)
+        
+        return X_clipped
     
     def get_info(self) -> Dict[str, Any]:
-        """Restituisce informazioni sulla pipeline."""
+        """Info sulla pipeline."""
         return {
             'scaler_type': type(self.scaler).__name__,
-            'n_scaler_columns': len(self.scaler_columns),
-            'n_selected_features': len(self.selected_features),
-            'top_5_features': self.selected_features[:5],
-            'checksum': self.artifacts.checksum
+            'n_features': len(self.scaler_columns),
+            'clip_value': self.clip_value,
+            'features': self.scaler_columns[:5]
         }
 
 
@@ -254,21 +206,16 @@ def create_inference_pipeline(
     artifacts_dir: str = 'artifacts',
     model_dir: Optional[str] = None
 ) -> InferencePipeline:
-    """Factory function per creare InferencePipeline."""
-    return InferencePipeline(load_pipeline_artifacts(artifacts_dir, model_dir))
+    """Factory function."""
+    artifacts = load_pipeline_artifacts(artifacts_dir, model_dir)
+    return InferencePipeline(artifacts)
 
 
 def validate_artifacts_consistency(artifacts_dir: str = 'artifacts') -> Dict[str, Any]:
-    """
-    Valida coerenza degli artifacts.
-    
-    Returns:
-        Dict con risultati validazione
-    """
+    """Valida coerenza artifacts."""
     results = {
         'valid': True,
         'errors': [],
-        'warnings': [],
         'info': {}
     }
     
@@ -277,18 +224,10 @@ def validate_artifacts_consistency(artifacts_dir: str = 'artifacts') -> Dict[str
         
         results['info'] = {
             'scaler_type': type(artifacts.scaler).__name__,
-            'n_scaler_columns': len(artifacts.scaler_columns),
-            'n_selected_features': len(artifacts.selected_features),
-            'checksum': artifacts.checksum,
+            'n_features': len(artifacts.scaler_columns)
         }
         
-        max_idx = max(artifacts.selected_indices) if artifacts.selected_indices else 0
-        if max_idx >= len(artifacts.scaler_columns):
-            results['errors'].append(
-                f"Index {max_idx} out of range (max: {len(artifacts.scaler_columns)-1})"
-            )
-            results['valid'] = False
-        
+        # Check scaler expects same number of features
         if hasattr(artifacts.scaler, 'n_features_in_'):
             expected = artifacts.scaler.n_features_in_
             actual = len(artifacts.scaler_columns)

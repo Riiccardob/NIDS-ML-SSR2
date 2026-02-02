@@ -1,21 +1,13 @@
 """
-NIDS-ML Sniffer - Evaluation Module (Corrected)
+NIDS-ML Sniffer - Evaluation Module v4 (WORKING VERSION)
 
-Valuta il modello su CSV CIC-IDS2017.
+Pipeline CORRETTA (identica al training):
+1. Raw CSV → 44 features (scaler_columns.json)
+2. RobustScaler
+3. Clip(-10, 10)
+4. Model predict (44 features)
 
-Pipeline:
-1. Carica CSV con ~77 feature
-2. Filtra alle scaler_columns (44 feature dopo statistical preprocessing)
-3. Scala con RobustScaler
-4. Seleziona le 30 feature finali (indici in ordine di importanza)
-5. Predici
-
-CORREZIONI:
-- evaluate_csv processa TUTTO il dataset per default (sample_size=None)
-- Gestione robusta colonna Label con varianti multiple
-- Metriche complete incluso per-class breakdown
-- Compatibilita sklearn versions
-- Output dettagliato per debugging
+NO feature selection post-scaling!
 """
 
 import json
@@ -23,7 +15,7 @@ import time
 import logging
 import warnings
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any, Union
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -33,83 +25,55 @@ from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
+CLIP_VALUE = 10.0
 
-def find_column(columns: List[str], target: str) -> Optional[str]:
-    """Trova colonna con matching case-insensitive e varianti."""
-    target_lower = target.strip().lower()
-    target_normalized = target_lower.replace(' ', '_').replace('-', '_')
-    
-    for col in columns:
-        col_stripped = col.strip()
-        col_lower = col_stripped.lower()
-        col_normalized = col_lower.replace(' ', '_').replace('-', '_')
-        
-        if col_lower == target_lower:
-            return col_stripped
-        if col_normalized == target_normalized:
-            return col_stripped
-        if col_lower.replace('_', ' ') == target_lower.replace('_', ' '):
-            return col_stripped
-    
-    return None
+
+def normalize_name(name: str) -> str:
+    """Normalizza nome colonna."""
+    return name.strip().lower()
 
 
 def find_label_column(columns: List[str]) -> Optional[str]:
-    """Trova la colonna Label con supporto per varianti CIC-IDS2017."""
-    label_variants = [
-        'Label', ' Label', 'label', 'LABEL',
-        'class', 'Class', 'CLASS',
-        'attack', 'Attack', 'ATTACK',
-        'target', 'Target', 'TARGET'
-    ]
-    
-    for variant in label_variants:
-        for col in columns:
-            if col.strip() == variant.strip():
-                return col
-    
+    """Trova colonna label."""
     for col in columns:
-        if 'label' in col.lower():
+        if col.strip().lower() == 'label':
             return col
-    
     return None
 
 
 @dataclass
 class EvaluationResult:
-    """Risultato valutazione completo con attributi accessibili direttamente."""
+    """Risultato valutazione."""
     total_samples: int = 0
-    correct_predictions: int = 0
     accuracy: float = 0.0
     precision: float = 0.0
     recall: float = 0.0
     f1_score: float = 0.0
+    
     true_positives: int = 0
     true_negatives: int = 0
     false_positives: int = 0
     false_negatives: int = 0
     false_positive_rate: float = 0.0
-    false_negative_rate: float = 0.0
-    specificity: float = 0.0
     
     class_distribution: Dict[str, int] = field(default_factory=dict)
-    predictions_distribution: Dict[str, int] = field(default_factory=dict)
-    per_class_metrics: Dict[str, Dict[str, float]] = field(default_factory=dict)
     
     processing_time_seconds: float = 0.0
     samples_per_second: float = 0.0
     csv_path: str = ""
     model_info: str = ""
+    features_matched: int = 0
+    
+    attack_prob_mean: float = 0.0
+    benign_prob_mean: float = 0.0
     
     @property
     def f1(self) -> float:
-        """Alias per compatibilita."""
         return self.f1_score
     
     def to_dict(self) -> Dict[str, Any]:
         return {
             'total_samples': self.total_samples,
-            'correct_predictions': self.correct_predictions,
             'accuracy': self.accuracy,
             'precision': self.precision,
             'recall': self.recall,
@@ -119,499 +83,330 @@ class EvaluationResult:
             'false_positives': self.false_positives,
             'false_negatives': self.false_negatives,
             'false_positive_rate': self.false_positive_rate,
-            'false_negative_rate': self.false_negative_rate,
-            'specificity': self.specificity,
             'class_distribution': self.class_distribution,
-            'predictions_distribution': self.predictions_distribution,
-            'per_class_metrics': self.per_class_metrics,
             'processing_time_seconds': self.processing_time_seconds,
-            'samples_per_second': self.samples_per_second,
             'csv_path': self.csv_path,
-            'model_info': self.model_info
+            'model_info': self.model_info,
+            'features_matched': self.features_matched,
+            'attack_prob_mean': self.attack_prob_mean,
+            'benign_prob_mean': self.benign_prob_mean
         }
     
     def print_summary(self):
-        """Stampa riepilogo formattato."""
         print("\n" + "=" * 60)
         print("EVALUATION RESULTS")
         print("=" * 60)
-        print(f"CSV:        {self.csv_path}")
-        print(f"Model:      {self.model_info}")
-        print(f"Samples:    {self.total_samples:,}")
+        print(f"CSV:       {self.csv_path}")
+        print(f"Model:     {self.model_info}")
+        print(f"Samples:   {self.total_samples:,}")
+        print(f"Features:  {self.features_matched}")
         print("-" * 60)
-        print(f"Accuracy:   {self.accuracy:.4f}")
-        print(f"Precision:  {self.precision:.4f}")
-        print(f"Recall:     {self.recall:.4f}")
-        print(f"F1 Score:   {self.f1_score:.4f}")
+        print(f"F1 Score:  {self.f1_score:.4f}")
+        print(f"Precision: {self.precision:.4f}")
+        print(f"Recall:    {self.recall:.4f}")
+        print(f"FPR:       {self.false_positive_rate:.4f}")
         print("-" * 60)
         print(f"TP: {self.true_positives:,}  TN: {self.true_negatives:,}")
         print(f"FP: {self.false_positives:,}  FN: {self.false_negatives:,}")
-        print(f"FPR: {self.false_positive_rate:.4f}  FNR: {self.false_negative_rate:.4f}")
         print("-" * 60)
-        print(f"Processing: {self.processing_time_seconds:.2f}s ({self.samples_per_second:.0f} samples/s)")
-        
-        if self.class_distribution:
-            print("\nClass Distribution (Ground Truth):")
-            for cls, count in sorted(self.class_distribution.items()):
-                pct = count / self.total_samples * 100 if self.total_samples > 0 else 0
-                print(f"  {cls}: {count:,} ({pct:.1f}%)")
-        
-        if self.per_class_metrics:
-            print("\nPer-Class Metrics:")
-            for cls, metrics in sorted(self.per_class_metrics.items()):
-                print(f"  {cls}:")
-                print(f"    Precision: {metrics.get('precision', 0):.4f}")
-                print(f"    Recall:    {metrics.get('recall', 0):.4f}")
-                print(f"    F1:        {metrics.get('f1', 0):.4f}")
-                print(f"    Support:   {metrics.get('support', 0):,}")
-        
+        print(f"Attack prob mean: {self.attack_prob_mean:.4f}")
+        print(f"Benign prob mean: {self.benign_prob_mean:.4f}")
         print("=" * 60)
 
 
 class SnifferEvaluator:
     """
-    Valuta modello su CSV con pipeline corretta.
+    Valuta modello su CSV CIC-IDS2017.
     
-    Processa TUTTO il dataset per default (nessun sampling).
+    Pipeline:
+        Raw CSV → 44 features → RobustScaler → Clip → Model (44 features)
+    
+    NO feature selection post-scaling!
     """
     
-    LABEL_VARIANTS = [
-        'Label', ' Label', 'label', 'LABEL',
-        'class', 'Class', 'CLASS'
-    ]
-    
     def __init__(
-        self, 
-        model_dir: str = 'models/best_model', 
+        self,
+        model_dir: str = 'models/best_model',
         artifacts_dir: str = 'artifacts',
-        label_column: str = 'Label'
+        clip_value: float = CLIP_VALUE
     ):
         self.model_dir = Path(model_dir)
         self.artifacts_dir = Path(artifacts_dir)
-        self.label_column = label_column
+        self.clip_value = clip_value
         self.logger = logging.getLogger('sniffer.evaluator')
         
         self._load_artifacts()
     
     def _load_artifacts(self):
-        """Carica modello e artifacts."""
+        """Carica artifacts."""
+        # Scaler
+        scaler_path = self.artifacts_dir / 'scaler.pkl'
+        if not scaler_path.exists():
+            raise FileNotFoundError(f"Scaler not found: {scaler_path}")
+        
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore')
+            self.scaler = joblib.load(scaler_path)
+        self.logger.info(f"Scaler caricato: {type(self.scaler).__name__}")
+        
+        # Scaler columns (44 features)
+        scaler_cols_path = self.artifacts_dir / 'scaler_columns.json'
+        if not scaler_cols_path.exists():
+            raise FileNotFoundError(f"scaler_columns.json not found")
+        
+        with open(scaler_cols_path, 'r') as f:
+            self.scaler_columns = json.load(f)
+        self.logger.info(f"Scaler columns: {len(self.scaler_columns)} features")
+        
+        # Model
         model_path = self.model_dir / 'model_binary.pkl'
         if not model_path.exists():
             model_path = self.model_dir / 'model.pkl'
-        
         if not model_path.exists():
-            raise FileNotFoundError(f"Modello non trovato in {self.model_dir}")
+            raise FileNotFoundError(f"Model not found in {self.model_dir}")
         
         with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', category=UserWarning, message='.*version.*')
+            warnings.filterwarnings('ignore')
             self.model = joblib.load(model_path)
         self.logger.info(f"Modello caricato: {type(self.model).__name__}")
         
-        scaler_path = self.artifacts_dir / 'scaler.pkl'
-        if scaler_path.exists():
-            with warnings.catch_warnings():
-                warnings.filterwarnings('ignore', category=UserWarning)
-                self.scaler = joblib.load(scaler_path)
-            self.logger.info(f"Scaler caricato: {type(self.scaler).__name__}")
-        else:
-            self.scaler = None
-            self.logger.warning("Scaler non trovato")
+        # Check if LightGBM Booster
+        self.is_booster = hasattr(self.model, 'predict') and not hasattr(self.model, 'predict_proba')
+        self.logger.info(f"Is LightGBM Booster: {self.is_booster}")
         
-        selector_path = self.artifacts_dir / 'feature_selector.pkl'
-        if selector_path.exists():
-            with warnings.catch_warnings():
-                warnings.filterwarnings('ignore', category=UserWarning)
-                self.selector = joblib.load(selector_path)
-            self.logger.info("Feature selector caricato")
-        else:
-            self.selector = None
-        
-        scaler_cols_path = self.artifacts_dir / 'scaler_columns.json'
-        if scaler_cols_path.exists():
-            with open(scaler_cols_path, 'r') as f:
-                self.scaler_columns = json.load(f)
-            self.logger.info(f"Scaler columns: {len(self.scaler_columns)} features")
-        else:
-            self.scaler_columns = None
-        
-        features_path = self.artifacts_dir / 'selected_features.json'
-        if not features_path.exists():
-            features_path = self.model_dir / 'features_binary.json'
-        
-        if features_path.exists():
-            with open(features_path, 'r') as f:
-                self.selected_features = json.load(f)
-            self.logger.info(f"Selected features: {len(self.selected_features)} features")
-        else:
-            self.selected_features = None
-        
-        self._setup_pipeline()
+        self.logger.info(f"Pipeline: {len(self.scaler_columns)} -> scale -> clip -> predict")
     
-    def _setup_pipeline(self):
-        """Configura pipeline di preprocessing."""
-        self._selected_indices = None
-        self.use_selector = False
+    def _extract_features(self, df: pd.DataFrame) -> tuple:
+        """Estrae feature nell'ordine di scaler_columns."""
+        csv_cols_norm = {normalize_name(c): c for c in df.columns}
         
-        if self.selector is not None and self.scaler_columns is not None:
-            self.features_to_load = self.scaler_columns
-            self.use_selector = True
-            self.logger.info(f"Pipeline: {len(self.scaler_columns)} -> scale -> selector -> predict")
+        X = np.zeros((len(df), len(self.scaler_columns)), dtype=np.float64)
+        matched = 0
+        
+        for i, col in enumerate(self.scaler_columns):
+            col_norm = normalize_name(col)
             
-        elif self.selector is None and self.scaler_columns is not None and self.selected_features is not None:
-            scaler_cols_lower = {col.strip().lower(): i for i, col in enumerate(self.scaler_columns)}
-            selected_indices = []
-            missing_features = []
-            
-            for feat in self.selected_features:
-                feat_lower = feat.strip().lower()
-                if feat_lower in scaler_cols_lower:
-                    selected_indices.append(scaler_cols_lower[feat_lower])
-                else:
-                    missing_features.append(feat)
-            
-            if missing_features:
-                self.logger.warning(f"Feature non trovate in scaler_columns: {missing_features}")
-            
-            if len(selected_indices) == len(self.selected_features):
-                self._selected_indices = selected_indices
-                self.features_to_load = self.scaler_columns
-                self.use_selector = True
-                self.logger.info(
-                    f"Pipeline: {len(self.scaler_columns)} -> scale -> "
-                    f"select[{len(self._selected_indices)}] -> predict"
-                )
+            csv_col = None
+            if col_norm in csv_cols_norm:
+                csv_col = csv_cols_norm[col_norm]
             else:
-                self.features_to_load = self.selected_features
-                self.use_selector = False
-                self.logger.warning("Fallback: uso selected_features direttamente")
-                
-        elif self.selected_features is not None:
-            self.features_to_load = self.selected_features
-            self.use_selector = False
-            self.logger.info(f"Pipeline: {len(self.selected_features)} -> scale -> predict")
-        else:
-            raise ValueError("Nessun artifact feature trovato")
+                for var in [col_norm.replace(' ', '_'), col_norm.replace('_', ' ')]:
+                    if var in csv_cols_norm:
+                        csv_col = csv_cols_norm[var]
+                        break
+            
+            if csv_col and csv_col in df.columns:
+                X[:, i] = df[csv_col].values
+                matched += 1
+        
+        return X, matched
     
-    def _find_label_column(self, columns: List[str]) -> str:
-        """Trova colonna label nel DataFrame."""
-        found = find_label_column(columns)
-        if found:
-            return found
-        raise ValueError(
-            f"Colonna label non trovata. Colonne disponibili: {columns[:20]}..."
-        )
+    def _preprocess(self, X: np.ndarray) -> np.ndarray:
+        """Preprocessa: clean → scale → clip."""
+        # Handle inf/nan
+        X = np.where(np.isinf(X), 0, X)
+        X = np.where(np.isnan(X), 0, X)
+        
+        # Scale
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore')
+            X_scaled = self.scaler.transform(X)
+        
+        # Clip
+        X_clipped = np.clip(X_scaled, -self.clip_value, self.clip_value)
+        
+        return X_clipped
     
-    def _prepare_csv_data(
-        self, 
-        df: pd.DataFrame
-    ) -> Tuple[pd.DataFrame, np.ndarray, Dict[str, int]]:
-        """
-        Prepara dati CSV per predizione.
-        
-        Returns:
-            (features_df, labels_binary, class_distribution)
-        """
-        label_col = self._find_label_column(df.columns.tolist())
-        
-        original_labels = df[label_col].astype(str).str.strip()
-        class_distribution = original_labels.value_counts().to_dict()
-        
-        labels = original_labels.str.upper().apply(
-            lambda x: 0 if x == 'BENIGN' else 1
-        ).values
-        
-        feature_cols = self.features_to_load
-        col_mapping = {}
-        
-        for target_col in feature_cols:
-            found = find_column(df.columns.tolist(), target_col)
-            col_mapping[target_col] = found
-        
-        features_data = {}
-        missing_count = 0
-        missing_features = []
-        
-        for target_col, source_col in col_mapping.items():
-            if source_col and source_col in df.columns:
-                features_data[target_col] = df[source_col].values
-            else:
-                features_data[target_col] = np.zeros(len(df))
-                missing_count += 1
-                missing_features.append(target_col)
-        
-        if missing_count > 0:
-            self.logger.warning(
-                f"{missing_count} feature non trovate (impostate a 0): "
-                f"{missing_features[:5]}{'...' if len(missing_features) > 5 else ''}"
-            )
-        
-        features_df = pd.DataFrame(features_data)
-        features_df = features_df[feature_cols]
-        
-        features_df = features_df.replace([np.inf, -np.inf], np.nan)
-        features_df = features_df.fillna(0)
-        
-        return features_df, labels, class_distribution
-    
-    def _predict_batch(self, features_df: pd.DataFrame) -> np.ndarray:
-        """Esegue predizione su batch."""
-        if self.scaler is not None:
-            with warnings.catch_warnings():
-                warnings.filterwarnings('ignore', message='X does not have valid feature names')
-                features_scaled = self.scaler.transform(features_df.values)
+    def _predict(self, X: np.ndarray, threshold: float = 0.5) -> tuple:
+        """Predice."""
+        if self.is_booster:
+            y_prob = self.model.predict(X)
+            y_pred = (y_prob > threshold).astype(int)
         else:
-            features_scaled = features_df.values
+            y_prob = self.model.predict_proba(X)[:, 1]
+            y_pred = self.model.predict(X)
         
-        if self.use_selector:
-            if self.selector is not None:
-                features_selected = self.selector.transform(features_scaled)
-            elif self._selected_indices is not None:
-                features_selected = features_scaled[:, self._selected_indices]
-            else:
-                features_selected = features_scaled
-        else:
-            features_selected = features_scaled
-        
-        return self.model.predict(features_selected)
+        return y_pred, y_prob
     
     def evaluate_csv(
-        self, 
-        csv_path: str, 
+        self,
+        csv_path: str,
         sample_size: Optional[int] = None,
         batch_size: int = 50000,
-        verbose: bool = True,
-        random_state: int = 42
+        verbose: bool = True
     ) -> EvaluationResult:
-        """
-        Valuta modello su file CSV.
-        
-        Args:
-            csv_path: Path al file CSV
-            sample_size: Numero di righe da campionare (None = TUTTO il dataset)
-            batch_size: Dimensione batch per processing
-            verbose: Output verboso
-            random_state: Seed per riproducibilita sampling
-        
-        Returns:
-            EvaluationResult con metriche complete
-        """
+        """Valuta su CSV."""
         start_time = time.time()
         csv_path = Path(csv_path)
         
         if verbose:
             print(f"Caricamento CSV: {csv_path}")
         
+        # Load CSV
         df = pd.read_csv(csv_path, low_memory=False)
-        original_size = len(df)
+        
+        # Strip column names (CIC-IDS2017 has leading spaces)
+        df.columns = df.columns.str.strip()
         
         if verbose:
-            print(f"Righe totali: {original_size:,}")
+            print(f"Righe totali: {len(df):,}")
         
-        if sample_size is not None and sample_size < len(df):
-            df = df.sample(n=sample_size, random_state=random_state)
+        # Sample if needed
+        if sample_size and sample_size < len(df):
+            df = df.sample(n=sample_size, random_state=42)
             if verbose:
-                print(f"Campionate: {len(df):,} righe")
+                print(f"Campionate: {len(df):,}")
         
-        features_df, y_true, class_distribution = self._prepare_csv_data(df)
+        # Find label column
+        label_col = find_label_column(df.columns.tolist())
+        if not label_col:
+            raise ValueError("Label column not found")
+        
+        # Extract labels
+        labels = df[label_col].astype(str).str.strip().str.upper()
+        y_true = (labels != 'BENIGN').astype(int).values
+        class_distribution = df[label_col].value_counts().to_dict()
         
         if verbose:
-            print(f"Features caricate: {len(self.features_to_load)}")
-            print("Distribuzione classi:")
+            print(f"Distribuzione classi:")
             for cls, count in sorted(class_distribution.items()):
                 print(f"  {cls}: {count:,}")
         
-        all_predictions = []
-        n_batches = (len(features_df) + batch_size - 1) // batch_size
+        # Extract features
+        X_raw, matched = self._extract_features(df)
         
-        iterator = range(0, len(features_df), batch_size)
+        if verbose:
+            print(f"Features caricate: {matched}")
+        
+        # Preprocess
+        X_processed = self._preprocess(X_raw)
+        
+        # Predict in batches
+        all_preds = []
+        all_probs = []
+        
+        n_batches = (len(X_processed) + batch_size - 1) // batch_size
+        iterator = range(0, len(X_processed), batch_size)
+        
         if verbose:
             iterator = tqdm(iterator, desc="Predizione", total=n_batches)
         
         for i in iterator:
-            batch_df = features_df.iloc[i:i+batch_size]
-            batch_preds = self._predict_batch(batch_df)
-            all_predictions.extend(batch_preds)
+            batch = X_processed[i:i+batch_size]
+            y_pred, y_prob = self._predict(batch)
+            all_preds.extend(y_pred)
+            all_probs.extend(y_prob)
         
-        y_pred = np.array(all_predictions)
+        y_pred = np.array(all_preds)
+        y_prob = np.array(all_probs)
         
-        result = self._compute_metrics(y_true, y_pred, class_distribution)
+        # Compute metrics
+        result = self._compute_metrics(y_true, y_pred, y_prob, class_distribution)
         
+        # Add metadata
         result.csv_path = str(csv_path)
         result.model_info = f"{self.model_dir.name} ({type(self.model).__name__})"
         result.processing_time_seconds = time.time() - start_time
         result.samples_per_second = len(y_true) / result.processing_time_seconds
+        result.features_matched = matched
         
         return result
     
     def _compute_metrics(
-        self, 
-        y_true: np.ndarray, 
+        self,
+        y_true: np.ndarray,
         y_pred: np.ndarray,
+        y_prob: np.ndarray,
         class_distribution: Dict[str, int]
     ) -> EvaluationResult:
-        """Calcola tutte le metriche."""
-        from sklearn.metrics import (
-            confusion_matrix, precision_score, recall_score, 
-            f1_score, accuracy_score
-        )
-        
+        """Calcola metriche."""
         result = EvaluationResult()
         result.total_samples = len(y_true)
         result.class_distribution = class_distribution
         
-        result.accuracy = float(accuracy_score(y_true, y_pred))
-        result.correct_predictions = int((y_true == y_pred).sum())
+        # Confusion matrix
+        tp = int(((y_true == 1) & (y_pred == 1)).sum())
+        tn = int(((y_true == 0) & (y_pred == 0)).sum())
+        fp = int(((y_true == 0) & (y_pred == 1)).sum())
+        fn = int(((y_true == 1) & (y_pred == 0)).sum())
         
-        if len(np.unique(y_true)) == 1:
-            unique_class = y_true[0]
-            if unique_class == 0:
-                cm = np.array([[len(y_true) - (y_pred == 1).sum(), (y_pred == 1).sum()],
-                               [0, 0]])
-            else:
-                cm = np.array([[0, 0],
-                               [(y_pred == 0).sum(), len(y_true) - (y_pred == 0).sum()]])
-        else:
-            cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
+        result.true_positives = tp
+        result.true_negatives = tn
+        result.false_positives = fp
+        result.false_negatives = fn
         
-        if cm.shape == (2, 2):
-            tn, fp, fn, tp = cm.ravel()
-        else:
-            tn, fp, fn, tp = 0, 0, 0, 0
-            self.logger.warning(f"Confusion matrix shape inattesa: {cm.shape}")
-        
-        result.true_positives = int(tp)
-        result.true_negatives = int(tn)
-        result.false_positives = int(fp)
-        result.false_negatives = int(fn)
-        
-        result.precision = float(tp / (tp + fp)) if (tp + fp) > 0 else 0.0
-        result.recall = float(tp / (tp + fn)) if (tp + fn) > 0 else 0.0
-        result.f1_score = float(
+        # Metrics
+        result.accuracy = (tp + tn) / result.total_samples
+        result.precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+        result.recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        result.f1_score = (
             2 * result.precision * result.recall / (result.precision + result.recall)
-        ) if (result.precision + result.recall) > 0 else 0.0
+            if (result.precision + result.recall) > 0 else 0.0
+        )
+        result.false_positive_rate = fp / (fp + tn) if (fp + tn) > 0 else 0.0
         
-        result.false_positive_rate = float(fp / (fp + tn)) if (fp + tn) > 0 else 0.0
-        result.false_negative_rate = float(fn / (fn + tp)) if (fn + tp) > 0 else 0.0
-        result.specificity = float(tn / (tn + fp)) if (tn + fp) > 0 else 0.0
-        
-        pred_counts = {
-            'BENIGN': int((y_pred == 0).sum()),
-            'ATTACK': int((y_pred == 1).sum())
-        }
-        result.predictions_distribution = pred_counts
-        
-        result.per_class_metrics = {
-            'BENIGN': {
-                'precision': float(tn / (tn + fn)) if (tn + fn) > 0 else 0.0,
-                'recall': result.specificity,
-                'f1': 0.0,
-                'support': int((y_true == 0).sum())
-            },
-            'ATTACK': {
-                'precision': result.precision,
-                'recall': result.recall,
-                'f1': result.f1_score,
-                'support': int((y_true == 1).sum())
-            }
-        }
-        
-        benign_metrics = result.per_class_metrics['BENIGN']
-        if (benign_metrics['precision'] + benign_metrics['recall']) > 0:
-            benign_metrics['f1'] = float(
-                2 * benign_metrics['precision'] * benign_metrics['recall'] / 
-                (benign_metrics['precision'] + benign_metrics['recall'])
-            )
+        # Prob stats
+        result.attack_prob_mean = float(y_prob[y_true == 1].mean()) if (y_true == 1).any() else 0.0
+        result.benign_prob_mean = float(y_prob[y_true == 0].mean()) if (y_true == 0).any() else 0.0
         
         return result
 
 
 class LatencyBenchmarker:
-    """Benchmarker per latenza inferenza."""
+    """Benchmark latenza."""
     
     def __init__(
-        self, 
+        self,
         model_dir: str = 'models/best_model',
         artifacts_dir: str = 'artifacts'
     ):
-        self.model_dir = Path(model_dir)
-        self.artifacts_dir = Path(artifacts_dir)
-        self.logger = logging.getLogger('sniffer.benchmark')
-        
-        model_path = self.model_dir / 'model_binary.pkl'
-        if not model_path.exists():
-            model_path = self.model_dir / 'model.pkl'
-        
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', category=UserWarning)
-            self.model = joblib.load(model_path)
-        
-        from .preprocessing import load_pipeline_artifacts, InferencePipeline
-        artifacts = load_pipeline_artifacts(str(self.artifacts_dir), str(self.model_dir))
-        self.pipeline = InferencePipeline(artifacts)
+        self.evaluator = SnifferEvaluator(
+            model_dir=model_dir,
+            artifacts_dir=artifacts_dir
+        )
     
     def benchmark(
-        self, 
-        n_samples: int = 1000, 
+        self,
+        n_samples: int = 1000,
         n_iterations: int = 10,
         warmup_iterations: int = 3
     ) -> Dict[str, Any]:
-        """Esegue benchmark latenza."""
-        
-        with open(self.artifacts_dir / 'selected_features.json') as f:
-            feature_names = json.load(f)
-        
+        """Esegue benchmark."""
         np.random.seed(42)
-        test_data = {name: np.random.randn() * 1000 for name in feature_names}
+        X_test = np.random.randn(n_samples, len(self.evaluator.scaler_columns))
+        X_test = np.clip(X_test, -10, 10)
         
+        # Warmup
         for _ in range(warmup_iterations):
-            for _ in range(min(100, n_samples)):
-                X = self.pipeline.transform(test_data)
-                _ = self.model.predict(X)
+            _ = self.evaluator._predict(X_test[:100])
         
+        # Benchmark
         latencies = []
-        for iteration in range(n_iterations):
+        for _ in range(n_iterations):
             start = time.perf_counter()
-            for _ in range(n_samples):
-                X = self.pipeline.transform(test_data)
-                _ = self.model.predict(X)
+            _ = self.evaluator._predict(X_test)
             end = time.perf_counter()
-            
-            iteration_time = (end - start) / n_samples * 1000
-            latencies.append(iteration_time)
+            latencies.append((end - start) / n_samples * 1000)
         
         latencies = np.array(latencies)
         
         return {
-            'n_samples_per_iteration': n_samples,
+            'n_samples': n_samples,
             'n_iterations': n_iterations,
-            'warmup_iterations': warmup_iterations,
             'latency_mean_ms': float(latencies.mean()),
             'latency_std_ms': float(latencies.std()),
-            'latency_min_ms': float(latencies.min()),
-            'latency_max_ms': float(latencies.max()),
-            'latency_p50_ms': float(np.percentile(latencies, 50)),
             'latency_p95_ms': float(np.percentile(latencies, 95)),
             'latency_p99_ms': float(np.percentile(latencies, 99)),
             'throughput_samples_per_sec': float(1000 / latencies.mean()) if latencies.mean() > 0 else 0
         }
     
     def print_results(self, results: Dict[str, Any]):
-        """Stampa risultati benchmark."""
         print("\n" + "=" * 60)
         print("LATENCY BENCHMARK RESULTS")
         print("=" * 60)
-        print(f"Samples per iteration: {results['n_samples_per_iteration']}")
-        print(f"Iterations: {results['n_iterations']}")
-        print("-" * 60)
-        print(f"Mean latency:   {results['latency_mean_ms']:.3f} ms")
-        print(f"Std deviation:  {results['latency_std_ms']:.3f} ms")
-        print(f"Min latency:    {results['latency_min_ms']:.3f} ms")
-        print(f"Max latency:    {results['latency_max_ms']:.3f} ms")
-        print(f"P50 latency:    {results['latency_p50_ms']:.3f} ms")
-        print(f"P95 latency:    {results['latency_p95_ms']:.3f} ms")
-        print(f"P99 latency:    {results['latency_p99_ms']:.3f} ms")
-        print("-" * 60)
-        print(f"Throughput:     {results['throughput_samples_per_sec']:.0f} samples/sec")
+        print(f"Mean latency:  {results['latency_mean_ms']:.3f} ms")
+        print(f"P95 latency:   {results['latency_p95_ms']:.3f} ms")
+        print(f"Throughput:    {results['throughput_samples_per_sec']:.0f} samples/sec")
         print("=" * 60)
 
 
@@ -622,19 +417,7 @@ def quick_evaluate(
     sample_size: Optional[int] = None,
     verbose: bool = True
 ) -> EvaluationResult:
-    """
-    Funzione helper per valutazione rapida.
-    
-    Args:
-        csv_path: Path al CSV
-        model_dir: Directory modello
-        artifacts_dir: Directory artifacts
-        sample_size: Campione (None = tutto)
-        verbose: Output verboso
-    
-    Returns:
-        EvaluationResult
-    """
+    """Helper per valutazione rapida."""
     evaluator = SnifferEvaluator(
         model_dir=model_dir,
         artifacts_dir=artifacts_dir
