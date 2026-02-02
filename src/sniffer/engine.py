@@ -238,7 +238,7 @@ class SnifferEngine:
         
         self.logger.info(
             f"Engine inizializzato: {len(self.pipeline.scaler_columns)} -> "
-            f"{len(self.pipeline.selected_features)} features"
+            f"{len(self.pipeline.scaler_columns)} features"
         )
     
     def _load_artifacts(self):
@@ -287,15 +287,34 @@ class SnifferEngine:
             features = self.feature_extractor.extract(flow)
             X = self.pipeline.transform(features)
             
+            # pred = self.model.predict(X)[0]
+            
+            # if hasattr(self.model, 'predict_proba'):
+            #     proba = self.model.predict_proba(X)[0]
+            #     conf = float(proba[pred])
+            # else:
+            #     conf = 1.0
+            
+            # label = self._get_label(pred)
+
+            # Predict
             pred = self.model.predict(X)[0]
             
-            if hasattr(self.model, 'predict_proba'):
-                proba = self.model.predict_proba(X)[0]
-                conf = float(proba[pred])
+            # Logic to handle both Probability (float) and Class (int) output
+            if isinstance(pred, (float, np.floating)):
+                # Native Booster returns probability of class 1
+                conf = float(pred)
+                pred_class = 1 if conf >= 0.5 else 0
             else:
-                conf = 1.0
-            
-            label = self._get_label(pred)
+                # Sklearn wrapper returns class label directly
+                pred_class = int(pred)
+                if hasattr(self.model, 'predict_proba'):
+                    proba = self.model.predict_proba(X)[0]
+                    conf = float(proba[pred_class])
+                else:
+                    conf = 1.0
+
+            label = self._get_label(pred_class)
             
             self.stats.flows_analyzed += 1
             self.stats.predictions_by_label[label] += 1

@@ -1,32 +1,31 @@
 {
-  "best_model": "lightgbm/bayesian_trials258_cv5_2026-01-25_06.56",
-  "model_type": "lightgbm",
-  "version_id": "bayesian_trials258_cv5_2026-01-25_06.56",
-  "task": "binary",
-  "selected_at": "2026-01-30T10:52:01.237880",
-  "constraints": {
-    "fpr_threshold": 0.01,
-    "latency_threshold_ms": 1.0,
-    "fpr_pass": true,
-    "latency_pass": "True",
-    "all_pass": "True"
-  },
+  "timestamp": "2026-02-01T17:26:07.775638",
+  "pipeline": "raw -> RobustScaler -> clip(-10,10) -> LightGBM",
+  "clip_value": 10.0,
+  "n_features": 44,
+  "n_selected_features": 30,
+  "test_size": 0.2,
+  "random_state": 42,
   "metrics": {
-    "accuracy": 0.999022599093923,
-    "precision": 0.997784371909001,
-    "recall": 0.9992867615009708,
-    "f1": 0.9985350015837821,
-    "false_positive_rate": 0.0011094821096009828,
-    "false_negative_rate": 0.0007132384990292032,
-    "specificity": 0.9988905178903991
+    "accuracy": 0.9985427864396121,
+    "precision": 0.9934300843302608,
+    "recall": 0.9992109675510406,
+    "f1": 0.9963121404336923,
+    "training_time_seconds": 19.464273929595947,
+    "best_iteration": 452
   },
-  "latency": {
-    "latency_total_ms": 3.6917361248924863,
-    "latency_per_sample_ms": 0.0036917361248924863,
-    "latency_std_ms": 0.31172568268017287,
-    "samples_per_second": 270875.2646911141
-  },
-  "score": 0.9981826243817078,
-  "f2_component": 0.9989859217416794,
-  "latency_component": 0.9963082638751075
+  "lgbm_params": {
+    "objective": "binary",
+    "metric": "binary_logloss",
+    "boosting_type": "gbdt",
+    "num_leaves": 31,
+    "learning_rate": 0.05,
+    "feature_fraction": 0.8,
+    "bagging_fraction": 0.8,
+    "bagging_freq": 5,
+    "verbose": -1,
+    "n_jobs": -1,
+    "random_state": 42,
+    "is_unbalance": true
+  }
 }
