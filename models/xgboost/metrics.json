@@ -1,0 +1,31 @@
+{
+  "model_type": "xgboost",
+  "trained_at": "2026-02-04T18:02:41.994266",
+  "metrics": {
+    "validation": {
+      "accuracy": 0.9999970277018191,
+      "precision": 0.9999274679045478,
+      "recall": 1.0,
+      "f1": 0.999963732637,
+      "fpr": 3.0992952202669112e-06,
+      "fnr": 0.0,
+      "tp": 13786,
+      "tn": 322653,
+      "fp": 1,
+      "fn": 0
+    },
+    "test": {
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "fpr": 0.0,
+      "fnr": 0.0,
+      "tp": 13786,
+      "tn": 322654,
+      "fp": 0,
+      "fn": 0
+    },
+    "training_time_seconds": 2.929784
+  }
+}

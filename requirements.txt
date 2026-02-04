@@ -1,15 +1,20 @@
+# NIDS NetFlow Pipeline - Dependencies
+# Ottimizzato per chunk-based processing su grandi dataset
+
+# Core Data Processing
 pandas>=2.0.0
 numpy>=1.24.0
+pyarrow>=12.0.0          # Per Parquet (veloce e compresso)
+
+# Machine Learning
 scikit-learn>=1.3.0
 xgboost>=2.0.0
 lightgbm>=4.0.0
-pyarrow>=14.0.0
-tqdm>=4.65.0
-joblib>=1.3.0
+
+# System Monitoring
+psutil>=5.9.0            # Per monitoraggio RAM
+
+# Optional (per sviluppo)
+jupyter>=1.0.0
 matplotlib>=3.7.0
 seaborn>=0.12.0
-scapy>=2.5.0
-psutil>=5.9.0
-dill>=0.4.1
-optuna
-pip install pyyaml
