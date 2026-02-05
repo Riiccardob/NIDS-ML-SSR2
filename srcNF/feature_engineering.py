@@ -271,13 +271,20 @@ def handle_inf_after_scaling(X_scaled: np.ndarray) -> np.ndarray:
     Se lo scaling genera inf (outlier estremi), sostituisce con valori grandi ma finiti.
     Questo permette al modello di imparare che "valore molto grande = potenziale anomalia".
     """
-    
+    # Limiti di sicurezza per Float32 (XGBoost)
+    max_val = np.finfo(np.float32).max  # Circa 3.4e38
+    min_val = np.finfo(np.float32).min  # Circa -3.4e38
+
     # Sostituisci inf con valori grandi ma finiti
     X_scaled[np.isposinf(X_scaled)] = 1e10   # +inf → valore grande positivo
     X_scaled[np.isneginf(X_scaled)] = -1e10  # -inf → valore grande negativo
     
     # Sostituisci nan con 0 (valore scaled neutro)
     X_scaled[np.isnan(X_scaled)] = 0.0
+
+    # 3. FIX CRITICO: Clamping per valori finiti ma troppo grandi per Float32
+    # Questo becca i valori tipo 1e50 che np.isinf ignorava
+    X_scaled = np.clip(X_scaled, min_val, max_val)
     
     return X_scaled
 
@@ -312,7 +319,7 @@ def scale_parquet_file(input_path: Path, output_path: Path, scaler: RobustScaler
             df_batch = batch.to_pandas()
             
             # Scala
-            X_batch = df_batch[feature_cols].values
+            X_batch = df_batch[feature_cols]
             X_scaled = scaler.transform(X_batch)
             
             # Conta inf PRIMA di gestirli

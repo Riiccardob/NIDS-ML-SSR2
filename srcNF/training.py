@@ -91,7 +91,7 @@ def train_xgboost_incremental(train_loader: ParquetDataLoader, val_loader: Parqu
     rows_trained = 0
     
     # Training loop (max 20 pass sul dataset per evitare overfit)
-    max_passes = 3
+    max_passes = 1
     
     for pass_num in range(1, max_passes + 1):
         logger.info(f"\n{'='*70}")
