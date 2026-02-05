@@ -1,7 +1,11 @@
 """
 Configuration centrale per NIDS NetFlow-based.
 
-Supporto per processing di dataset molto grandi (>70M records) tramite chunk-based approach.
+ULTRA RAM-SAFE per sistemi 16GB:
+- Sample size limitati a 2M (HARD LIMIT)
+- Monitoring RAM aggressivo
+- GC frequente
+- Strategia conservativa come preprocessing.py
 """
 
 from pathlib import Path
@@ -28,7 +32,6 @@ for dir_path in [DATA_DIR, RAW_DATA_DIR, PROCESSED_DATA_DIR,
 # DATASET CONFIGURATION
 # ============================================================================
 
-# Nome dataset NF-UQ-NIDS-v2 (NetFlow V3)
 DATASET_NAME = "NF-UQ-NIDS-v2"
 
 # Split ratios
@@ -44,98 +47,86 @@ RANDOM_STATE = 42
 # ============================================================================
 
 # Dimensione chunk per lettura CSV (righe per chunk)
-# Con 16GB RAM, 500k righe sono sicure (~500MB-1GB per chunk a seconda delle feature)
 CHUNK_SIZE = 500_000
 
-# Dimensione sample per fitting dello scaler
-# CRITICAL: Deve essere rappresentativo ma gestibile in RAM
-# 1M righe = ~1-2GB RAM (dipende dalle feature)
-SCALER_SAMPLE_SIZE = 1_000_000
+# ============================================================================
+# SCALER SAMPLE SIZE - ULTRA RAM-SAFE
+# ============================================================================
 
-# Numero massimo di chunk da processare per volta prima di salvare
-# Utile per gestire memoria durante il processing
-MAX_CHUNKS_IN_MEMORY = 3
+# CRITICAL: Con 16GB RAM totale, usiamo sample PICCOLO per sicurezza
+# 
+# 2M righe × 40 features × 8 bytes = 640 MB base
+# + DataFrame overhead (30%) = ~830 MB
+# + Processing overhead = ~1.2 GB peak
+# 
+# Questo è SAFE anche se sistema usa già 8-10GB per OS/apps
+# 
+# NOTA: Il codice impone HARD LIMIT a 2M indipendentemente da questo valore
+#       per evitare crash anche se utente lo aumenta
+SCALER_SAMPLE_SIZE = 2_000_000  # 2M - ULTRA SAFE per 16GB RAM
+
+# ALTERNATIVE (solo se hai più RAM disponibile):
+# - 1_000_000   = 1M  - Ultra conservativo (~600 MB)
+# - 2_000_000   = 2M  - Safe (default) (~1.2 GB)
+# - 5_000_000   = 5M  - Aggressivo, richiede >8GB RAM libera
+# - 10_000_000  = 10M - Molto aggressivo, richiede >12GB RAM libera
 
 # ============================================================================
 # PARALLEL PROCESSING CONFIGURATION
 # ============================================================================
 
-# Abilita processing parallelo
 ENABLE_PARALLEL_PROCESSING = True
-
-# Percentuale di CPU cores da utilizzare (0.0 - 1.0)
-# 0.5 = usa 50% dei core disponibili
-# 0.75 = usa 75% dei core disponibili
-# 1.0 = usa tutti i core disponibili
 CPU_USAGE_PERCENT = 0.75
-
-# Numero minimo di worker (anche se CPU_USAGE_PERCENT porta a <2)
 MIN_WORKERS = 2
-
-# Numero massimo di worker (safety limit)
 MAX_WORKERS = 16
 
 # ============================================================================
 # FEATURE CONFIGURATION
 # ============================================================================
 
-# Feature da escludere (solo identificatori non predittivi)
 FEATURES_TO_DROP: List[str] = [
-    'IPV4_SRC_ADDR',        # IP sorgente (identificatore)
-    'IPV4_DST_ADDR',        # IP destinazione (identificatore)
+    'IPV4_SRC_ADDR',
+    'IPV4_DST_ADDR',
 ]
 
-# Nome colonna label
 LABEL_COLUMN = 'Label'
-
-# NOTA: NON definiamo una lista fissa di feature.
-# Tutte le feature numeriche del dataset (eccetto quelle in FEATURES_TO_DROP)
-# verranno utilizzate automaticamente dopo i controlli di:
-# - Varianza zero
-# - Alta correlazione
 
 # ============================================================================
 # FEATURE SELECTION CONFIGURATION
 # ============================================================================
 
-# Threshold per rimozione feature correlate
 CORRELATION_THRESHOLD = 0.95
 
 # ============================================================================
 # TRAINING CONFIGURATION
 # ============================================================================
 
-# Modelli supportati
 SUPPORTED_MODELS = ['xgboost', 'random_forest', 'lightgbm']
-
-# Default model
 DEFAULT_MODEL = 'xgboost'
 
-# XGBoost params base
-# NOTA: max_bin ridotto per gestire meglio grandi dataset
+# XGBoost params - ottimizzati per RAM limitata
 XGBOOST_PARAMS = {
     'objective': 'binary:logistic',
     'eval_metric': 'logloss',
-    'tree_method': 'hist',
-    'max_depth': 6,
+    'tree_method': 'hist',        # Più efficiente per RAM
+    'max_depth': 6,               # Limitato per RAM
     'learning_rate': 0.1,
     'n_estimators': 100,
-    'max_bin': 256,  # Ridotto da default per RAM
+    'max_bin': 256,               # Ridotto per RAM
     'random_state': RANDOM_STATE,
 }
 
-# Random Forest params base  
+# Random Forest params - ridotti per RAM
 RF_PARAMS = {
     'n_estimators': 100,
-    'max_depth': 10,
+    'max_depth': 10,              # Limitato per RAM
     'min_samples_split': 5,
-    'max_features': 'sqrt',  # Riduce memoria
+    'max_features': 'sqrt',       # Riduce RAM
     'random_state': RANDOM_STATE,
     'n_jobs': -1,
 }
 
-# LightGBM params base
-# NOTA: LightGBM è già ottimizzato per grandi dataset
+# LightGBM params - già ottimizzato per RAM
 LIGHTGBM_PARAMS = {
     'objective': 'binary',
     'metric': 'binary_logloss',
@@ -143,7 +134,7 @@ LIGHTGBM_PARAMS = {
     'num_leaves': 31,
     'learning_rate': 0.05,
     'n_estimators': 100,
-    'max_bin': 255,  # Default LightGBM
+    'max_bin': 255,
     'random_state': RANDOM_STATE,
     'verbose': -1,
 }
@@ -152,29 +143,29 @@ LIGHTGBM_PARAMS = {
 # SCALING CONFIGURATION  
 # ============================================================================
 
-# CRITICAL: Usa RobustScaler fittato su dati "sporchi" (con outlier)
-# per gestire picchi di traffico in produzione
-# 
-# Lo scaler viene fittato su un SAMPLE RAPPRESENTATIVO del train set
-# PRIMA di qualsiasi rimozione di outlier
+# RobustScaler è più robusto agli outlier
+# Importante per NIDS dove ci sono picchi di traffico
 SCALER_TYPE = 'robust'  # 'robust' o 'standard'
 
 # ============================================================================
 # PARQUET CONFIGURATION
 # ============================================================================
 
-# Compressione Parquet (snappy è veloce e ben supportato)
 PARQUET_COMPRESSION = 'snappy'
-
-# Engine Parquet (pyarrow è il più veloce)
 PARQUET_ENGINE = 'pyarrow'
 
 # ============================================================================
-# MEMORY MANAGEMENT
+# MEMORY MANAGEMENT - ULTRA SAFE
 # ============================================================================
 
-# Percentuale massima RAM da utilizzare (safety buffer)
-MAX_RAM_USAGE_PERCENT = 50  # Usa max 50% della RAM disponibile
+# Percentuale massima RAM da utilizzare (molto conservativo)
+MAX_RAM_USAGE_PERCENT = 50  # Max 50% RAM disponibile
+
+# Threshold per warning RAM
+RAM_WARNING_THRESHOLD = 70  # Warning se >70%
+
+# Threshold per errore RAM
+RAM_ERROR_THRESHOLD = 85    # Error se >85%
 
 # ============================================================================
 # LOGGING

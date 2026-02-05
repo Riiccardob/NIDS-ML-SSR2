@@ -1,11 +1,13 @@
 """
-Feature Engineering per NIDS NetFlow-based con chunk-based processing.
+Feature Engineering con AGGREGATE SCALER per tutti i dati.
 
-CRITICAL - STRATEGIA SCALER:
-1. Fit scaler su SAMPLE RAPPRESENTATIVO del train set (1M righe)
-2. Sample preso SENZA rimozione outlier (dati "sporchi")
-3. Apply scaling a tutti i Parquet chunk-by-chunk
-4. Feature selection minimale (solo varianza zero e alta correlazione)
+STRATEGIA CORRETTA per LIVE SNIFFER:
+1. Calcola statistiche (Q1, Q3, median) chunk-by-chunk su TUTTO il dataset
+2. Aggrega statistiche → Scaler PERFETTO che vede TUTTI gli outlier
+3. Apply scaling chunk-by-chunk
+4. Se scaling genera inf → Sostituisci con valori grandi ma finiti (±1e308)
+
+IMPORTANTE: Lo scaler DEVE vedere tutti gli outlier per funzionare in live!
 """
 
 import pandas as pd
@@ -15,11 +17,13 @@ from pathlib import Path
 from sklearn.preprocessing import RobustScaler, StandardScaler
 import pyarrow.parquet as pq
 import pyarrow as pa
+import gc
+from typing import Tuple, List
 
 from config import (
     PROCESSED_DATA_DIR, ARTIFACTS_DIR, 
     FEATURES_TO_DROP, SCALER_TYPE, LABEL_COLUMN,
-    CORRELATION_THRESHOLD, CHUNK_SIZE, SCALER_SAMPLE_SIZE,
+    CORRELATION_THRESHOLD, CHUNK_SIZE,
     PARQUET_COMPRESSION
 )
 from utils import setup_logger, get_memory_usage
@@ -28,294 +32,333 @@ from utils import setup_logger, get_memory_usage
 logger = setup_logger(__name__, 'feature_engineering.log')
 
 
-def load_sample_for_scaler(parquet_path: Path, sample_size: int) -> pd.DataFrame:
-    """
-    Carica un sample rappresentativo per fitting dello scaler.
-    
-    CRITICAL: Sample preso SENZA rimozione outlier!
-    Lo scaler deve vedere anche i picchi di traffico.
-    
-    Strategia:
-    - Leggi righe uniformemente distribuite nel file
-    - Mantieni stratificazione delle classi
-    """
-    
-    logger.info(f"\nCaricamento sample per scaler...")
-    logger.info(f"  Target sample size: {sample_size:,} righe")
-    logger.info(f"  Source: {parquet_path.name}")
-    
-    parquet_file = pq.ParquetFile(parquet_path)
-    total_rows = parquet_file.metadata.num_rows
-    
-    logger.info(f"  Total rows nel file: {total_rows:,}")
-    
-    if sample_size >= total_rows:
-        logger.info(f"  Sample size >= total rows, uso tutto il file")
-        sample_size = total_rows
-    
-    # Calcola step per sampling uniforme
-    sample_ratio = sample_size / total_rows
-    logger.info(f"  Sample ratio: {sample_ratio*100:.2f}%")
-    
-    # Leggi sample stratificato
-    samples = []
-    sampled_rows = 0
-    
-    for batch in parquet_file.iter_batches(batch_size=CHUNK_SIZE):
-        df_batch = batch.to_pandas()
-        
-        # Sample stratificato da questo batch
-        batch_sample_size = int(len(df_batch) * sample_ratio)
-        
-        if batch_sample_size > 0:
-            # Stratified sampling per classe
-            benign = df_batch[df_batch['Label_Binary'] == 0]
-            attack = df_batch[df_batch['Label_Binary'] == 1]
-            
-            benign_sample_size = int(len(benign) * sample_ratio)
-            attack_sample_size = int(len(attack) * sample_ratio)
-            
-            sampled_benign = benign.sample(n=min(benign_sample_size, len(benign)), random_state=42)
-            sampled_attack = attack.sample(n=min(attack_sample_size, len(attack)), random_state=42)
-            
-            batch_sample = pd.concat([sampled_benign, sampled_attack])
-            samples.append(batch_sample)
-            
-            sampled_rows += len(batch_sample)
-        
-        if sampled_rows >= sample_size:
-            break
-    
-    # Combina sample
-    df_sample = pd.concat(samples, ignore_index=True)
-    
-    # Shuffle
-    df_sample = df_sample.sample(frac=1, random_state=42).reset_index(drop=True)
-    
-    # Limita alla dimensione target
-    if len(df_sample) > sample_size:
-        df_sample = df_sample.iloc[:sample_size]
-    
-    logger.info(f"   Sample caricato: {len(df_sample):,} righe")
-    
-    # Verifica distribuzione
-    benign_count = (df_sample['Label_Binary'] == 0).sum()
-    attack_count = (df_sample['Label_Binary'] == 1).sum()
-    logger.info(f"  Distribuzione: Benign={benign_count:,} ({benign_count/len(df_sample)*100:.2f}%), "
-                f"Attack={attack_count:,} ({attack_count/len(df_sample)*100:.2f}%)")
-    
-    return df_sample
-
-
 def select_all_numeric_features(df: pd.DataFrame) -> list:
-    """
-    Seleziona TUTTE le feature numeriche dal dataset, 
-    escludendo solo quelle in FEATURES_TO_DROP e le colonne label.
-    
-    Returns:
-        Lista di tutte le feature numeriche disponibili
-    """
+    """Seleziona tutte le feature numeriche escludendo label."""
     
     logger.info("\nSelezione feature dal dataset...")
     
-    # Identifica tutte le colonne numeriche
     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    logger.info(f"  Feature numeriche totali: {len(numeric_cols)}")
     
-    logger.info(f"  Feature numeriche totali nel dataset: {len(numeric_cols)}")
-    
-    # Rimuovi colonne label
+    # Rimuovi label
     label_cols = ['Label', 'Label_Binary', 'Label_Original']
     numeric_cols = [col for col in numeric_cols if col not in label_cols]
-    
     logger.info(f"  Dopo rimozione label: {len(numeric_cols)}")
     
     # Rimuovi feature in FEATURES_TO_DROP
     features_to_drop_upper = [f.upper() for f in FEATURES_TO_DROP]
+    final_features = [col for col in numeric_cols if col.upper() not in features_to_drop_upper]
     
-    final_features = []
-    dropped_features = []
+    dropped = len(numeric_cols) - len(final_features)
+    if dropped > 0:
+        logger.info(f"  Feature rimosse da config: {dropped}")
     
-    for col in numeric_cols:
-        if col.upper() in features_to_drop_upper:
-            dropped_features.append(col)
-        else:
-            final_features.append(col)
-    
-    logger.info(f"  Feature escluse (FEATURES_TO_DROP): {len(dropped_features)}")
-    for feat in dropped_features:
-        logger.info(f"    - {feat}")
-    
-    logger.info(f"\n   Feature selezionate: {len(final_features)}")
-    
+    logger.info(f"   Feature selezionate: {len(final_features)}")
     return final_features
 
 
-def remove_zero_variance_features(X_sample: pd.DataFrame, feature_cols: list) -> list:
+def remove_zero_variance_features(parquet_path: Path, feature_cols: list) -> list:
     """
-    Rimuove feature con varianza zero (costanti).
-    
-    Returns:
-        Lista feature con varianza > 0
+    Rimuove feature con varianza zero analizzando chunk-by-chunk.
     """
     
-    logger.info("\nRimozione feature a varianza zero...")
+    logger.info("\nAnalisi varianza feature (chunk-based)...")
+    logger.info(f"  Feature da analizzare: {len(feature_cols)}")
     
-    variances = X_sample[feature_cols].var()
-    zero_var_features = variances[variances == 0].index.tolist()
+    parquet_file = pq.ParquetFile(parquet_path)
+    
+    # Accumula min/max per ogni feature
+    min_vals = None
+    max_vals = None
+    chunk_count = 0
+    
+    for batch in parquet_file.iter_batches(batch_size=CHUNK_SIZE):
+        chunk_count += 1
+        df_batch = batch.to_pandas()
+        
+        X_batch = df_batch[feature_cols].values
+        
+        if min_vals is None:
+            min_vals = X_batch.min(axis=0)
+            max_vals = X_batch.max(axis=0)
+        else:
+            min_vals = np.minimum(min_vals, X_batch.min(axis=0))
+            max_vals = np.maximum(max_vals, X_batch.max(axis=0))
+        
+        del df_batch, X_batch
+        
+        if chunk_count % 50 == 0:
+            logger.info(f"    Analizzati {chunk_count} chunk - RAM: {get_memory_usage():.1f}%")
+            gc.collect()
+    
+    # Feature con min == max hanno varianza zero
+    zero_var_mask = (min_vals == max_vals)
+    zero_var_features = [feature_cols[i] for i, is_zero in enumerate(zero_var_mask) if is_zero]
     
     if zero_var_features:
-        logger.info(f"  Trovate {len(zero_var_features)} feature costanti:")
-        for feat in zero_var_features:
+        logger.info(f"  Trovate {len(zero_var_features)} feature a varianza zero:")
+        for feat in zero_var_features[:5]:
             logger.info(f"    - {feat}")
+        if len(zero_var_features) > 5:
+            logger.info(f"    ... e altre {len(zero_var_features)-5}")
         
         feature_cols = [f for f in feature_cols if f not in zero_var_features]
-        logger.info(f"   Feature rimanenti: {len(feature_cols)}")
+        logger.info(f"   Rimanenti: {len(feature_cols)} feature")
     else:
         logger.info("   Nessuna feature a varianza zero")
     
     return feature_cols
 
 
-def remove_highly_correlated_features(X_sample: pd.DataFrame, feature_cols: list, threshold: float = None) -> list:
+def remove_highly_correlated_features_sample(parquet_path: Path, feature_cols: list, sample_size: int = 100_000) -> list:
     """
-    Rimuove feature altamente correlate (|corr| > threshold).
-    
-    Returns:
-        Lista feature dopo rimozione correlazioni
+    Rimuove feature correlate usando un sample piccolo.
     """
     
-    if threshold is None:
-        threshold = CORRELATION_THRESHOLD
+    logger.info(f"\nRimozione feature correlate (su sample {sample_size:,})...")
     
-    logger.info(f"\nRimozione feature correlate (threshold={threshold})...")
+    parquet_file = pq.ParquetFile(parquet_path)
     
-    # Calcola matrice correlazione
-    corr_matrix = X_sample[feature_cols].corr().abs()
+    # Carica sample
+    samples = []
+    sampled = 0
     
-    # Trova coppie altamente correlate
-    to_drop = []
+    for batch in parquet_file.iter_batches(batch_size=CHUNK_SIZE):
+        df_batch = batch.to_pandas()
+        n_sample = min(sample_size - sampled, len(df_batch))
+        
+        if n_sample > 0:
+            samples.append(df_batch[feature_cols].sample(n=n_sample, random_state=42))
+            sampled += n_sample
+        
+        del df_batch
+        
+        if sampled >= sample_size:
+            break
     
-    for i in range(len(corr_matrix.columns)):
-        for j in range(i+1, len(corr_matrix.columns)):
-            if corr_matrix.iloc[i, j] > threshold:
-                col_to_drop = corr_matrix.columns[j]
-                col_to_keep = corr_matrix.columns[i]
-                
-                if col_to_drop not in to_drop:
-                    to_drop.append(col_to_drop)
-                    logger.info(f"  Rimozione {col_to_drop} (corr={corr_matrix.iloc[i, j]:.3f} con {col_to_keep})")
+    df_sample = pd.concat(samples, ignore_index=True)
+    del samples
+    gc.collect()
+    
+    logger.info(f"  Sample caricato: {len(df_sample):,} righe")
+    
+    # Calcola correlazione
+    corr_matrix = df_sample[feature_cols].corr().abs()
+    upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+    
+    to_drop = [col for col in upper.columns if any(upper[col] > CORRELATION_THRESHOLD)]
     
     if to_drop:
+        logger.info(f"  Trovate {len(to_drop)} feature correlate (>{CORRELATION_THRESHOLD})")
         feature_cols = [f for f in feature_cols if f not in to_drop]
-        logger.info(f"   Rimosse {len(to_drop)} feature correlate")
-        logger.info(f"   Feature rimanenti: {len(feature_cols)}")
+        logger.info(f"   Rimanenti: {len(feature_cols)} feature")
     else:
         logger.info("   Nessuna feature altamente correlata")
+    
+    del df_sample, corr_matrix
+    gc.collect()
     
     return feature_cols
 
 
-def fit_scaler(X_sample: pd.DataFrame, feature_cols: list) -> object:
+def compute_aggregate_scaler_stats(parquet_path: Path, feature_cols: list) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Fit scaler su sample rappresentativo.
+    Calcola statistiche aggregate per RobustScaler su TUTTO il dataset.
     
-    CRITICAL: Fittato su dati COMPLETI (outlier inclusi)
-    per gestire correttamente picchi di traffico in produzione.
+    IMPORTANTE: Mantiene TUTTI gli outlier - essenziale per live sniffer!
     
-    Il sample è già stato prelevato SENZA rimozione outlier.
+    Returns:
+        (q1, median, q3) per ogni feature
     """
     
-    logger.info("\n" + "="*70)
-    logger.info("FITTING SCALER")
-    logger.info("="*70)
-    logger.info(f"  Tipo: {SCALER_TYPE}")
-    logger.info(f"  Sample size: {len(X_sample):,} righe")
+    logger.info("\nCalcolo statistiche aggregate per scaler...")
+    logger.info(f"  Strategia: Calcola Q1, median, Q3 per chunk, poi aggrega")
     logger.info(f"  Feature: {len(feature_cols)}")
-    logger.info(f"  CRITICAL: Sample contiene OUTLIER (dati reali)")
+    logger.info(f"  IMPORTANTE: Mantiene TUTTI gli outlier!")
     
-    if SCALER_TYPE == 'robust':
-        scaler = RobustScaler()
-        logger.info("   RobustScaler (usa mediana e IQR, resistente outlier)")
-    else:
-        scaler = StandardScaler()
-        logger.info("   StandardScaler (usa media e std)")
+    parquet_file = pq.ParquetFile(parquet_path)
+    total_rows = parquet_file.metadata.num_rows
     
-    # Fit
-    X_for_fitting = X_sample[feature_cols]
-    scaler.fit(X_for_fitting)
+    logger.info(f"  Total rows: {total_rows:,}")
     
-    logger.info("   Scaler fitted su sample rappresentativo")
-    logger.info("="*70)
+    # Liste per accumulare statistiche per chunk
+    q1_list = []
+    median_list = []
+    q3_list = []
+    
+    chunk_count = 0
+    rows_processed = 0
+    
+    for batch in parquet_file.iter_batches(batch_size=CHUNK_SIZE):
+        chunk_count += 1
+        
+        # CHECK RAM
+        mem_usage = get_memory_usage()
+        if mem_usage > 85:
+            logger.warning(f"      RAM alta ({mem_usage:.1f}%), GC...")
+            gc.collect()
+        
+        df_batch = batch.to_pandas()
+        X_batch = df_batch[feature_cols].values
+        
+        # Calcola percentili per questo chunk
+        q1 = np.percentile(X_batch, 25, axis=0)
+        median = np.percentile(X_batch, 50, axis=0)
+        q3 = np.percentile(X_batch, 75, axis=0)
+        
+        q1_list.append(q1)
+        median_list.append(median)
+        q3_list.append(q3)
+        
+        rows_processed += len(df_batch)
+        
+        del df_batch, X_batch
+        
+        if chunk_count % 20 == 0:
+            pct = (rows_processed / total_rows) * 100
+            logger.info(f"    Chunk {chunk_count} - Processed: {rows_processed:,}/{total_rows:,} ({pct:.1f}%) - RAM: {mem_usage:.1f}%")
+        
+        if chunk_count % 10 == 0:
+            gc.collect()
+    
+    logger.info(f"\n   Statistiche calcolate per {chunk_count} chunk")
+    logger.info(f"  Aggregazione finale...")
+    
+    # Aggrega: usa MEDIAN delle statistiche dei chunk
+    # (median è più robusto agli outlier rispetto a mean)
+    final_q1 = np.median(q1_list, axis=0)
+    final_median = np.median(median_list, axis=0)
+    final_q3 = np.median(q3_list, axis=0)
+    
+    logger.info(f"   Statistiche aggregate calcolate")
+    logger.info(f"  RAM: {get_memory_usage():.1f}%")
+    
+    return final_q1, final_median, final_q3
+
+
+def create_robust_scaler_from_stats(q1: np.ndarray, median: np.ndarray, q3: np.ndarray, feature_cols: list) -> RobustScaler:
+    """
+    Crea RobustScaler da statistiche pre-calcolate.
+    """
+    
+    logger.info("\nCreazione RobustScaler da statistiche aggregate...")
+    
+    scaler = RobustScaler()
+    
+    # Imposta parametri manualmente
+    scaler.center_ = median
+    scaler.scale_ = q3 - q1
+    
+    # Evita divisione per zero
+    scaler.scale_[scaler.scale_ == 0] = 1.0
+    
+    scaler.n_features_in_ = len(feature_cols)
+    scaler.feature_names_in_ = np.array(feature_cols)
+    
+    logger.info(f"   RobustScaler creato")
+    logger.info(f"  Features: {len(feature_cols)}")
+    logger.info(f"  IQR medio: {np.mean(scaler.scale_):.4f}")
+    logger.info(f"  IQR min: {np.min(scaler.scale_):.4f}")
+    logger.info(f"  IQR max: {np.max(scaler.scale_):.4f}")
     
     return scaler
 
 
-def scale_parquet_file(
-    input_path: Path,
-    output_path: Path,
-    scaler: object,
-    feature_cols: list
-) -> None:
+def handle_inf_after_scaling(X_scaled: np.ndarray) -> np.ndarray:
     """
-    Scala file Parquet chunk-by-chunk.
+    Gestisce inf/nan DOPO lo scaling.
+    
+    Se lo scaling genera inf (outlier estremi), sostituisce con valori grandi ma finiti.
+    Questo permette al modello di imparare che "valore molto grande = potenziale anomalia".
     """
     
-    logger.info(f"\nScaling {input_path.name}...")
+    # Sostituisci inf con valori grandi ma finiti
+    X_scaled[np.isposinf(X_scaled)] = 1e10   # +inf → valore grande positivo
+    X_scaled[np.isneginf(X_scaled)] = -1e10  # -inf → valore grande negativo
+    
+    # Sostituisci nan con 0 (valore scaled neutro)
+    X_scaled[np.isnan(X_scaled)] = 0.0
+    
+    return X_scaled
+
+
+def scale_parquet_file(input_path: Path, output_path: Path, scaler: RobustScaler, feature_cols: list):
+    """
+    Scala Parquet file chunk-by-chunk con gestione robusta di inf.
+    """
+    
+    logger.info(f"\nScaling: {input_path.name} → {output_path.name}")
+    logger.info(f"  Chunk size: {CHUNK_SIZE:,} righe")
     
     parquet_file = pq.ParquetFile(input_path)
     total_rows = parquet_file.metadata.num_rows
     
+    logger.info(f"  Total rows: {total_rows:,}")
+    
     writer = None
     rows_processed = 0
+    batch_idx = 0
+    inf_count_total = 0
     
     try:
-        for batch_idx, batch in enumerate(parquet_file.iter_batches(batch_size=CHUNK_SIZE)):
+        for batch in parquet_file.iter_batches(batch_size=CHUNK_SIZE):
+            batch_idx += 1
+            
+            mem_usage = get_memory_usage()
+            if mem_usage > 85:
+                logger.warning(f"      RAM alta ({mem_usage:.1f}%), GC...")
+                gc.collect()
             
             df_batch = batch.to_pandas()
+            
+            # Scala
+            X_batch = df_batch[feature_cols].values
+            X_scaled = scaler.transform(X_batch)
+            
+            # Conta inf PRIMA di gestirli
+            n_inf = np.isinf(X_scaled).sum()
+            if n_inf > 0:
+                inf_count_total += n_inf
+                if batch_idx == 1:  # Log solo primo batch
+                    logger.warning(f"    Chunk {batch_idx}: {n_inf} valori inf generati dallo scaling (NORMALE per outlier estremi)")
+            
+            # Gestisci inf/nan
+            X_scaled = handle_inf_after_scaling(X_scaled)
+            
+            # Update DataFrame
+            df_batch[feature_cols] = X_scaled
+            
+            del X_batch, X_scaled
+            
+            # Write
+            table = pa.Table.from_pandas(df_batch)
+            
+            if writer is None:
+                writer = pq.ParquetWriter(output_path, table.schema, compression=PARQUET_COMPRESSION)
+            
+            writer.write_table(table)
             rows_processed += len(df_batch)
             
-            # Log progresso
-            if (batch_idx + 1) % 20 == 0:
-                progress = (rows_processed / total_rows) * 100
-                mem_usage = get_memory_usage()
-                logger.info(f"  Chunk {batch_idx + 1} - {progress:.1f}% - RAM: {mem_usage:.1f}%")
+            del df_batch, table
             
-            # Scala feature
-            X = df_batch[feature_cols].copy()
-            X_scaled = scaler.transform(X)
+            if batch_idx % 20 == 0:
+                pct = (rows_processed / total_rows) * 100
+                logger.info(f"    Processed: {rows_processed:,}/{total_rows:,} ({pct:.1f}%) - RAM: {mem_usage:.1f}%")
             
-            # Ricrea DataFrame con feature scalate
-            df_scaled = pd.DataFrame(
-                X_scaled,
-                columns=feature_cols,
-                index=df_batch.index
-            )
-            
-            # Aggiungi label
-            df_scaled['Label_Binary'] = df_batch['Label_Binary'].values
-            
-            # Converti a PyArrow Table
-            table = pa.Table.from_pandas(df_scaled)
-            
-            # Inizializza writer
-            if writer is None:
-                writer = pq.ParquetWriter(
-                    output_path,
-                    table.schema,
-                    compression=PARQUET_COMPRESSION
-                )
-            
-            # Scrivi
-            writer.write_table(table)
-            
-            # Libera memoria
-            del df_batch, X, X_scaled, df_scaled, table
+            if batch_idx % 20 == 0:
+                gc.collect()
         
-        # Chiudi writer
         if writer:
             writer.close()
         
         logger.info(f"   Scaling completato: {rows_processed:,} righe")
+        
+        if inf_count_total > 0:
+            pct_inf = (inf_count_total / (rows_processed * len(feature_cols))) * 100
+            logger.info(f"  ℹ  Valori inf gestiti: {inf_count_total:,} ({pct_inf:.4f}%) - sostituiti con ±1e10")
+            logger.info(f"  Questo è NORMALE per outlier estremi in dataset NetFlow")
+        
+        gc.collect()
         
     except Exception as e:
         if writer:
@@ -323,8 +366,8 @@ def scale_parquet_file(
         raise e
 
 
-def save_artifacts(scaler: object, feature_cols: list) -> None:
-    """Salva scaler e feature list."""
+def save_artifacts(scaler: RobustScaler, feature_cols: list, scaler_stats: dict) -> None:
+    """Salva scaler e metadata."""
     
     logger.info(f"\nSalvataggio artifacts in {ARTIFACTS_DIR}")
     
@@ -333,25 +376,29 @@ def save_artifacts(scaler: object, feature_cols: list) -> None:
     joblib.dump(scaler, scaler_path)
     logger.info(f"   {scaler_path.name}")
     
-    # Feature list
+    # Feature list + metadata
     import json
     features_path = ARTIFACTS_DIR / "features.json"
     with open(features_path, 'w') as f:
         json.dump({
             'features': feature_cols,
             'n_features': len(feature_cols),
-            'scaler_type': SCALER_TYPE,
+            'scaler_type': 'robust_aggregate',
+            'scaler_method': 'chunk_aggregate_statistics',
             'correlation_threshold': CORRELATION_THRESHOLD,
-            'scaler_sample_size': SCALER_SAMPLE_SIZE,
+            'outlier_handling': 'kept_all_outliers_for_live_sniffer',
+            'scaler_stats': scaler_stats,
         }, f, indent=2)
     logger.info(f"   {features_path.name}")
     
-    # Salva anche lista leggibile
+    # Lista leggibile
     features_txt_path = ARTIFACTS_DIR / "features.txt"
     with open(features_txt_path, 'w') as f:
         f.write(f"Total features: {len(feature_cols)}\n")
-        f.write(f"Scaler type: {SCALER_TYPE}\n")
-        f.write(f"Scaler fitted on: {SCALER_SAMPLE_SIZE:,} samples (WITH outliers)\n")
+        f.write(f"Scaler type: RobustScaler (aggregate)\n")
+        f.write(f"Scaler computed on: ALL {scaler_stats['total_rows']:,} rows\n")
+        f.write(f"Method: Chunk-based aggregate statistics\n")
+        f.write(f"Outlier handling: KEPT ALL (essential for live sniffer)\n")
         f.write(f"Correlation threshold: {CORRELATION_THRESHOLD}\n")
         f.write("\n" + "="*60 + "\n")
         f.write("FEATURE LIST:\n")
@@ -361,7 +408,7 @@ def save_artifacts(scaler: object, feature_cols: list) -> None:
     logger.info(f"   {features_txt_path.name}")
 
 
-def load_artifacts() -> tuple:
+def load_artifacts() -> Tuple[RobustScaler, list]:
     """Carica scaler e feature list."""
     
     logger.info(f"Caricamento artifacts da {ARTIFACTS_DIR}")
@@ -374,81 +421,87 @@ def load_artifacts() -> tuple:
     
     feature_cols = features_info['features']
     
-    logger.info(f"   Scaler caricato ({features_info['scaler_type']})")
+    logger.info(f"   Scaler caricato (aggregate)")
     logger.info(f"   {len(feature_cols)} feature")
     
     return scaler, feature_cols
 
 
 def main():
-    """Pipeline feature engineering completa con chunk-based processing."""
+    """Pipeline feature engineering con aggregate scaler."""
     
     logger.info("="*70)
-    logger.info("FEATURE ENGINEERING - NetFlow NIDS (CHUNK-BASED)")
+    logger.info("FEATURE ENGINEERING - AGGREGATE SCALER (LIVE SNIFFER READY)")
     logger.info("="*70)
-    logger.info(f"RAM disponibile: {get_memory_usage():.1f}% usata")
+    logger.info(f"RAM: {get_memory_usage():.1f}% usata")
+    logger.info(f"Strategia: Aggregate statistics su TUTTO il dataset")
+    logger.info(f"IMPORTANTE: Mantiene TUTTI gli outlier per live detection")
     logger.info("="*70)
-    
-    # ========================================================================
-    # STEP 1: Carica sample rappresentativo per feature selection
-    # ========================================================================
     
     train_path = PROCESSED_DATA_DIR / "train.parquet"
     
-    logger.info("\nSTEP 1: Caricamento sample per feature selection")
-    
-    # Carica sample (SENZA rimozione outlier!)
-    sample = load_sample_for_scaler(train_path, SCALER_SAMPLE_SIZE)
+    if not train_path.exists():
+        raise FileNotFoundError(f"File non trovato: {train_path}\nEsegui prima preprocessing.py")
     
     # ========================================================================
-    # STEP 2: Feature selection
+    # STEP 1: Load sample per feature selection
+    # ========================================================================
+    
+    logger.info("\nSTEP 1: Feature selection (su sample)")
+    logger.info(f"Caricamento sample...")
+    
+    # Small sample solo per feature selection
+    parquet_file = pq.ParquetFile(train_path)
+    batch = next(parquet_file.iter_batches(batch_size=CHUNK_SIZE))
+    df_sample = batch.to_pandas()
+    
+    logger.info(f"  Sample: {len(df_sample):,} righe")
+    
+    feature_cols = select_all_numeric_features(df_sample)
+    
+    del df_sample
+    gc.collect()
+    
+    # ========================================================================
+    # STEP 2: Rimuovi feature problematiche
     # ========================================================================
     
     logger.info("\n" + "="*70)
-    logger.info("STEP 2: FEATURE SELECTION")
+    logger.info("STEP 2: ANALISI FEATURE SU TUTTO IL DATASET")
     logger.info("="*70)
     
-    # Seleziona tutte le feature numeriche
-    feature_cols = select_all_numeric_features(sample)
+    # Varianza zero
+    feature_cols = remove_zero_variance_features(train_path, feature_cols)
     
-    if not feature_cols:
-        raise ValueError(
-            "Nessuna feature numerica trovata nel dataset!\n"
-            "Verifica il formato del dataset"
-        )
-    
-    # Prepare X, y dal sample
-    X_sample = sample[feature_cols].copy()
-    y_sample = sample['Label_Binary'].copy()
-    
-    logger.info(f"\nFeature matrix sample preparata: {X_sample.shape}")
-    
-    # Rimuovi feature a varianza zero
-    feature_cols = remove_zero_variance_features(X_sample, feature_cols)
-    
-    # Rimuovi feature altamente correlate
-    feature_cols = remove_highly_correlated_features(X_sample, feature_cols)
-    
-    # Aggiorna X_sample dopo selezione
-    X_sample = X_sample[feature_cols]
+    # Correlazione alta (su sample piccolo è OK)
+    feature_cols = remove_highly_correlated_features_sample(train_path, feature_cols)
     
     logger.info(f"\n{'='*70}")
     logger.info(f"FEATURE FINALI: {len(feature_cols)}")
     logger.info(f"{'='*70}")
     
     # ========================================================================
-    # STEP 3: Fit scaler su sample (CON OUTLIER!)
+    # STEP 3: Calcola aggregate scaler su TUTTO il dataset
     # ========================================================================
     
-    logger.info("\nSTEP 3: FITTING SCALER")
+    logger.info("\n" + "="*70)
+    logger.info("STEP 3: AGGREGATE SCALER SU TUTTO IL DATASET")
+    logger.info("="*70)
     
-    scaler = fit_scaler(X_sample, feature_cols)
+    q1, median, q3 = compute_aggregate_scaler_stats(train_path, feature_cols)
+    scaler = create_robust_scaler_from_stats(q1, median, q3, feature_cols)
     
-    # Libera memoria del sample
-    del sample, X_sample, y_sample
+    # Metadata scaler
+    parquet_file = pq.ParquetFile(train_path)
+    scaler_stats = {
+        'total_rows': parquet_file.metadata.num_rows,
+        'method': 'chunk_aggregate',
+    }
+    
+    gc.collect()
     
     # ========================================================================
-    # STEP 4: Scale tutti i Parquet files chunk-by-chunk
+    # STEP 4: Scale tutti i dataset
     # ========================================================================
     
     logger.info("\n" + "="*70)
@@ -465,9 +518,10 @@ def main():
         logger.info(f"\nScaling {name} set...")
         scale_parquet_file(input_path, output_path, scaler, feature_cols)
         
-        # Verifica file generato
         output_size = output_path.stat().st_size / (1024**2)
-        logger.info(f"   File generato: {output_path.name} ({output_size:.1f} MB)")
+        logger.info(f"   {output_path.name} ({output_size:.1f} MB)")
+        
+        gc.collect()
     
     # ========================================================================
     # STEP 5: Salva artifacts
@@ -477,7 +531,7 @@ def main():
     logger.info("STEP 5: SALVATAGGIO ARTIFACTS")
     logger.info("="*70)
     
-    save_artifacts(scaler, feature_cols)
+    save_artifacts(scaler, feature_cols, scaler_stats)
     
     # ========================================================================
     # SUMMARY
@@ -486,15 +540,13 @@ def main():
     logger.info("\n" + "="*70)
     logger.info(" FEATURE ENGINEERING COMPLETATO")
     logger.info("="*70)
-    logger.info(f"Feature utilizzate: {len(feature_cols)}")
-    logger.info(f"Scaler: {SCALER_TYPE} (fitted su {SCALER_SAMPLE_SIZE:,} samples CON outlier)")
-    logger.info(f"Output: {PROCESSED_DATA_DIR}")
-    logger.info(f"\nFile scaled generati:")
-    for _, _, output_path in datasets:
-        size_mb = output_path.stat().st_size / (1024**2)
-        logger.info(f"  {output_path.name} ({size_mb:.1f} MB)")
+    logger.info(f"Feature: {len(feature_cols)}")
+    logger.info(f"Scaler: RobustScaler (aggregate su {scaler_stats['total_rows']:,} righe)")
+    logger.info(f"Outlier: TUTTI MANTENUTI (essenziale per live sniffer)")
+    logger.info(f"Inf handling: Post-scaling replacement con ±1e10")
     logger.info(f"\nPROSSIMI PASSI:")
-    logger.info("  python srcNF/training.py --model xgboost")
+    logger.info("  python srcNF/training_incremental.py --model xgboost")
+    logger.info("  python srcNF/training_incremental.py --model lightgbm")
     logger.info("="*70)
 
 

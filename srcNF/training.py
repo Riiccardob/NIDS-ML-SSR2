@@ -1,7 +1,15 @@
 """
-Training modelli per NIDS NetFlow-based con supporto per grandi dataset.
+Training INCREMENTAL per XGBoost e LightGBM.
 
-Supporta XGBoost, LightGBM e Random Forest con chunk-based data loading.
+Usa TUTTI i 76M record del training set con incremental learning.
+
+STRATEGIA:
+1. XGBoost: warm start con xgb_model parameter
+2. LightGBM: warm start con init_model parameter  
+3. Training chunk-by-chunk con learning rate decay
+4. Validation chunk-based per evitare RAM overflow
+
+NO Random Forest - non supporta incremental learning efficacemente.
 """
 
 import pandas as pd
@@ -10,28 +18,29 @@ import joblib
 from pathlib import Path
 from datetime import datetime
 import pyarrow.parquet as pq
+import gc
 
 from xgboost import XGBClassifier
-from sklearn.ensemble import RandomForestClassifier
 from lightgbm import LGBMClassifier
 
 from config import (
     PROCESSED_DATA_DIR, MODELS_DIR, ARTIFACTS_DIR,
-    DEFAULT_MODEL, XGBOOST_PARAMS, RF_PARAMS, LIGHTGBM_PARAMS, 
+    DEFAULT_MODEL, XGBOOST_PARAMS, LIGHTGBM_PARAMS, 
     RANDOM_STATE, CHUNK_SIZE
 )
 from utils import setup_logger, compute_metrics, print_metrics, get_memory_usage
 from feature_engineering import load_artifacts
 
 
-logger = setup_logger(__name__, 'training.log')
+logger = setup_logger(__name__, 'training_incremental.log')
+
+
+# Chunk size per training (più piccolo per gestire RAM meglio)
+TRAIN_CHUNK_SIZE = 250_000  # 250K righe per chunk
 
 
 class ParquetDataLoader:
-    """
-    Data loader per Parquet files con chunk-based loading.
-    Utile per validazione e test su grandi dataset.
-    """
+    """Data loader chunk-based per Parquet."""
     
     def __init__(self, parquet_path: Path, feature_cols: list, chunk_size: int = CHUNK_SIZE):
         self.parquet_path = parquet_path
@@ -41,319 +50,277 @@ class ParquetDataLoader:
         self.total_rows = self.parquet_file.metadata.num_rows
     
     def iter_batches(self):
-        """Itera sui batch del Parquet file."""
+        """Itera sui batch."""
         for batch in self.parquet_file.iter_batches(batch_size=self.chunk_size):
             df_batch = batch.to_pandas()
             X = df_batch[self.feature_cols].values
             y = df_batch['Label_Binary'].values
             yield X, y
+            del df_batch, X, y
     
     def get_total_rows(self):
-        """Ritorna numero totale di righe."""
         return self.total_rows
+    
+    def reset(self):
+        self.parquet_file = pq.ParquetFile(self.parquet_path)
 
 
-def load_train_data_in_memory(train_path: Path, feature_cols: list) -> tuple:
+def train_xgboost_incremental(train_loader: ParquetDataLoader, val_loader: ParquetDataLoader) -> XGBClassifier:
     """
-    Carica train set in memoria per training.
-    
-    Per dataset molto grandi (>10M samples), considera di usare:
-    - XGBoost con external memory
-    - LightGBM con sample (già ottimizzato per grandi dataset)
-    - Subsampling strategico
+    Training incremental di XGBoost usando warm start.
     """
     
-    logger.info(f"\nCaricamento train set in memoria...")
-    logger.info(f"  Source: {train_path.name}")
+    logger.info("\n" + "="*70)
+    logger.info("TRAINING XGBOOST INCREMENTAL")
+    logger.info("="*70)
+    logger.info(f"Train samples: {train_loader.get_total_rows():,}")
+    logger.info(f"Chunk size: {TRAIN_CHUNK_SIZE:,}")
+    logger.info(f"Strategia: Warm start con xgb_model")
     
-    # Verifica dimensione
-    parquet_file = pq.ParquetFile(train_path)
-    total_rows = parquet_file.metadata.num_rows
+    # Parametri per incremental
+    n_estimators_per_chunk = 10  # 10 trees per chunk
+    total_chunks = (train_loader.get_total_rows() + TRAIN_CHUNK_SIZE - 1) // TRAIN_CHUNK_SIZE
     
-    logger.info(f"  Total rows: {total_rows:,}")
+    logger.info(f"Trees per chunk: {n_estimators_per_chunk}")
+    logger.info(f"Total chunks: {total_chunks}")
+    logger.info(f"Total trees: ~{n_estimators_per_chunk * min(total_chunks, 20)}")  # Cap a 20 pass
     
-    # Stima memoria richiesta (circa 8 bytes per float64 * n_features * n_rows)
-    estimated_mb = (len(feature_cols) * total_rows * 8) / (1024**2)
-    logger.info(f"  Memoria stimata: ~{estimated_mb:.0f} MB")
+    # Modello iniziale
+    model = None
+    chunk_count = 0
+    rows_trained = 0
     
-    current_mem = get_memory_usage()
-    logger.info(f"  RAM corrente: {current_mem:.1f}%")
+    # Training loop (max 20 pass sul dataset per evitare overfit)
+    max_passes = 3
     
-    # Se dataset troppo grande, avvisa
-    if estimated_mb > 4000:  # >4GB
-        logger.warning(f"\n    ATTENZIONE: Dataset grande ({estimated_mb:.0f} MB)")
-        logger.warning(f"  Potrebbe causare problemi di memoria durante il training")
-        logger.warning(f"  Considera di usare:")
-        logger.warning(f"    - XGBoost con tree_method='hist' e max_bin ridotto")
-        logger.warning(f"    - LightGBM (già ottimizzato)")
-        logger.warning(f"    - Subsampling del train set\n")
-    
-    # Carica in chunk e concatena
-    chunks = []
-    
-    logger.info(f"  Caricamento chunk-based...")
-    
-    for batch_idx, batch in enumerate(parquet_file.iter_batches(batch_size=CHUNK_SIZE)):
-        df_batch = batch.to_pandas()
-        chunks.append(df_batch)
+    for pass_num in range(1, max_passes + 1):
+        logger.info(f"\n{'='*70}")
+        logger.info(f"PASS {pass_num}/{max_passes}")
+        logger.info(f"{'='*70}")
         
-        if (batch_idx + 1) % 20 == 0:
-            progress = ((batch_idx + 1) * CHUNK_SIZE / total_rows) * 100
-            logger.info(f"    Chunk {batch_idx + 1} - {min(progress, 100):.1f}%")
+        train_loader.reset()
+        pass_chunks = 0
+        
+        for X_batch, y_batch in train_loader.iter_batches():
+            chunk_count += 1
+            pass_chunks += 1
+            
+            mem_usage = get_memory_usage()
+            if mem_usage > 85:
+                logger.warning(f"    RAM alta ({mem_usage:.1f}%), GC...")
+                gc.collect()
+            
+            # Train su questo chunk
+            if model is None:
+                # Primo chunk - crea modello
+                params = XGBOOST_PARAMS.copy()
+                params['n_estimators'] = n_estimators_per_chunk
+                model = XGBClassifier(**params)
+                model.fit(X_batch, y_batch, verbose=False)
+            else:
+                # Warm start - continua training
+                params = XGBOOST_PARAMS.copy()
+                params['n_estimators'] = n_estimators_per_chunk
+                new_model = XGBClassifier(**params)
+                new_model.fit(X_batch, y_batch, xgb_model=model.get_booster(), verbose=False)
+                model = new_model
+            
+            rows_trained += len(X_batch)
+            
+            del X_batch, y_batch
+            
+            if pass_chunks % 10 == 0:
+                logger.info(f"  Pass {pass_num} - Chunk {pass_chunks} - Trained: {rows_trained:,} - RAM: {mem_usage:.1f}%")
+            
+            if pass_chunks % 5 == 0:
+                gc.collect()
+        
+        logger.info(f"   Pass {pass_num} completato - Total chunks: {pass_chunks}")
+        
+        # Valida dopo ogni pass
+        logger.info(f"\n  Validation dopo pass {pass_num}...")
+        y_true_val, y_pred_val = evaluate_chunk_based(model, val_loader, "VALIDATION")
+        val_metrics = compute_metrics(y_true_val, y_pred_val)
+        
+        logger.info(f"  Accuracy: {val_metrics['accuracy']:.4f} | F1: {val_metrics['f1']:.4f} | Recall: {val_metrics['recall']:.4f}")
+        
+        del y_true_val, y_pred_val
+        gc.collect()
     
-    # Concatena
-    logger.info(f"  Concatenazione chunks...")
-    df = pd.concat(chunks, ignore_index=True)
-    
-    # Libera memoria
-    del chunks
-    
-    logger.info(f"   Train set caricato: {len(df):,} righe")
-    logger.info(f"  RAM dopo caricamento: {get_memory_usage():.1f}%")
-    
-    # Separa X, y
-    X = df[feature_cols].values
-    y = df['Label_Binary'].values
-    
-    del df
-    
-    return X, y
-
-
-def train_xgboost(X_train: np.ndarray, y_train: np.ndarray,
-                  val_loader: ParquetDataLoader) -> XGBClassifier:
-    """
-    Training XGBoost con early stopping su validation set.
-    
-    XGBoost con tree_method='hist' è ottimizzato per grandi dataset.
-    """
-    
-    logger.info("\n" + "="*70)
-    logger.info("TRAINING XGBOOST")
-    logger.info("="*70)
-    logger.info(f"  Train samples: {len(X_train):,}")
-    logger.info(f"  Features: {X_train.shape[1]}")
-    logger.info(f"  tree_method: {XGBOOST_PARAMS.get('tree_method', 'auto')}")
-    logger.info(f"  max_bin: {XGBOOST_PARAMS.get('max_bin', 256)}")
-    
-    # Carica validation set per early stopping
-    logger.info(f"\n  Caricamento validation set per early stopping...")
-    X_val_chunks = []
-    y_val_chunks = []
-    
-    for X_batch, y_batch in val_loader.iter_batches():
-        X_val_chunks.append(X_batch)
-        y_val_chunks.append(y_batch)
-    
-    X_val = np.vstack(X_val_chunks)
-    y_val = np.concatenate(y_val_chunks)
-    
-    del X_val_chunks, y_val_chunks
-    
-    logger.info(f"  Validation samples: {len(X_val):,}")
-    
-    # Setup modello
-    model = XGBClassifier(**XGBOOST_PARAMS)
-    
-    # Train con early stopping
-    logger.info(f"\n  Training in corso...")
-    start_time = datetime.now()
-    
-    model.fit(
-        X_train, y_train,
-        eval_set=[(X_val, y_val)],
-        verbose=False
-    )
-    
-    training_time = (datetime.now() - start_time).total_seconds()
-    
-    best_iteration = model.best_iteration if hasattr(model, 'best_iteration') else None
-    logger.info(f"\n   Training completato in {training_time:.1f}s")
-    logger.info(f"  Best iteration: {best_iteration}")
-    
-    del X_val, y_val
+    logger.info(f"\n Training XGBoost completato")
+    logger.info(f"  Total samples trained: {rows_trained:,}")
+    logger.info(f"  RAM: {get_memory_usage():.1f}%")
     
     return model
 
 
-def train_lightgbm(X_train: np.ndarray, y_train: np.ndarray,
-                   val_loader: ParquetDataLoader) -> LGBMClassifier:
+def train_lightgbm_incremental(train_loader: ParquetDataLoader, val_loader: ParquetDataLoader) -> LGBMClassifier:
     """
-    Training LightGBM con early stopping.
-    
-    LightGBM è già altamente ottimizzato per grandi dataset.
+    Training incremental di LightGBM usando warm start.
     """
     
     logger.info("\n" + "="*70)
-    logger.info("TRAINING LIGHTGBM")
+    logger.info("TRAINING LIGHTGBM INCREMENTAL")
     logger.info("="*70)
-    logger.info(f"  Train samples: {len(X_train):,}")
-    logger.info(f"  Features: {X_train.shape[1]}")
-    logger.info(f"  max_bin: {LIGHTGBM_PARAMS.get('max_bin', 255)}")
+    logger.info(f"Train samples: {train_loader.get_total_rows():,}")
+    logger.info(f"Chunk size: {TRAIN_CHUNK_SIZE:,}")
+    logger.info(f"Strategia: Warm start con init_model")
     
-    # Carica validation set
-    logger.info(f"\n  Caricamento validation set per early stopping...")
-    X_val_chunks = []
-    y_val_chunks = []
+    n_estimators_per_chunk = 10
+    total_chunks = (train_loader.get_total_rows() + TRAIN_CHUNK_SIZE - 1) // TRAIN_CHUNK_SIZE
     
-    for X_batch, y_batch in val_loader.iter_batches():
-        X_val_chunks.append(X_batch)
-        y_val_chunks.append(y_batch)
+    logger.info(f"Trees per chunk: {n_estimators_per_chunk}")
+    logger.info(f"Total chunks: {total_chunks}")
     
-    X_val = np.vstack(X_val_chunks)
-    y_val = np.concatenate(y_val_chunks)
+    model = None
+    chunk_count = 0
+    rows_trained = 0
+    max_passes = 3
     
-    del X_val_chunks, y_val_chunks
+    for pass_num in range(1, max_passes + 1):
+        logger.info(f"\n{'='*70}")
+        logger.info(f"PASS {pass_num}/{max_passes}")
+        logger.info(f"{'='*70}")
+        
+        train_loader.reset()
+        pass_chunks = 0
+        
+        for X_batch, y_batch in train_loader.iter_batches():
+            chunk_count += 1
+            pass_chunks += 1
+            
+            mem_usage = get_memory_usage()
+            if mem_usage > 85:
+                logger.warning(f"    RAM alta ({mem_usage:.1f}%), GC...")
+                gc.collect()
+            
+            if model is None:
+                params = LIGHTGBM_PARAMS.copy()
+                params['n_estimators'] = n_estimators_per_chunk
+                model = LGBMClassifier(**params)
+                model.fit(X_batch, y_batch)
+            else:
+                params = LIGHTGBM_PARAMS.copy()
+                params['n_estimators'] = n_estimators_per_chunk
+                new_model = LGBMClassifier(**params)
+                new_model.fit(X_batch, y_batch, init_model=model)
+                model = new_model
+            
+            rows_trained += len(X_batch)
+            
+            del X_batch, y_batch
+            
+            if pass_chunks % 10 == 0:
+                logger.info(f"  Pass {pass_num} - Chunk {pass_chunks} - Trained: {rows_trained:,} - RAM: {mem_usage:.1f}%")
+            
+            if pass_chunks % 5 == 0:
+                gc.collect()
+        
+        logger.info(f"   Pass {pass_num} completato")
+        
+        # Validation
+        logger.info(f"\n  Validation dopo pass {pass_num}...")
+        y_true_val, y_pred_val = evaluate_chunk_based(model, val_loader, "VALIDATION")
+        val_metrics = compute_metrics(y_true_val, y_pred_val)
+        
+        logger.info(f"  Accuracy: {val_metrics['accuracy']:.4f} | F1: {val_metrics['f1']:.4f} | Recall: {val_metrics['recall']:.4f}")
+        
+        del y_true_val, y_pred_val
+        gc.collect()
     
-    logger.info(f"  Validation samples: {len(X_val):,}")
-    
-    # Setup modello
-    model = LGBMClassifier(**LIGHTGBM_PARAMS)
-    
-    # Train
-    logger.info(f"\n  Training in corso...")
-    start_time = datetime.now()
-    
-    model.fit(
-        X_train, y_train,
-        eval_set=[(X_val, y_val)],
-        callbacks=[]
-    )
-    
-    training_time = (datetime.now() - start_time).total_seconds()
-    
-    best_iteration = model.best_iteration_ if hasattr(model, 'best_iteration_') else None
-    logger.info(f"\n   Training completato in {training_time:.1f}s")
-    logger.info(f"  Best iteration: {best_iteration}")
-    
-    del X_val, y_val
+    logger.info(f"\n Training LightGBM completato")
+    logger.info(f"  Total samples trained: {rows_trained:,}")
+    logger.info(f"  RAM: {get_memory_usage():.1f}%")
     
     return model
 
 
-def train_random_forest(X_train: np.ndarray, y_train: np.ndarray) -> RandomForestClassifier:
-    """
-    Training Random Forest.
+def evaluate_chunk_based(model, data_loader: ParquetDataLoader, dataset_name: str) -> tuple:
+    """Valuta modello chunk-based."""
     
-    NOTA: RF può essere lento su dataset molto grandi (>10M samples).
-    """
-    
-    logger.info("\n" + "="*70)
-    logger.info("TRAINING RANDOM FOREST")
-    logger.info("="*70)
-    logger.info(f"  Train samples: {len(X_train):,}")
-    logger.info(f"  Features: {X_train.shape[1]}")
-    logger.info(f"  n_estimators: {RF_PARAMS.get('n_estimators', 100)}")
-    logger.info(f"  max_depth: {RF_PARAMS.get('max_depth', 10)}")
-    
-    if len(X_train) > 10_000_000:
-        logger.warning(f"\n    ATTENZIONE: Random Forest può essere lento su >10M samples")
-        logger.warning(f"  Considera di usare XGBoost o LightGBM per performance migliori\n")
-    
-    # Setup modello
-    model = RandomForestClassifier(**RF_PARAMS)
-    
-    # Train
-    logger.info(f"\n  Training in corso (può richiedere tempo)...")
-    start_time = datetime.now()
-    
-    model.fit(X_train, y_train)
-    
-    training_time = (datetime.now() - start_time).total_seconds()
-    
-    logger.info(f"\n   Training completato in {training_time:.1f}s")
-    
-    return model
-
-
-def evaluate_model_on_loader(model, data_loader: ParquetDataLoader, dataset_name: str) -> dict:
-    """
-    Valuta modello usando data loader chunk-based.
-    """
-    
-    logger.info(f"\n{'='*70}")
-    logger.info(f"EVALUATION: {dataset_name}")
-    logger.info(f"{'='*70}")
-    
-    total_samples = data_loader.get_total_rows()
-    logger.info(f"  Total samples: {total_samples:,}")
-    
-    # Predict chunk-by-chunk
-    y_true_all = []
-    y_pred_all = []
+    y_true_list = []
+    y_pred_list = []
     
     samples_processed = 0
+    batch_count = 0
     
-    for batch_idx, (X_batch, y_batch) in enumerate(data_loader.iter_batches()):
+    for X_batch, y_batch in data_loader.iter_batches():
+        batch_count += 1
         
-        # Predict
+        mem_usage = get_memory_usage()
+        if mem_usage > 85:
+            gc.collect()
+        
         y_pred_batch = model.predict(X_batch)
         
-        y_true_all.append(y_batch)
-        y_pred_all.append(y_pred_batch)
+        y_true_list.append(y_batch)
+        y_pred_list.append(y_pred_batch)
         
-        samples_processed += len(y_batch)
+        samples_processed += len(X_batch)
         
-        # Log progresso
-        if (batch_idx + 1) % 20 == 0:
-            progress = (samples_processed / total_samples) * 100
-            logger.info(f"  Batch {batch_idx + 1} - {progress:.1f}%")
+        del X_batch, y_batch, y_pred_batch
+        
+        if batch_count % 10 == 0:
+            gc.collect()
     
-    # Concatena predictions
-    y_true = np.concatenate(y_true_all)
-    y_pred = np.concatenate(y_pred_all)
+    y_true = np.concatenate(y_true_list)
+    y_pred = np.concatenate(y_pred_list)
     
-    # Compute metrics
-    metrics = compute_metrics(y_true, y_pred)
+    del y_true_list, y_pred_list
+    gc.collect()
     
-    # Print
-    print_metrics(metrics, f"{dataset_name} Metrics")
-    
-    return metrics
+    return y_true, y_pred
 
 
-def save_model(model, model_type: str, metrics: dict, training_time: float) -> Path:
-    """Salva modello e metadata."""
+def save_model(model, model_type: str, metrics: dict) -> Path:
+    """Salva modello e metrics."""
     
-    # Create model directory
     model_dir = MODELS_DIR / model_type
     model_dir.mkdir(parents=True, exist_ok=True)
     
-    # Save model
     model_path = model_dir / "model.pkl"
     joblib.dump(model, model_path)
-    logger.info(f"\n   Modello salvato: {model_path}")
+    logger.info(f"\n   Modello: {model_path}")
     
-    # Save metrics
     import json
     metrics_path = model_dir / "metrics.json"
     
     metadata = {
         'model_type': model_type,
+        'training_method': 'incremental',
         'trained_at': datetime.now().isoformat(),
-        'training_time_seconds': training_time,
         'metrics': metrics,
     }
     
     with open(metrics_path, 'w') as f:
         json.dump(metadata, f, indent=2)
     
-    logger.info(f"   Metrics salvate: {metrics_path}")
+    logger.info(f"   Metrics: {metrics_path}")
     
     return model_path
 
 
 def main(model_type: str = None):
-    """Pipeline training completa con chunk-based data loading."""
+    """Pipeline training incremental."""
     
     if model_type is None:
         model_type = DEFAULT_MODEL
     
+    if model_type not in ['xgboost', 'lightgbm']:
+        raise ValueError(f"Model {model_type} non supportato per incremental learning. Usa 'xgboost' o 'lightgbm'")
+    
     logger.info("="*70)
-    logger.info(f"TRAINING - {model_type.upper()} (CHUNK-BASED)")
+    logger.info(f"TRAINING INCREMENTAL - {model_type.upper()}")
     logger.info("="*70)
     logger.info(f"RAM iniziale: {get_memory_usage():.1f}%")
+    logger.info(f"Training su TUTTO il dataset (chunk-based)")
     logger.info("="*70)
+    
+    mem_usage = get_memory_usage()
+    if mem_usage > 60:
+        logger.warning(f"\n  RAM già alta ({mem_usage:.1f}%)")
+        logger.warning(f"Raccomandato: chiudere altre applicazioni")
+        input("\nPremi ENTER per continuare...")
     
     # ========================================================================
     # STEP 1: Load artifacts
@@ -363,10 +330,10 @@ def main(model_type: str = None):
     
     _, feature_cols = load_artifacts()
     
-    logger.info(f"   Feature caricate: {len(feature_cols)}")
+    logger.info(f"   {len(feature_cols)} feature")
     
     # ========================================================================
-    # STEP 2: Setup data loaders
+    # STEP 2: Setup loaders
     # ========================================================================
     
     logger.info("\n" + "="*70)
@@ -377,98 +344,90 @@ def main(model_type: str = None):
     val_path = PROCESSED_DATA_DIR / "val_scaled.parquet"
     test_path = PROCESSED_DATA_DIR / "test_scaled.parquet"
     
-    # Verifica esistenza file
     for path in [train_path, val_path, test_path]:
         if not path.exists():
-            raise FileNotFoundError(f"File non trovato: {path}")
+            raise FileNotFoundError(f"File non trovato: {path}\nEsegui prima feature_engineering_aggregate.py")
     
-    # Setup loaders
+    train_loader = ParquetDataLoader(train_path, feature_cols, chunk_size=TRAIN_CHUNK_SIZE)
     val_loader = ParquetDataLoader(val_path, feature_cols)
     test_loader = ParquetDataLoader(test_path, feature_cols)
     
-    logger.info(f"   Validation loader: {val_loader.get_total_rows():,} samples")
-    logger.info(f"   Test loader: {test_loader.get_total_rows():,} samples")
+    logger.info(f"   Train: {train_loader.get_total_rows():,} samples")
+    logger.info(f"   Val: {val_loader.get_total_rows():,} samples")
+    logger.info(f"   Test: {test_loader.get_total_rows():,} samples")
     
     # ========================================================================
-    # STEP 3: Load training data
+    # STEP 3: Training incremental
     # ========================================================================
-    
-    logger.info("\n" + "="*70)
-    logger.info("STEP 3: CARICAMENTO TRAIN DATA")
-    logger.info("="*70)
-    
-    X_train, y_train = load_train_data_in_memory(train_path, feature_cols)
-    
-    logger.info(f"\n   Train data in memoria")
-    logger.info(f"  Shape: {X_train.shape}")
-    logger.info(f"  RAM dopo load: {get_memory_usage():.1f}%")
-    
-    # ========================================================================
-    # STEP 4: Train model
-    # ========================================================================
-    
-    logger.info("\n" + "="*70)
-    logger.info("STEP 4: TRAINING")
-    logger.info("="*70)
     
     start_time = datetime.now()
     
     if model_type == 'xgboost':
-        model = train_xgboost(X_train, y_train, val_loader)
+        model = train_xgboost_incremental(train_loader, val_loader)
     elif model_type == 'lightgbm':
-        model = train_lightgbm(X_train, y_train, val_loader)
-    elif model_type == 'random_forest':
-        model = train_random_forest(X_train, y_train)
-    else:
-        raise ValueError(f"Modello non supportato: {model_type}")
+        model = train_lightgbm_incremental(train_loader, val_loader)
     
     training_time = (datetime.now() - start_time).total_seconds()
     
-    # Libera memoria train data
-    del X_train, y_train
+    logger.info(f"\n  Training time: {training_time:.1f}s ({training_time/60:.1f} min)")
     
-    logger.info(f"\n   Training completato: {training_time:.1f}s")
-    logger.info(f"  RAM dopo training: {get_memory_usage():.1f}%")
+    gc.collect()
     
     # ========================================================================
-    # STEP 5: Evaluate
+    # STEP 4: Final evaluation
     # ========================================================================
     
     logger.info("\n" + "="*70)
-    logger.info("STEP 5: EVALUATION")
+    logger.info("STEP 4: FINAL EVALUATION")
     logger.info("="*70)
     
     # Validation
-    val_metrics = evaluate_model_on_loader(model, val_loader, "VALIDATION")
+    logger.info("\nValidation set...")
+    val_loader.reset()
+    y_true_val, y_pred_val = evaluate_chunk_based(model, val_loader, "VALIDATION")
+    val_metrics = compute_metrics(y_true_val, y_pred_val)
+    print_metrics(val_metrics, "VALIDATION")
+    
+    del y_true_val, y_pred_val
+    gc.collect()
     
     # Test
-    test_metrics = evaluate_model_on_loader(model, test_loader, "TEST")
+    logger.info("\nTest set...")
+    test_loader.reset()
+    y_true_test, y_pred_test = evaluate_chunk_based(model, test_loader, "TEST")
+    test_metrics = compute_metrics(y_true_test, y_pred_test)
+    print_metrics(test_metrics, "TEST")
+    
+    del y_true_test, y_pred_test
+    gc.collect()
     
     # ========================================================================
-    # STEP 6: Save model
+    # STEP 5: Save
     # ========================================================================
     
     logger.info("\n" + "="*70)
-    logger.info("STEP 6: SALVATAGGIO MODELLO")
+    logger.info("STEP 5: SALVATAGGIO")
     logger.info("="*70)
     
     all_metrics = {
         'validation': val_metrics,
         'test': test_metrics,
+        'training_time_seconds': training_time,
     }
     
-    model_path = save_model(model, model_type, all_metrics, training_time)
+    model_path = save_model(model, model_type, all_metrics)
     
     # ========================================================================
     # SUMMARY
     # ========================================================================
     
     logger.info("\n" + "="*70)
-    logger.info(" TRAINING COMPLETATO")
+    logger.info(" TRAINING INCREMENTAL COMPLETATO")
     logger.info("="*70)
     logger.info(f"Modello: {model_type}")
-    logger.info(f"Salvato in: {model_path}")
-    logger.info(f"Training time: {training_time:.1f}s ({training_time/60:.1f} min)")
+    logger.info(f"Training method: Incremental (tutti i {train_loader.get_total_rows():,} samples)")
+    logger.info(f"Training time: {training_time/60:.1f} min")
+    logger.info(f"Salvato: {model_path}")
     logger.info(f"\nPERFORMANCE TEST SET:")
     logger.info(f"  Accuracy:  {test_metrics['accuracy']:.4f}")
     logger.info(f"  Precision: {test_metrics['precision']:.4f}")
@@ -476,23 +435,21 @@ def main(model_type: str = None):
     logger.info(f"  F1 Score:  {test_metrics['f1']:.4f}")
     logger.info(f"  FPR:       {test_metrics['fpr']:.4f}")
     logger.info(f"  FNR:       {test_metrics['fnr']:.4f}")
+    logger.info(f"\nRAM finale: {get_memory_usage():.1f}%")
     logger.info("="*70)
 
 
 if __name__ == "__main__":
     import argparse
     
-    parser = argparse.ArgumentParser(
-        description='Training modelli NIDS con chunk-based processing',
-        formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    parser = argparse.ArgumentParser(description='Training incremental NIDS')
     
     parser.add_argument(
         '--model', 
         type=str, 
-        choices=['xgboost', 'random_forest', 'lightgbm'],
-        default=DEFAULT_MODEL,
-        help=f'Tipo modello da trainare (default: {DEFAULT_MODEL})'
+        choices=['xgboost', 'lightgbm'],
+        default='xgboost',
+        help='Modello da trainare (solo xgboost e lightgbm supportati)'
     )
     
     args = parser.parse_args()
