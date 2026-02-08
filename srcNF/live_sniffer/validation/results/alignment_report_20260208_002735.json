@@ -1,0 +1,287 @@
+{
+  "aligned": [],
+  "misaligned": [
+    {
+      "feature": "L4_SRC_PORT",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 49351.45622979157,
+      "training_mean": -0.1910626711588354,
+      "diff_pct": 25830083.392603368,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "L4_DST_PORT",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 401.156335840233,
+      "training_mean": 9.075296749311295,
+      "diff_pct": 4320.310948737581,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "PROTOCOL",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 13.08955112551038,
+      "training_mean": 0.38678818181818175,
+      "diff_pct": 3284.1652203487984,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "L7_PROTO",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 25.020090871058443,
+      "training_mean": 0.5077128583761338,
+      "diff_pct": 4828.000238379342,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "IN_BYTES",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 1719.6878666705584,
+      "training_mean": 2.7122340625,
+      "diff_pct": 63304.84733406221,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "IN_PKTS",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 16.84987465501753,
+      "training_mean": 2.82863,
+      "diff_pct": 495.69030431755056,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "OUT_BYTES",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 32844.05351079458,
+      "training_mean": 29.774571192052978,
+      "diff_pct": 110209.0731313735,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "TCP_FLAGS",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 0.0,
+      "training_mean": 1.004569090909091,
+      "diff_pct": 100.0,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "SERVER_TCP_FLAGS",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 0.0,
+      "training_mean": 0.4768664999999999,
+      "diff_pct": 100.0,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "FLOW_DURATION_MILLISECONDS",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 17459.366600832174,
+      "training_mean": -0.45705163552458544,
+      "diff_pct": 3820098.714323167,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "DURATION_IN",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 17373.03257348005,
+      "training_mean": 0.49307099331423115,
+      "diff_pct": 3523334.3145406493,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "DURATION_OUT",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 16787.668310907447,
+      "training_mean": 15.88393,
+      "diff_pct": 105589.63921968587,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "MIN_TTL",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 0.0,
+      "training_mean": -0.16416609375,
+      "diff_pct": 100.0,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "LONGEST_FLOW_PKT",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 0.0,
+      "training_mean": 1.6481607,
+      "diff_pct": 100.0,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "SHORTEST_FLOW_PKT",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 0.0,
+      "training_mean": 0.6548003448275862,
+      "diff_pct": 100.0,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "MIN_IP_PKT_LEN",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 0.0,
+      "training_mean": 0.5882842500000001,
+      "diff_pct": 100.0,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "SRC_TO_DST_SECOND_BYTES",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 1719.6878666705584,
+      "training_mean": 6.805646932770578e+33,
+      "diff_pct": 100.0,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "DST_TO_SRC_SECOND_BYTES",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 32844.05351079458,
+      "training_mean": 3.402823466385289e+33,
+      "diff_pct": 100.0,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "RETRANSMITTED_IN_BYTES",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 1719.6878666705584,
+      "training_mean": 71.52821,
+      "diff_pct": 2304.209285637874,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "RETRANSMITTED_IN_PKTS",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 16.84987465501753,
+      "training_mean": 0.39277,
+      "diff_pct": 4190.010605447853,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "RETRANSMITTED_OUT_BYTES",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 32844.05351079458,
+      "training_mean": 655.39855,
+      "diff_pct": 4911.310066339723,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "SRC_TO_DST_AVG_THROUGHPUT",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 7850.006643298717,
+      "training_mean": 2.52478125,
+      "diff_pct": 310818.28820016456,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "DST_TO_SRC_AVG_THROUGHPUT",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 16236.350582539933,
+      "training_mean": 8.032731306666667,
+      "diff_pct": 202027.3955605209,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "NUM_PKTS_UP_TO_128_BYTES",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 7.458446092996859,
+      "training_mean": 6.63567,
+      "diff_pct": 12.399291902654266,
+      "severity": "MEDIUM"
+    },
+    {
+      "feature": "NUM_PKTS_128_TO_256_BYTES",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 7.458446092996859,
+      "training_mean": 0.46846,
+      "diff_pct": 1492.1201581771888,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "NUM_PKTS_256_TO_512_BYTES",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 7.458446092996859,
+      "training_mean": 0.33502,
+      "diff_pct": 2126.2689072284816,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "NUM_PKTS_512_TO_1024_BYTES",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 7.458446092996859,
+      "training_mean": 0.27069,
+      "diff_pct": 2655.346002067627,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "NUM_PKTS_1024_TO_1514_BYTES",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 7.458446092996859,
+      "training_mean": 2.88605,
+      "diff_pct": 158.43093823727443,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "TCP_WIN_MAX_IN",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 0.0,
+      "training_mean": 1.3395154663085937,
+      "diff_pct": 100.0,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "TCP_WIN_MAX_OUT",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 0.0,
+      "training_mean": 8383.79788,
+      "diff_pct": 100.0,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "ICMP_TYPE",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 0.0,
+      "training_mean": 3747.33355,
+      "diff_pct": 100.0,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "DNS_QUERY_ID",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 0.0,
+      "training_mean": 4503.55379,
+      "diff_pct": 100.0,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "DNS_QUERY_TYPE",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 0.0,
+      "training_mean": 1.33523,
+      "diff_pct": 100.0,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "DNS_TTL_ANSWER",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 0.0,
+      "training_mean": 43913.41087,
+      "diff_pct": 100.0,
+      "severity": "HIGH"
+    },
+    {
+      "feature": "FTP_COMMAND_RET_CODE",
+      "issue": "VALUE_MISMATCH",
+      "sniffer_mean": 0.0,
+      "training_mean": 1.41178,
+      "diff_pct": 100.0,
+      "severity": "HIGH"
+    }
+  ],
+  "missing": [],
+  "warnings": []
+}
