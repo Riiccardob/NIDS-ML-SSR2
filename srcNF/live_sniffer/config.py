@@ -1,7 +1,7 @@
 """
 Configurazione centralizzata per Live NIDS Sniffer.
 
-Gestisce tutti i parametri operativi dello sniffer in tempo reale.
+AGGIORNATO: Feature list ridotta a quelle compatibili con nfstream.
 """
 
 import sys
@@ -59,48 +59,54 @@ FLOW_EXPIRATION_CHECK_INTERVAL: int = 10
 
 
 # ============================================================================
-# FEATURE EXTRACTION
+# FEATURE EXTRACTION - NFSTREAM COMPATIBLE
 # ============================================================================
 
+# Feature DISPONIBILI in nfstream (28 su 43 originali)
 REQUIRED_FEATURES: List[str] = [
+    # Base features (SEMPRE disponibili)
     "L4_SRC_PORT",
     "L4_DST_PORT",
     "PROTOCOL",
     "L7_PROTO",
+    
+    # Bytes & Packets (SEMPRE disponibili)
     "IN_BYTES",
     "IN_PKTS",
     "OUT_BYTES",
-    "TCP_FLAGS",
-    "SERVER_TCP_FLAGS",
+    
+    # Duration (SEMPRE disponibili)
     "FLOW_DURATION_MILLISECONDS",
     "DURATION_IN",
     "DURATION_OUT",
-    "MIN_TTL",
+    
+    # Packet size stats (disponibili)
+    "MIN_TTL",                      # Proxy: min packet size
     "LONGEST_FLOW_PKT",
     "SHORTEST_FLOW_PKT",
     "MIN_IP_PKT_LEN",
-    "SRC_TO_DST_SECOND_BYTES",
-    "DST_TO_SRC_SECOND_BYTES",
-    "RETRANSMITTED_IN_BYTES",
-    "RETRANSMITTED_IN_PKTS",
-    "RETRANSMITTED_OUT_BYTES",
+    
+    # Throughput (CALCOLATI)
     "SRC_TO_DST_AVG_THROUGHPUT",
     "DST_TO_SRC_AVG_THROUGHPUT",
+    
+    # Packet distribution (STIMATI)
     "NUM_PKTS_UP_TO_128_BYTES",
     "NUM_PKTS_128_TO_256_BYTES",
     "NUM_PKTS_256_TO_512_BYTES",
     "NUM_PKTS_512_TO_1024_BYTES",
     "NUM_PKTS_1024_TO_1514_BYTES",
-    "TCP_WIN_MAX_IN",
-    "TCP_WIN_MAX_OUT",
-    "ICMP_TYPE",
-    "DNS_QUERY_ID",
-    "DNS_QUERY_TYPE",
-    "DNS_TTL_ANSWER",
-    "FTP_COMMAND_RET_CODE"
+    
+    # Feature DROPPATE (non disponibili in nfstream):
+    # - TCP_FLAGS, SERVER_TCP_FLAGS (solo SYN count)
+    # - RETRANSMITTED_* (3 feature - non tracciabili)
+    # - TCP_WIN_MAX_* (2 feature - non disponibili)
+    # - DNS_*, FTP_*, ICMP_* (6 feature - no DPI)
+    # - SRC_TO_DST_SECOND_BYTES, DST_TO_SRC_SECOND_BYTES (bug overflow)
 ]
 
-N_FEATURES: int = 35
+# Numero feature dopo drop
+N_FEATURES: int = len(REQUIRED_FEATURES)  # ~21 invece di 35
 
 
 # ============================================================================
@@ -195,4 +201,5 @@ def get_config_summary() -> Dict[str, Any]:
         "log_format": LOG_FORMAT_TYPE.value,
         "firewall_type": FIREWALL_TYPE if OPERATION_MODE == OperationMode.BLOCK else "N/A",
         "n_features": N_FEATURES,
+        "features_dropped": 43 - N_FEATURES,  # Feature droppate
     }

@@ -1,11 +1,7 @@
 """
 Configuration centrale per NIDS NetFlow-based.
 
-ULTRA RAM-SAFE per sistemi 16GB:
-- Sample size limitati a 2M (HARD LIMIT)
-- Monitoring RAM aggressivo
-- GC frequente
-- Strategia conservativa come preprocessing.py
+AGGIORNATO: Feature nfstream-compatible + tutte le variabili necessarie.
 """
 
 from pathlib import Path
@@ -53,23 +49,7 @@ CHUNK_SIZE = 500_000
 # SCALER SAMPLE SIZE - ULTRA RAM-SAFE
 # ============================================================================
 
-# CRITICAL: Con 16GB RAM totale, usiamo sample PICCOLO per sicurezza
-# 
-# 2M righe × 40 features × 8 bytes = 640 MB base
-# + DataFrame overhead (30%) = ~830 MB
-# + Processing overhead = ~1.2 GB peak
-# 
-# Questo è SAFE anche se sistema usa già 8-10GB per OS/apps
-# 
-# NOTA: Il codice impone HARD LIMIT a 2M indipendentemente da questo valore
-#       per evitare crash anche se utente lo aumenta
 SCALER_SAMPLE_SIZE = 2_000_000  # 2M - ULTRA SAFE per 16GB RAM
-
-# ALTERNATIVE (solo se hai più RAM disponibile):
-# - 1_000_000   = 1M  - Ultra conservativo (~600 MB)
-# - 2_000_000   = 2M  - Safe (default) (~1.2 GB)
-# - 5_000_000   = 5M  - Aggressivo, richiede >8GB RAM libera
-# - 10_000_000  = 10M - Molto aggressivo, richiede >12GB RAM libera
 
 # ============================================================================
 # PARALLEL PROCESSING CONFIGURATION
@@ -81,12 +61,35 @@ MIN_WORKERS = 2
 MAX_WORKERS = 16
 
 # ============================================================================
-# FEATURE CONFIGURATION
+# FEATURE CONFIGURATION - NFSTREAM COMPATIBLE
 # ============================================================================
 
 FEATURES_TO_DROP: List[str] = [
+    # IP addresses (non numeriche)
     'IPV4_SRC_ADDR',
     'IPV4_DST_ADDR',
+    
+    # Feature NON disponibili in nfstream (TCP analysis avanzato)
+    'TCP_FLAGS',              # nfstream: solo SYN count, non bitmask completo
+    'SERVER_TCP_FLAGS',       # nfstream: solo SYN count, non bitmask completo
+    'RETRANSMITTED_IN_BYTES', # nfstream: NON traccia ritrasmissioni TCP
+    'RETRANSMITTED_IN_PKTS',
+    'RETRANSMITTED_OUT_BYTES',
+    
+    # Feature NON disponibili (TCP window tracking)
+    'TCP_WIN_MAX_IN',         # nfstream: NON fornisce TCP window size
+    'TCP_WIN_MAX_OUT',
+    
+    # Feature NON disponibili (DPI profondo protocolli applicativi)
+    'DNS_QUERY_ID',           # nfstream: NON fa DPI profondo DNS
+    'DNS_QUERY_TYPE',
+    'DNS_TTL_ANSWER',
+    'FTP_COMMAND_RET_CODE',   # nfstream: NON analizza FTP protocol
+    'ICMP_TYPE',              # nfstream: supporto parziale
+    
+    # Feature CORROTTE nel training set (bug overflow)
+    'SRC_TO_DST_SECOND_BYTES',  # Valori impossibili (6.8e+33)
+    'DST_TO_SRC_SECOND_BYTES',  # Valori impossibili (3.4e+33)
 ]
 
 LABEL_COLUMN = 'Label'
