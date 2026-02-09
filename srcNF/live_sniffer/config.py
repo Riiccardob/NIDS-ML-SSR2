@@ -63,50 +63,36 @@ FLOW_EXPIRATION_CHECK_INTERVAL: int = 10
 # ============================================================================
 
 # Feature DISPONIBILI in nfstream (28 su 43 originali)
+# Feature DISPONIBILI in nfstream (24 feature dal training)
 REQUIRED_FEATURES: List[str] = [
-    # Base features (SEMPRE disponibili)
     "L4_SRC_PORT",
     "L4_DST_PORT",
     "PROTOCOL",
     "L7_PROTO",
-    
-    # Bytes & Packets (SEMPRE disponibili)
     "IN_BYTES",
     "IN_PKTS",
     "OUT_BYTES",
-    
-    # Duration (SEMPRE disponibili)
+    "CLIENT_TCP_FLAGS",
     "FLOW_DURATION_MILLISECONDS",
     "DURATION_IN",
     "DURATION_OUT",
-    
-    # Packet size stats (disponibili)
-    "MIN_TTL",                      # Proxy: min packet size
+    "MIN_TTL",
     "LONGEST_FLOW_PKT",
     "SHORTEST_FLOW_PKT",
     "MIN_IP_PKT_LEN",
-    
-    # Throughput (CALCOLATI)
+    "RETRANSMITTED_OUT_PKTS",
     "SRC_TO_DST_AVG_THROUGHPUT",
     "DST_TO_SRC_AVG_THROUGHPUT",
-    
-    # Packet distribution (STIMATI)
     "NUM_PKTS_UP_TO_128_BYTES",
     "NUM_PKTS_128_TO_256_BYTES",
     "NUM_PKTS_256_TO_512_BYTES",
     "NUM_PKTS_512_TO_1024_BYTES",
     "NUM_PKTS_1024_TO_1514_BYTES",
-    
-    # Feature DROPPATE (non disponibili in nfstream):
-    # - TCP_FLAGS, SERVER_TCP_FLAGS (solo SYN count)
-    # - RETRANSMITTED_* (3 feature - non tracciabili)
-    # - TCP_WIN_MAX_* (2 feature - non disponibili)
-    # - DNS_*, FTP_*, ICMP_* (6 feature - no DPI)
-    # - SRC_TO_DST_SECOND_BYTES, DST_TO_SRC_SECOND_BYTES (bug overflow)
+    "ICMP_IPV4_TYPE",
 ]
 
 # Numero feature dopo drop
-N_FEATURES: int = len(REQUIRED_FEATURES)  # ~21 invece di 35
+N_FEATURES: int = 24
 
 
 # ============================================================================
