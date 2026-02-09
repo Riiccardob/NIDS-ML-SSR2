@@ -64,7 +64,6 @@ FLOW_EXPIRATION_CHECK_INTERVAL: int = 10
 
 # Feature DISPONIBILI in nfstream (28 su 43 originali)
 # Feature DISPONIBILI in nfstream (24 feature dal training)
-# Feature DISPONIBILI in nfstream (24 feature dal training)
 REQUIRED_FEATURES: List[str] = [
     "L4_SRC_PORT",
     "L4_DST_PORT",

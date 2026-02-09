@@ -34,3 +34,4 @@ output_training.txt
 reports/
 test_pcap/
 sniff_results/
+srcNF/live_sniffer/testing/test_data/
