@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Test suite per Live NIDS Sniffer.
+Test suite per Live NIDS Sniffer - VERSIONE MIGLIORATA
 
 Verifica tutti i componenti prima del deployment.
-AGGIORNATO: Supporta 24 feature (post-drop).
+AGGIORNATO: Test con dati realistici, non dummy values.
 """
 
 import sys
@@ -11,7 +11,6 @@ import os
 from pathlib import Path
 import numpy as np
 
-# Setup path
 SNIFFER_DIR = Path(__file__).parent
 PROJECT_ROOT = SNIFFER_DIR.parent.parent
 
@@ -19,7 +18,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 print("=" * 70)
-print("LIVE NIDS SNIFFER - COMPONENT TEST")
+print("LIVE NIDS SNIFFER - COMPONENT TEST (IMPROVED)")
 print("=" * 70)
 print(f"Working directory: {Path.cwd()}")
 print(f"Sniffer directory: {SNIFFER_DIR}")
@@ -104,7 +103,6 @@ def test_artifacts():
     print("  Required artifacts:")
     all_ok = True
     
-    # Scaler
     if SCALER_PATH.exists():
         size = SCALER_PATH.stat().st_size / (1024**2)
         print(f"  OK: scaler.pkl ({size:.2f} MB)")
@@ -112,16 +110,22 @@ def test_artifacts():
         print(f"  MISSING: scaler.pkl")
         all_ok = False
     
-    # Features
     if FEATURES_PATH.exists():
         size = FEATURES_PATH.stat().st_size / (1024**2)
         print(f"  OK: features.json ({size:.2f} MB)")
+        
+        import json
+        with open(FEATURES_PATH, 'r') as f:
+            features_info = json.load(f)
+        
+        n_features = features_info.get('n_features', 0)
+        print(f"  INFO: Model expects {n_features} features")
     else:
         print(f"  MISSING: features.json")
         all_ok = False
     
     print()
-    print("  Model artifacts (at least one required):")
+    print("  Model artifacts:")
     
     model_found = False
     for model_type in ['xgboost', 'lightgbm']:
@@ -148,7 +152,7 @@ def test_config():
     
     from config import (
         PROJECT_ROOT, ARTIFACTS_DIR, MODELS_DIR,
-        validate_config, get_config_summary
+        validate_config, get_config_summary, REQUIRED_FEATURES
     )
     
     print(f"  Project root: {PROJECT_ROOT}")
@@ -169,13 +173,20 @@ def test_config():
         print(f"    {key}: {value}")
     
     print()
+    print(f"  Required features ({len(REQUIRED_FEATURES)}):")
+    for i, feat in enumerate(REQUIRED_FEATURES[:5], 1):
+        print(f"    {i}. {feat}")
+    if len(REQUIRED_FEATURES) > 5:
+        print(f"    ... and {len(REQUIRED_FEATURES)-5} more")
+    
+    print()
     return True
 
 
 def test_feature_mapper():
-    """Test 5: Feature mapper."""
+    """Test 5: Feature mapper con dati realistici."""
     print("=" * 70)
-    print("TEST 5: Feature Mapper")
+    print("TEST 5: Feature Mapper (REALISTIC TEST)")
     print("=" * 70)
     
     from core.feature_mapper import FeatureMapper
@@ -185,38 +196,118 @@ def test_feature_mapper():
         mapper = FeatureMapper()
         print(f"  OK: Mapper initialized with {mapper.n_features} features")
         
-        # Test extraction su dummy flow
-        # IMPORTANTE: Usa N_FEATURES dal config (24, non 35!)
-        dummy_flow = {
-            'src_port': 12345,
+        # TEST 1: Flow TCP HTTP
+        print("\n  Test 1: TCP HTTP flow")
+        http_flow = {
+            'src_ip': '192.168.1.100',
+            'dst_ip': '8.8.8.8',
+            'src_port': 54321,
             'dst_port': 80,
-            'protocol': 6,
+            'protocol': 6,  # TCP
             'application_name': 'HTTP',
-            'src2dst_bytes': 1000,
+            'src2dst_bytes': 1500,
             'src2dst_packets': 10,
-            'dst2src_bytes': 2000,
+            'src2dst_duration_ms': 5000,
+            'dst2src_bytes': 8000,
+            'dst2src_packets': 15,
+            'dst2src_duration_ms': 4500,
+            'bidirectional_bytes': 9500,
+            'bidirectional_packets': 25,
             'bidirectional_duration_ms': 5000,
-            'src2dst_duration_ms': 4000,
-            'dst2src_duration_ms': 1000,
             'bidirectional_min_ps': 60,
             'bidirectional_max_ps': 1500,
-            'bidirectional_packets': 15,
-            'bidirectional_bytes': 3000,
+            'client_tcp_flags': 2,  # SYN
+            'bidirectional_retrans_packets': 0,
         }
         
-        features = mapper.extract_features(dummy_flow)
+        features_http = mapper.extract_features(http_flow)
         
-        if features.shape == (N_FEATURES,):
-            print(f"  OK: Feature extraction successful ({N_FEATURES} features)")
+        if features_http.shape == (N_FEATURES,):
+            print(f"    OK: Extracted {N_FEATURES} features")
         else:
-            print(f"  FAIL: Expected {N_FEATURES} features, got {features.shape[0]}")
+            print(f"    FAIL: Expected {N_FEATURES} features, got {features_http.shape[0]}")
             return False
         
-        if mapper.validate_feature_vector(features):
-            print(f"  OK: Feature vector valid")
+        if mapper.validate_feature_vector(features_http):
+            print(f"    OK: Feature vector valid (no NaN/Inf)")
         else:
-            print(f"  FAIL: Feature vector validation failed")
+            print(f"    FAIL: Feature vector invalid")
             return False
+        
+        print(f"    Sample values: L4_SRC_PORT={features_http[0]:.1f}, L4_DST_PORT={features_http[1]:.1f}")
+        
+        # TEST 2: Flow UDP DNS
+        print("\n  Test 2: UDP DNS flow")
+        dns_flow = {
+            'src_ip': '192.168.1.100',
+            'dst_ip': '8.8.8.8',
+            'src_port': 53210,
+            'dst_port': 53,
+            'protocol': 17,  # UDP
+            'application_name': 'DNS',
+            'src2dst_bytes': 65,
+            'src2dst_packets': 1,
+            'src2dst_duration_ms': 100,
+            'dst2src_bytes': 120,
+            'dst2src_packets': 1,
+            'dst2src_duration_ms': 50,
+            'bidirectional_bytes': 185,
+            'bidirectional_packets': 2,
+            'bidirectional_duration_ms': 150,
+            'bidirectional_min_ps': 65,
+            'bidirectional_max_ps': 120,
+            'client_tcp_flags': 0,
+            'bidirectional_retrans_packets': 0,
+        }
+        
+        features_dns = mapper.extract_features(dns_flow)
+        
+        if features_dns.shape == (N_FEATURES,) and mapper.validate_feature_vector(features_dns):
+            print(f"    OK: DNS flow extracted correctly")
+        else:
+            print(f"    FAIL: DNS flow extraction failed")
+            return False
+        
+        # TEST 3: Flow ICMP
+        print("\n  Test 3: ICMP flow")
+        icmp_flow = {
+            'src_ip': '192.168.1.100',
+            'dst_ip': '8.8.8.8',
+            'src_port': 0,
+            'dst_port': 0,
+            'protocol': 1,  # ICMP
+            'application_name': 'ICMP',
+            'icmp_type': 8,  # Echo request
+            'src2dst_bytes': 84,
+            'src2dst_packets': 1,
+            'src2dst_duration_ms': 10,
+            'dst2src_bytes': 84,
+            'dst2src_packets': 1,
+            'dst2src_duration_ms': 5,
+            'bidirectional_bytes': 168,
+            'bidirectional_packets': 2,
+            'bidirectional_duration_ms': 15,
+            'bidirectional_min_ps': 84,
+            'bidirectional_max_ps': 84,
+            'client_tcp_flags': 0,
+            'bidirectional_retrans_packets': 0,
+        }
+        
+        features_icmp = mapper.extract_features(icmp_flow)
+        
+        if features_icmp.shape == (N_FEATURES,) and mapper.validate_feature_vector(features_icmp):
+            print(f"    OK: ICMP flow extracted correctly")
+            # Verifica che ICMP_IPV4_TYPE sia popolato
+            icmp_type_idx = mapper.required_features.index("ICMP_IPV4_TYPE")
+            if features_icmp[icmp_type_idx] == 8.0:
+                print(f"    OK: ICMP_IPV4_TYPE correctly set to 8")
+            else:
+                print(f"    WARNING: ICMP_IPV4_TYPE = {features_icmp[icmp_type_idx]}, expected 8")
+        else:
+            print(f"    FAIL: ICMP flow extraction failed")
+            return False
+        
+        print("\n  Feature extraction tests passed!")
         
     except Exception as e:
         print(f"  FAIL: {e}")
@@ -245,14 +336,19 @@ def test_preprocessor():
         print(f"  OK: Scaler type: {info['scaler_type']}")
         print(f"  OK: Features: {info['n_features']}")
         
-        # CRITICO: Usa N_FEATURES corretto (24)
-        dummy_features = np.random.rand(N_FEATURES)
+        dummy_features = np.random.rand(N_FEATURES) * 1000
         scaled = preprocessor.preprocess(dummy_features)
         
         if scaled.shape == (N_FEATURES,):
             print(f"  OK: Scaling successful ({N_FEATURES} features)")
         else:
             print(f"  FAIL: Expected {N_FEATURES} features, got {scaled.shape[0]}")
+            return False
+        
+        if not np.any(np.isnan(scaled)) and not np.any(np.isinf(scaled)):
+            print(f"  OK: Scaled features valid (no NaN/Inf)")
+        else:
+            print(f"  FAIL: Scaled features contain NaN/Inf")
             return False
         
     except Exception as e:
@@ -282,11 +378,22 @@ def test_predictor():
         print(f"  OK: Model type: {info['model_type']}")
         print(f"  OK: Supports proba: {info['supports_proba']}")
         
-        # CRITICO: Usa N_FEATURES corretto (24)
-        dummy_features = np.random.rand(N_FEATURES)
+        dummy_features = np.random.randn(N_FEATURES)
         result = predictor.predict(dummy_features)
         
         print(f"  OK: Prediction: {result.prediction} (confidence: {result.confidence:.4f})")
+        
+        if result.prediction in [0, 1]:
+            print(f"  OK: Prediction is binary (0 or 1)")
+        else:
+            print(f"  FAIL: Invalid prediction value: {result.prediction}")
+            return False
+        
+        if 0.0 <= result.confidence <= 1.0:
+            print(f"  OK: Confidence in valid range [0,1]")
+        else:
+            print(f"  FAIL: Invalid confidence: {result.confidence}")
+            return False
         
     except Exception as e:
         print(f"  FAIL: {e}")
@@ -311,7 +418,6 @@ def test_logger():
         logger.info("Test log message")
         print("  OK: Logger initialized")
         
-        # Test alert logging
         logger.warning(
             "ALERT: 192.168.1.100:12345 -> 8.8.8.8:53 | "
             "Prediction: attack | Confidence: 0.9500 | Action: logged"
@@ -365,7 +471,7 @@ def test_root_privileges():
     else:
         print("  WARNING: Not running with root privileges")
         print("  Network capture will require sudo")
-        result = True  # Non è un errore critico
+        result = True
     
     print()
     return result
@@ -399,7 +505,6 @@ def main():
             traceback.print_exc()
             results.append((name, False))
     
-    # Summary
     print("=" * 70)
     print("TEST SUMMARY")
     print("=" * 70)
@@ -416,13 +521,19 @@ def main():
     print(f"TOTAL: {passed}/{total} tests passed")
     
     if passed == total:
-        print("STATUS: ALL TESTS PASSED ")
+        print("STATUS: ALL TESTS PASSED")
+        print()
+        print("NEXT STEPS:")
+        print("  1. sudo python3 main.py --mode alert --interface lo")
+        print("  2. Generate traffic: ping 127.0.0.1")
+        print("  3. Check logs: tail -f ../../logs/sniffer/nids_sniffer_alerts.csv")
     else:
         print("STATUS: SOME TESTS FAILED")
         print()
         print("Common fixes:")
-        print("  - Make sure you're in srcNF/live_sniffer directory")
         print("  - Run with sudo for root privileges")
+        print("  - Ensure artifacts exist (run training first)")
+        print("  - Check feature count mismatch")
     
     print("=" * 70)
     

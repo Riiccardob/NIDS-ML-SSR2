@@ -1,128 +1,252 @@
-# VALIDATION ROADMAP - GUIDA COMPLETA E DEFINITIVA
+# ROADMAP COMPLETA - VALIDAZIONE SISTEMA NIDS-ML-SSR2
 
-## OVERVIEW
+## PREREQUISITI
 
-Questa guida copre **TUTTA** la validazione del sistema NIDS dopo il retraining con 24 feature.
-
-**Prerequisiti**:
--  Training completato con successo (24 feature)
--  Artifacts generati in `/artifacts`
--  Modello salvato in `/models/xgboost`
+- Training completato (artifacts in `/artifacts`, model in `/models/xgboost`)
+- Python 3.10+
+- NFStream 5.1.0+ installato
+- Root access (per packet capture)
 
 ---
 
-## FASE 1: VALIDAZIONE COMPONENTI (30 min)
+## FASE 0: CORREZIONE FEATURE MAPPER (CRITICO!)
 
-### Step 1.1: Aggiorna test_sniffer.py
+### Step 0.1: Backup File Originale
+
+```bash
+cd srcNF/live_sniffer/core
+cp feature_mapper.py feature_mapper.py.BACKUP
+```
+
+### Step 0.2: Applica Feature Mapper Corretto
+
+**OPZIONE A - Copia file corretto fornito**:
+```bash
+# Copia feature_mapper_FIXED.py → feature_mapper.py
+cp /path/to/feature_mapper_FIXED.py feature_mapper.py
+```
+
+**OPZIONE B - Applica patch manualmente**:
+
+Apri `feature_mapper.py` e applica queste modifiche:
+
+**MODIFICA 1** (linea ~120):
+```python
+# PRIMA (SBAGLIATO):
+if feature_name == "MIN_TTL":
+    return float(self._get_value(flow, 'bidirectional_min_ps', 0))
+
+# DOPO (CORRETTO):
+if feature_name == "MIN_TTL":
+    return 0.0  # Feature non disponibile in NFStream
+```
+
+**MODIFICA 2** (aggiungi dopo IN_PKTS, linea ~85):
+```python
+if feature_name == "OUT_PKTS":
+    return float(self._get_value(flow, "dst2src_packets", 0))
+```
+
+**MODIFICA 3** (linea ~95):
+```python
+# AGGIUNGI:
+if feature_name == "CLIENT_TCP_FLAGS":
+    flags = self._get_value(flow, "client_tcp_flags", 0)
+    return float(flags)
+```
+
+**MODIFICA 4** (linea ~140):
+```python
+# AGGIUNGI:
+if feature_name == "RETRANSMITTED_OUT_PKTS":
+    total_retrans = self._get_value(flow, "bidirectional_retrans_packets", 0)
+    return float(total_retrans / 2.0)
+```
+
+**MODIFICA 5** (linea ~200):
+```python
+# AGGIUNGI:
+if feature_name == "ICMP_IPV4_TYPE":
+    protocol = self._get_value(flow, "protocol", 0)
+    if protocol == 1:  # ICMP
+        return float(self._get_value(flow, "icmp_type", 0))
+    return 0.0
+```
+
+### Step 0.3: Verifica Modifiche
+
+```bash
+# Check syntax
+python3 -m py_compile feature_mapper.py
+
+# Se nessun errore:
+echo "Feature mapper corretto!"
+```
+
+---
+
+## FASE 1: TEST COMPONENTI (30 min)
+
+### Step 1.1: Aggiorna Test Suite
 
 ```bash
 cd srcNF/live_sniffer
 
 # Backup vecchio test
-cp test_sniffer.py test_sniffer.py.backup
+cp test_sniffer.py test_sniffer.py.OLD
 
-# Applica versione corretta
-cp test_sniffer_FIXED.py test_sniffer.py
+# Usa versione migliorata
+cp /path/to/test_sniffer_IMPROVED.py test_sniffer.py
 ```
 
-### Step 1.2: Test Componenti
+### Step 1.2: Esegui Test Componenti
 
 ```bash
-# IMPORTANTE: Esegui con sudo (serve per root check)
-sudo python3 test_sniffer.py
+# IMPORTANTE: Serve sudo per root check
+sudo $(which python) test_sniffer.py
+```
 
-# Output atteso:
-# Test 1: External Libraries ... PASS
-# Test 2: Sniffer Modules ... PASS
-# Test 3: Artifacts ... PASS (24 features)
-# Test 4: Configuration ... PASS
-# Test 5: Feature Mapper ... PASS (24 features)
-# Test 6: Preprocessor ... PASS (24 features)
-# Test 7: Predictor ... PASS (24 features)
-# Test 8: Logger ... PASS
-# Test 9: Network Interfaces ... PASS
-# Test 10: Root Privileges ... PASS
-#
-# TOTAL: 10/10 tests passed
-# STATUS: ALL TESTS PASSED 
+**Output Atteso:**
+```
+======================================================================
+TEST SUMMARY
+======================================================================
+  [PASS] External Libraries
+  [PASS] Sniffer Modules
+  [PASS] Artifacts
+  [PASS] Configuration
+  [PASS] Feature Mapper
+  [PASS] Preprocessor
+  [PASS] Predictor
+  [PASS] Logger
+  [PASS] Network Interfaces
+  [PASS] Root Privileges
+
+======================================================================
+TOTAL: 10/10 tests passed
+STATUS: ALL TESTS PASSED
+======================================================================
 ```
 
 **CHECKPOINT CRITICO**:
-- Se qualche test FAIL → **STOP e risolvi** prima di procedere
-- Se 10/10 PASS → Procedi a FASE 2
+- Se **ANY test FAIL** → STOP e risolvi prima di procedere
+- Se **10/10 PASS** → Procedi a FASE 2
 
 ---
 
-## FASE 2: VALIDAZIONE FUNZIONALE RAPIDA (15 min)
+## FASE 2: TEST FUNZIONALE RAPIDO (15 min)
 
 ### Step 2.1: Test Loopback (Traffico Locale)
 
+**Terminal 1 - Avvia Sniffer**:
 ```bash
-# Terminal 1: Avvia sniffer su loopback
-sudo python3 main.py --mode alert --interface lo
-
-# Output atteso:
-# ======================================================================
-# NIDS LIVE SNIFFER STARTED
-# ======================================================================
-# Mode: ALERT
-# Interface: lo
-# Model: xgboost (24 features)
-# Threshold: 0.5
-# ======================================================================
-# Waiting for traffic...
+cd srcNF/live_sniffer
+sudo $(which python) main.py --mode alert --interface lo
 ```
 
-**Verifica output**:
--  "24 features" (NON 35!)
+**Output Atteso**:
+```
+======================================================================
+NIDS LIVE SNIFFER STARTED
+======================================================================
+Mode: ALERT
+Interface: lo
+Model: xgboost (24 features)
+Threshold: 0.5
+======================================================================
+Processing loop started
+
+Waiting for traffic...
+```
+
+**Verifica Output**:
+-  "24 features" (NON 35 o altro!)
 -  Nessun errore "Invalid feature shape"
+-  "Processing loop started"
 
+**Terminal 2 - Genera Traffico**:
 ```bash
-# Terminal 2: Genera traffico
-ping -c 100 127.0.0.1
-curl http://localhost:80  # (se hai server locale)
+# Test 1: ICMP (ping)
+ping -c 20 127.0.0.1
+
+# Test 2: TCP (se hai server locale)
+curl http://localhost:80
+
+# Test 3: DNS (se hai resolver locale)
+nslookup google.com 127.0.0.1
 ```
 
+**Terminal 3 - Monitor Logs**:
 ```bash
-# Terminal 3: Monitor logs
-tail -f ../../logs/sniffer/nids_sniffer_alerts.csv
+tail -f logs/sniffer/nids_sniffer_alerts.csv
+```
 
-# Output atteso: Flow rilevati senza errori
+**Output Atteso (esempio)**:
+```
+timestamp,src_ip,src_port,dst_ip,dst_port,protocol,prediction,confidence,action
+2026-02-09 12:34:56,127.0.0.1,54321,127.0.0.1,0,1,benign,0.2314,logged
+2026-02-09 12:34:57,127.0.0.1,54322,127.0.0.1,0,1,benign,0.1823,logged
 ```
 
 **Verifica**:
 -  File CSV creato
--  Flow processati senza crash
--  Nessun errore "feature shape"
+-  Flow processati (almeno 10+)
+-  Nessun crash
+-  Confidence values tra 0-1
 
-```bash
-# Terminal 1: Stop sniffer (Ctrl+C)
+**Terminal 1 - Stop Sniffer**:
+```
+Ctrl+C
 ```
 
-### Step 2.2: Verifica Logs
+**Output Atteso**:
+```
+Stopping Live NIDS Sniffer...
+Processing remaining batch...
+
+======================================================================
+FINAL STATISTICS
+======================================================================
+Total flows processed: 45
+Total predictions: 45
+Total alerts: 3
+Total blocks: 0
+
+======================================================================
+SNIFFER STOPPED
+======================================================================
+```
+
+### Step 2.2: Analisi Logs
 
 ```bash
-# Check alerts
-wc -l ../../logs/sniffer/nids_sniffer_alerts.csv
+cd srcNF
+
+# Conta flow processati
+wc -l logs/sniffer/nids_sniffer_alerts.csv
 
 # Deve avere >= 2 righe (header + flow)
 
-# Check formato
-head -5 ../../logs/sniffer/nids_sniffer_alerts.csv
+# Analizza distribuzione predizioni
+awk -F',' 'NR>1 {print $8}' logs/sniffer/nids_sniffer_alerts.csv | sort | uniq -c
 
-# Output atteso (esempio):
-# timestamp,src_ip,src_port,dst_ip,dst_port,protocol,prediction,confidence,action
-# 2026-02-09 01:23:45,127.0.0.1,12345,127.0.0.1,80,6,0,0.3245,logged
+# Output esempio:
+#   42 benign
+#    3 attack
+
+# Verifica formato
+head -5 logs/sniffer/nids_sniffer_alerts.csv
 ```
 
 **CHECKPOINT**:
--  Sniffer cattura traffico
+-  Sniffer cattura traffico loopback
 -  Processa flow (24 feature)
--  Genera log corretti
+-  Genera log corretti (CSV + JSON)
+-  Nessun crash o errore
 
 ---
 
-## FASE 3: TEST DOCKER - ATTACK SIMULATION (2 ore)
+## FASE 3: TEST ATTACK SIMULATION - DOCKER (2 ore)
 
 ### Step 3.1: Setup Ambiente Docker
 
@@ -130,205 +254,427 @@ head -5 ../../logs/sniffer/nids_sniffer_alerts.csv
 # Crea rete isolata
 docker network create --subnet=172.20.0.0/16 nids_test_net
 
+# Verifica creazione
+docker network ls | grep nids_test_net
+
 # Avvia target (Nginx web server)
 docker run -d \
     --name nids_target \
     --net nids_test_net \
     --ip 172.20.0.2 \
+    --rm \
     nginx:alpine
 
 # Verifica target attivo
 docker ps | grep nids_target
 
-# Trova interfaccia Docker bridge
-INTERFACE=$(ifconfig | grep -B 1 "inet 172.20.0.1" | head -1 | awk '{print $1}' | tr -d ':')
-echo "Docker interface: $INTERFACE"
+# Output esempio:
+# abc123def456   nginx:alpine   ... Up 2 seconds   nids_target
 
-# Output esempio: br-a1b2c3d4e5f6
+# Trova interfaccia Docker bridge
+ip addr show | grep -A 2 "172.20.0.1"
+
+# Output esempio:
+# 5: br-abc123:  <BROADCAST,MULTICAST,UP,LOWER_UP> ...
+#     inet 172.20.0.1/16 brd 172.20.255.255 scope global br-abc123
+
+# Salva nome interfaccia
+INTERFACE="br-abc123"  # Sostituisci con tuo valore
+echo $INTERFACE
 ```
 
 ### Step 3.2: Test 1 - Port Scan (nmap)
 
+**Terminal 1 - Avvia Sniffer**:
 ```bash
-# Terminal 1: Avvia sniffer
 cd srcNF/live_sniffer
-sudo python3 main.py --mode alert --interface $INTERFACE
+sudo $(which python) main.py --mode alert --interface $INTERFACE
+```
 
-# Terminal 2: Monitor alerts
-tail -f ../../logs/sniffer/nids_sniffer_alerts.csv
+**Terminal 2 - Monitor Alerts**:
+```bash
+cd srcNF
+tail -f logs/sniffer/nids_sniffer_alerts.csv
+```
 
-# Terminal 3: Execute port scan
+**Terminal 3 - Execute Port Scan**:
+```bash
+# Installa nmap se non presente
+sudo apt-get install nmap  # Ubuntu/Debian
+# oppure
+sudo yum install nmap      # CentOS/RHEL
+
+# Esegui scan su 100 porte
 sudo nmap -sS -p 1-100 172.20.0.2
 
-# Lascia scannare tutte le 100 porte (~30 secondi)
+# Lascia completare scan (~30 secondi)
 ```
 
-**Verifica Detection**:
+**Output nmap atteso**:
+```
+Starting Nmap 7.80 ( https://nmap.org ) at 2026-02-09 12:00
+Nmap scan report for 172.20.0.2
+Host is up (0.00023s latency).
+Not shown: 99 closed ports
+PORT   STATE SERVICE
+80/tcp open  http
+
+Nmap done: 1 IP address (1 host up) scanned in 2.34 seconds
+```
+
+**Terminal 1 - Verifica Sniffer Output**:
+Dovresti vedere flow processing in tempo reale:
+```
+[2026-02-09 12:00:15] | INFO | Processed: 50 flows...
+[2026-02-09 12:00:16] | INFO | Processed: 100 flows...
+```
+
+**Terminal 1 - Stop Sniffer**:
+```
+Ctrl+C
+```
+
+**Analisi Detection Rate**:
 ```bash
-# Count attack flows rilevati
-grep -c ",1," ../../logs/sniffer/nids_sniffer_alerts.csv
+cd srcNF
 
-# Detection rate atteso: >30% (almeno 30/100)
-# Con 24 feature: 50-70% detection è BUONO
+# Conta total flow
+TOTAL=$(awk -F',' 'NR>1' logs/sniffer/nids_sniffer_alerts.csv | wc -l)
+
+# Conta attack flow rilevati
+ATTACKS=$(awk -F',' 'NR>1 && $8=="attack"' logs/sniffer/nids_sniffer_alerts.csv | wc -l)
+
+# Calcola detection rate
+python3 << EOF
+total = $TOTAL
+attacks = $ATTACKS
+rate = (attacks / total * 100) if total > 0 else 0
+print(f"Total flows: {total}")
+print(f"Attacks detected: {attacks}")
+print(f"Detection rate: {rate:.1f}%")
+print()
+if rate > 30:
+    print("PASS: Detection rate > 30%")
+else:
+    print("FAIL: Detection rate too low")
+EOF
 ```
+
+**Detection Rate Atteso**: 30-70%
 
 **CHECKPOINT**:
+-  Sniffer cattura traffico Docker bridge
+-  Processa flow scan nmap
 -  Detection rate >30%
--  Confidence valori tra 0.5-1.0 per attack
--  Nessun crash durante scan
+-  Confidence alta per attack (>0.6)
 
 ### Step 3.3: Test 2 - DoS SYN Flood (hping3)
 
+**Installa hping3**:
 ```bash
-# Terminal 1: Sniffer già attivo
-
-# Terminal 3: SYN flood controllato
-sudo hping3 -S -p 80 --flood -i u10000 172.20.0.2
-
-# Lascia girare 10 secondi, poi Ctrl+C
+sudo apt-get install hping3  # Ubuntu/Debian
+# oppure
+sudo yum install hping3      # CentOS/RHEL
 ```
 
-**Verifica Detection**:
-```bash
-# Ultimi 200 flow
-tail -200 ../../logs/sniffer/nids_sniffer_alerts.csv | grep ",1," | wc -l
-
-# Detection attesa: >60% dei flow SYN flood
-```
-
-### Step 3.4: Test 3 - HTTP Slowloris
-
-```bash
-# Installa slowloris (se non già fatto)
-git clone https://github.com/gkbrk/slowloris.git /tmp/slowloris
-cd /tmp/slowloris
-
-# Terminal 3: Esegui attack
-python3 slowloris.py 172.20.0.2 -p 80 -s 50
-
-# Lascia girare 60 secondi
-```
-
-**Verifica**:
+**Terminal 1 - Avvia Sniffer**:
 ```bash
 cd srcNF/live_sniffer
 
-# Check flow HTTP lunghi
-grep ",80," ../../logs/sniffer/nids_sniffer_alerts.csv | tail -50
+# Reset logs per test pulito
+rm -f ../../logs/sniffer/nids_sniffer_alerts.csv
 
-# Cerca flow con duration alta (slowloris pattern)
+sudo $(which python) main.py --mode alert --interface $INTERFACE
 ```
+
+**Terminal 2 - Monitor Logs**:
+```bash
+cd srcNF
+watch -n 1 'tail -20 logs/sniffer/nids_sniffer_alerts.csv'
+```
+
+**Terminal 3 - SYN Flood Controllato**:
+```bash
+# SYN flood con rate controllato (100 pkt/sec)
+sudo hping3 -S -p 80 --flood -i u10000 172.20.0.2
+
+# Lascia girare 10 secondi
+# Poi Ctrl+C
+```
+
+**Terminal 1 - Stop Sniffer**:
+```
+Ctrl+C
+```
+
+**Analisi Detection**:
+```bash
+cd srcNF
+
+# Analizza ultimi 200 flow
+tail -200 logs/sniffer/nids_sniffer_alerts.csv > /tmp/syn_test.csv
+
+# Conta attack detection
+awk -F',' 'NR>1 && $8=="attack"' /tmp/syn_test.csv | wc -l
+
+# Calcola rate
+python3 << EOF
+import pandas as pd
+df = pd.read_csv('/tmp/syn_test.csv')
+total = len(df)
+attacks = (df['prediction'] == 'attack').sum()
+rate = (attacks / total * 100) if total > 0 else 0
+print(f"Detection rate: {rate:.1f}%")
+print("PASS" if rate > 50 else "FAIL")
+EOF
+```
+
+**Detection Rate Atteso**: 50-80%
+
+### Step 3.4: Test 3 - HTTP Slowloris
+
+**Installa slowloris**:
+```bash
+cd /tmp
+git clone https://github.com/gkbrk/slowloris.git
+cd slowloris
+```
+
+**Terminal 1 - Avvia Sniffer**:
+```bash
+cd srcNF/live_sniffer
+
+# Reset logs
+rm -f ../../logs/sniffer/nids_sniffer_alerts.csv
+
+sudo $(which python) main.py --mode alert --interface $INTERFACE
+```
+
+**Terminal 2 - Monitor**:
+```bash
+cd srcNF
+tail -f logs/sniffer/nids_sniffer_alerts.csv
+```
+
+**Terminal 3 - Slowloris Attack**:
+```bash
+cd /tmp/slowloris
+
+# Attack con 50 socket
+python3 slowloris.py 172.20.0.2 -p 80 -s 50
+
+# Lascia girare 60 secondi
+# Poi Ctrl+C
+```
+
+**Terminal 1 - Stop Sniffer**:
+```
+Ctrl+C
+```
+
+**Analisi Flow Lunghi**:
+```bash
+cd srcNF
+
+# Filtra flow HTTP con durata alta
+awk -F',' 'NR>1 && $6==80 && $11>1000' logs/sniffer/nids_sniffer_alerts.csv | head -10
+
+# Cerca pattern slowloris (durata alta, pochi byte)
+python3 << EOF
+import pandas as pd
+df = pd.read_csv('logs/sniffer/nids_sniffer_alerts.csv')
+slow = df[(df['dst_port'] == 80) & (df['duration_ms'] > 5000)]
+print(f"Slow flows detected: {len(slow)}")
+print(f"Attack detection: {(slow['prediction'] == 'attack').sum()}")
+EOF
+```
+
+**Detection Rate Atteso**: 20-50% (slowloris è difficile)
 
 ### Step 3.5: Cleanup Docker
 
 ```bash
-# Terminal 1: Stop sniffer (Ctrl+C)
+# Stop sniffer (Terminal 1)
+Ctrl+C
 
-# Cleanup
+# Cleanup Docker
 docker stop nids_target
-docker rm nids_target
 docker network rm nids_test_net
+
+# Verifica cleanup
+docker ps | grep nids_target  # Deve essere vuoto
+docker network ls | grep nids_test_net  # Deve essere vuoto
 ```
 
 **RISULTATI FASE 3**:
 
 | Test | Detection Rate Atteso | Pass Condition |
 |------|----------------------|----------------|
-| Port Scan | 50-70% | >30% |
-| DoS SYN Flood | 60-80% | >50% |
-| HTTP Slowloris | 30-50% | >20% |
+| Port Scan (nmap) | 30-70% | >30% |
+| DoS SYN Flood | 50-80% | >50% |
+| HTTP Slowloris | 20-50% | >20% |
 
-Se **tutti i test >pass condition** → Sistema VALIDATO 
+**CHECKPOINT**:
+-  Tutti i test >pass condition → Sistema VALIDATO
+-  Qualche test sotto threshold → Rivedere feature mapping
+-  Tutti i test fail → PROBLEMA CRITICO, ricontrollare FASE 0
 
 ---
 
 ## FASE 4: BLOCK MODE (OPZIONALE - 1 ora)
 
-**ATTENZIONE**: Test PERICOLOSO. Rischio auto-blocco IP.
+ **ATTENZIONE**: Test **PERICOLOSO**. Rischio auto-blocco IP.
 
 ### Step 4.1: Setup Whitelist (CRITICO!)
 
 ```bash
 cd srcNF/live_sniffer
 nano config.py
+```
 
-# Trova WHITELIST_IPS e aggiungi:
-WHITELIST_IPS = [
+**Trova sezione WHITELIST_IPS e modifica**:
+```python
+WHITELIST_IPS: List[str] = [
     "127.0.0.1",              # Localhost
     "::1",                    # IPv6 localhost
     "172.20.0.1",             # Docker gateway (TUO IP!)
-    "192.168.1.1",            # Gateway LAN (TROVA IL TUO!)
+    "192.168.1.1",            # Gateway LAN
     "<TUO_IP_MACCHINA>",      # IP amministratore
 ]
-
-# Trova TUO IP:
-# ip addr show | grep "inet " | grep -v 127.0.0.1
 ```
 
-**SALVA E ESCI** (Ctrl+X, Y, Enter)
+**Trova TUO IP**:
+```bash
+# Metodo 1
+ip addr show | grep "inet " | grep -v 127.0.0.1
+
+# Metodo 2
+hostname -I
+
+# Output esempio:
+# 192.168.1.50
+
+# Aggiungi a WHITELIST_IPS!
+```
+
+**SALVA E ESCI**: `Ctrl+X`, `Y`, `Enter`
+
+**Verifica Whitelist**:
+```bash
+python3 -c "from config import WHITELIST_IPS; print('Whitelist:', WHITELIST_IPS)"
+```
 
 ### Step 4.2: Test BLOCK Mode (Docker Isolato)
 
 ```bash
 # Ricrea ambiente Docker
 docker network create --subnet=172.20.0.0/16 nids_test_net
-docker run -d --name nids_target --net nids_test_net --ip 172.20.0.2 nginx:alpine
+docker run -d --name nids_target --net nids_test_net --ip 172.20.0.2 --rm nginx:alpine
 
-INTERFACE=$(ifconfig | grep -B 1 "inet 172.20.0.1" | head -1 | awk '{print $1}' | tr -d ':')
+# Trova interfaccia
+INTERFACE=$(ip addr show | grep -B 1 "inet 172.20.0.1" | head -1 | awk '{print $2}' | tr -d ':')
+echo "Interface: $INTERFACE"
+```
 
-# Terminal 1: BLOCK mode
-sudo python3 main.py --mode block --interface $INTERFACE
+**Terminal 1 - BLOCK Mode**:
+```bash
+cd srcNF/live_sniffer
+sudo $(which python) main.py --mode block --interface $INTERFACE
+```
 
-# Output deve mostrare:
-# Mode: BLOCK
-# Firewall: iptables chain NIDS_BLOCK created
-# Whitelist: 172.20.0.1 protected
+**Output Atteso**:
+```
+======================================================================
+NIDS LIVE SNIFFER STARTED
+======================================================================
+Mode: BLOCK
+Interface: br-abc123
+Firewall: iptables chain NIDS_BLOCK created
+Whitelist: 172.20.0.1 protected
+======================================================================
+```
 
-# Terminal 2: Monitor iptables
-watch -n 2 'sudo iptables -L NIDS_BLOCK -n -v'
+**Verifica Firewall Setup**:
+```bash
+# Terminal 2
+sudo iptables -L NIDS_BLOCK -n -v
 
-# Terminal 3: Generate attack da container NON whitelisted
+# Output atteso (vuoto all'inizio):
+# Chain NIDS_BLOCK (1 references)
+#  pkts bytes target     prot opt in     out     source        destination
+```
+
+**Terminal 3 - Generate Attack da Container NON Whitelisted**:
+```bash
+# Entra in container attacker
 docker run -it --rm --net nids_test_net --ip 172.20.0.50 alpine sh
 
 # Dentro container:
 apk add nmap
+
+# Scan target
 nmap -sS -p 1-50 172.20.0.2
+
+# Se bloccato vedrai timeout...
 ```
 
-**Verifica Blocco**:
+**Terminal 2 - Verifica Blocco**:
 ```bash
-# Terminal 2: Controlla iptables
 sudo iptables -L NIDS_BLOCK -n -v
 
-# Deve mostrare regola DROP per 172.20.0.50
-# pkts bytes target     prot opt in     out     source        destination
-#    0     0 DROP       all  --  *      *       172.20.0.50   0.0.0.0/0
+# Deve mostrare regola DROP per 172.20.0.50:
+#  pkts bytes target     prot opt in     out     source        destination
+#     0     0 DROP       all  --  *      *       172.20.0.50   0.0.0.0/0
 ```
 
-**Verifica Whitelist**:
+**Verifica Whitelist Protection**:
 ```bash
-# Terminal 3: Test da host (whitelisted)
+# Terminal 4 - Test da host (whitelisted)
 nmap -sS -p 80 172.20.0.2
 
-# Terminal 2: Check iptables
-sudo iptables -L NIDS_BLOCK -n
+# Deve funzionare (no timeout)
 
-# 172.20.0.1 NON deve apparire (protetto da whitelist)
+# Verifica che 172.20.0.1 NON sia in iptables
+sudo iptables -L NIDS_BLOCK -n | grep 172.20.0.1
+
+# Deve essere vuoto (whitelisted, non bloccato)
 ```
 
-**Cleanup**:
+**Terminal 1 - Stop Sniffer**:
+```
+Ctrl+C
+```
+
+**Output Atteso**:
+```
+Stopping Live NIDS Sniffer...
+Cleaning up firewall...
+Firewall chain removed
+======================================================================
+SNIFFER STOPPED
+======================================================================
+```
+
+**Verifica Cleanup Automatico**:
 ```bash
-# Terminal 1: Stop sniffer (Ctrl+C)
-# Deve rimuovere chain automaticamente
-
-# Verifica cleanup
 sudo iptables -L NIDS_BLOCK
-# Errore: No chain/target/match by that name. (BUONO!)
 
-# Cleanup Docker
-docker stop nids_target && docker rm nids_target
+# Output atteso:
+# iptables: No chain/target/match by that name.
+# (BUONO! Chain rimossa)
+```
+
+**Cleanup Docker**:
+```bash
+docker stop nids_target
 docker network rm nids_test_net
 ```
+
+**CHECKPOINT BLOCK MODE**:
+-  Firewall setup automatico
+-  IP attacker bloccato
+-  Whitelist protegge gateway
+-  Cleanup automatico funziona
 
 ---
 
@@ -339,23 +685,28 @@ docker network rm nids_test_net
 ```bash
 cd srcNF/live_sniffer
 
-# Estrai statistiche da logs
+# Crea script analisi
 python3 << 'EOF'
 import pandas as pd
+import json
 from pathlib import Path
 
 log_path = Path("../../logs/sniffer/nids_sniffer_alerts.csv")
+
+if not log_path.exists():
+    print("ERROR: No log file found")
+    exit(1)
+
 df = pd.read_csv(log_path)
 
 print("="*70)
 print("PERFORMANCE METRICS")
 print("="*70)
-
 print(f"\nTotal flows: {len(df):,}")
 
 if 'prediction' in df.columns:
-    benign = (df['prediction'] == 0).sum()
-    attack = (df['prediction'] == 1).sum()
+    benign = (df['prediction'] == 'benign').sum()
+    attack = (df['prediction'] == 'attack').sum()
     
     print(f"Benign: {benign:,} ({benign/len(df)*100:.1f}%)")
     print(f"Attack: {attack:,} ({attack/len(df)*100:.1f}%)")
@@ -364,24 +715,44 @@ if 'prediction' in df.columns:
         avg_conf = df['confidence'].mean()
         print(f"\nAverage confidence: {avg_conf:.3f}")
         
-        attack_df = df[df['prediction'] == 1]
-        if len(attack_df) > 0:
+        if attack > 0:
+            attack_df = df[df['prediction'] == 'attack']
             avg_attack_conf = attack_df['confidence'].mean()
             print(f"Attack confidence (avg): {avg_attack_conf:.3f}")
+            
+            # Top attacking IPs
+            if 'src_ip' in attack_df.columns:
+                top_ips = attack_df['src_ip'].value_counts().head(5)
+                print(f"\nTop Attacking IPs:")
+                for ip, count in top_ips.items():
+                    print(f"  {ip}: {count} flows")
+
+# Protocol distribution
+if 'protocol' in df.columns:
+    print(f"\nProtocol Distribution:")
+    proto_map = {1: 'ICMP', 6: 'TCP', 17: 'UDP'}
+    for proto, count in df['protocol'].value_counts().head(5).items():
+        proto_name = proto_map.get(proto, f'Proto-{proto}')
+        print(f"  {proto_name}: {count}")
+
+print("="*70)
 EOF
 ```
 
 ### Step 5.2: Summary Report
 
 ```bash
+cd srcNF
+
 # Crea report finale
-cat > ../../validation_report.md << 'EOF'
+cat > validation_report_$(date +%Y%m%d_%H%M%S).md << 'EOF'
 # NIDS VALIDATION REPORT
 
 ## System Configuration
+- Dataset: NF-UQ-NIDS-v2
 - Features: 24 (nfstream-compatible)
-- Model: XGBoost
-- Scaler: RobustScaler (aggregate)
+- Model: XGBoost (incremental learning)
+- Scaler: RobustScaler (aggregate, with outliers)
 
 ## Validation Results
 
@@ -390,25 +761,41 @@ cat > ../../validation_report.md << 'EOF'
 
 ### Functional Tests
 - [x] Loopback traffic: OK
-- [x] Log generation: OK
+- [x] Log generation: OK (CSV + JSON)
 
 ### Attack Detection (Docker)
-- Port Scan: XX% detection rate (>30% required)
-- DoS Flood: XX% detection rate (>50% required)
-- Slowloris: XX% detection rate (>20% required)
+- Port Scan (nmap): XX% detection rate (>30% required)
+- DoS SYN Flood: XX% detection rate (>50% required)
+- HTTP Slowloris: XX% detection rate (>20% required)
 
 ### Block Mode (Optional)
 - [x] Firewall integration: OK
 - [x] Whitelist protection: OK
 - [x] Auto-cleanup: OK
 
+## Issues Identified
+
+### Fixed
+1. Feature mapper: MIN_TTL mapping corrected
+2. Feature mapper: OUT_PKTS added
+3. Feature mapper: CLIENT_TCP_FLAGS corrected
+4. Feature mapper: ICMP_IPV4_TYPE added
+
+### Known Limitations
+1. Some features unavailable in NFStream (expected)
+2. Detection rate lower than full-feature model (expected)
+3. Slowloris detection challenging (known limitation)
+
 ## Conclusion
-System validated and ready for deployment.
+System validated and ready for deployment in ALERT mode.
+BLOCK mode requires careful monitoring in production.
 
 Date: $(date)
+Validated by: [Your Name]
 EOF
 
-cat ../../validation_report.md
+# Visualizza report
+cat validation_report_*.md
 ```
 
 ---
@@ -417,124 +804,76 @@ cat ../../validation_report.md
 
 ### Problema: "Invalid feature shape (35, expected 24)"
 
-**Causa**: Artifacts vecchi (35 feature)
+**Causa**: Artifacts vecchi con 35 feature
 
 **Fix**:
 ```bash
-# Verifica artifacts
-cat ../../artifacts/features.json | grep n_features
+cd srcNF
+
+# Verifica feature count
+cat artifacts/features.json | grep n_features
 
 # Se mostra 35:
-cd ..
 rm -rf artifacts/* models/*
-python pipeline.py --model xgboost
+
+# Ritraina con pipeline corretta
+python3 pipeline.py --model xgboost
 ```
 
 ### Problema: Detection Rate Bassa (<20%)
 
 **Possibili cause**:
-1. Feature mismatch (verifica 24 feature in artifacts)
-2. Threshold troppo alto (prova ATTACK_THRESHOLD = 0.4)
-3. Modello non converso (verifica training log)
+1. Feature mapper non corretto (rivedi FASE 0)
+2. Threshold troppo alto
+3. Modello non converso
 
 **Diagnosi**:
 ```bash
+cd srcNF
+
 # Check confidence distribution
 python3 << 'EOF'
 import pandas as pd
-df = pd.read_csv("../../logs/sniffer/nids_sniffer_alerts.csv")
+df = pd.read_csv('logs/sniffer/nids_sniffer_alerts.csv')
 print(df['confidence'].describe())
-EOF
 
-# Se avg confidence <0.3 → modello non sicuro
-# Se avg confidence >0.8 → ottimo
+# Se avg confidence <0.3 → modello incerto
+# Se avg confidence >0.8 → modello sicuro
+EOF
+```
+
+**Fix**:
+```bash
+# Se confidence bassa → modello incerto, prova threshold più basso
+nano live_sniffer/config.py
+
+# Cambia:
+ATTACK_THRESHOLD = 0.4  # Era 0.5
+
+# Ritesta
 ```
 
 ### Problema: Sniffer Blocca su Ctrl+C
+
+**Causa**: Loop attende traffico, non esce subito
 
 **Fix**: Genera traffico dummy
 ```bash
 # Altro terminal:
 ping -c 1 <target_ip>
 
-# Loop si sblocca
+# Loop si sblocca e termina
 ```
 
----
+### Problema: "Permission denied" su iptables
 
-## FILE STRUTTURA FINALE
+**Causa**: Non running con sudo
 
-```
-srcNF/
- config.py                      # Config principale (24 feature drop)
- preprocessing.py
- feature_engineering.py
- training.py
- pipeline.py
-
- live_sniffer/
-    config.py                  # Config sniffer (21 feature list)
-    test_sniffer.py            # Test suite (24 feature)
-    main.py
-   
-    core/
-       feature_mapper.py      # MINIMAL (24 feature)
-       preprocessor.py
-       predictor.py
-       capture.py
-   
-    security/
-       alert_manager.py
-       firewall_controller.py
-   
-    utils/
-       logger.py
-   
-    testing/                   # OPZIONALE (per alignment test)
-        test_data/
-           train_sample.csv
-        verify_alignment.py
-
- artifacts/
-    scaler.pkl                 # 24 feature scaler
-    features.json              # 24 feature list
-
- models/
-     xgboost/
-         model.pkl              # 24 feature model
-```
-
-**File da RIMUOVERE** (obsoleti):
+**Fix**:
 ```bash
-# Cleanup opzionale
-cd srcNF/live_sniffer
-
-# Rimuovi validation/ (duplicato di testing/)
-rm -rf validation/
-
-# Rimuovi PCAP grandi se non servono
-rm testing/test_data/Friday-WorkingHours.pcap
-rm testing/test_data/Tuesday-WorkingHours.pcap
-
-# Mantieni solo test_traffic.pcap (piccolo, generato)
+# SEMPRE usa sudo per BLOCK mode
+sudo $(which python) main.py --mode block --interface eth0
 ```
-
----
-
-## CHECKLIST FINALE
-
-Prima di deployment produzione:
-
-- [ ] Test componenti: 10/10 PASS
-- [ ] Test loopback: OK
-- [ ] Test Docker port scan: >30% detection
-- [ ] Test Docker DoS: >50% detection
-- [ ] Log format: CSV + JSON corretti
-- [ ] Block mode: Whitelist + cleanup OK
-- [ ] Feature count: 24 in tutti i componenti
-- [ ] Documentation: README aggiornato
-
-Se **TUTTI** check  → **READY FOR PRODUCTION** 
 
 ---
 
@@ -542,13 +881,14 @@ Se **TUTTI** check  → **READY FOR PRODUCTION**
 
 ```bash
 # Test componenti
-sudo python3 test_sniffer.py
+cd srcNF/live_sniffer
+sudo $(which python) test_sniffer.py
 
 # Avvia ALERT mode
-sudo python3 main.py --mode alert --interface eth0
+sudo $(which python) main.py --mode alert --interface eth0
 
 # Avvia BLOCK mode
-sudo python3 main.py --mode block --interface eth0
+sudo $(which python) main.py --mode block --interface eth0
 
 # Monitor logs live
 tail -f ../../logs/sniffer/nids_sniffer_alerts.csv
@@ -560,19 +900,41 @@ sudo iptables -L NIDS_BLOCK -n -v
 sudo iptables -D INPUT -j NIDS_BLOCK
 sudo iptables -F NIDS_BLOCK
 sudo iptables -X NIDS_BLOCK
+
+# Analisi detection rate
+cd srcNF
+python3 << 'EOF'
+import pandas as pd
+df = pd.read_csv('logs/sniffer/nids_sniffer_alerts.csv')
+total = len(df)
+attacks = (df['prediction'] == 'attack').sum()
+print(f"Detection rate: {attacks/total*100:.1f}%")
+EOF
 ```
 
 ---
 
 ## TEMPO TOTALE VALIDAZIONE
 
-- Fase 1 (Componenti): 30 min
-- Fase 2 (Funzionale): 15 min
-- Fase 3 (Docker Attack): 2 ore
-- Fase 4 (Block Mode): 1 ora (opzionale)
-- Fase 5 (Metriche): 30 min
+- Fase 0 (Correzione): **15 min**
+- Fase 1 (Componenti): **30 min**
+- Fase 2 (Funzionale): **15 min**
+- Fase 3 (Docker Attack): **2 ore**
+- Fase 4 (Block Mode): **1 ora** (opzionale)
+- Fase 5 (Metriche): **30 min**
 
-**Totale minimo**: 3 ore
+**Totale minimo**: 3.5 ore
 **Totale completo**: 4.5 ore
 
+---
+
+## STATUS FINALE
+
+Al completamento di tutte le fasi:
+
+ **PASS**: Sistema validato e pronto per deployment
+ **PASS CON WARNING**: Funziona ma detection rate sotto ottimale
+ **FAIL**: Problemi critici, rivedere configurazione
+
 **BUONA VALIDAZIONE!** 
+EOF
