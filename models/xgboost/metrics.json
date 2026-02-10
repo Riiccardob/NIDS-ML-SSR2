@@ -1,7 +1,7 @@
 {
   "model_type": "xgboost",
   "training_method": "incremental",
-  "trained_at": "2026-02-09T11:36:42.978324",
+  "trained_at": "2026-02-09T22:58:13.802839",
   "metrics": {
     "validation": {
       "accuracy": 0.9797077537533132,
@@ -27,6 +27,6 @@
       "fp": 96584,
       "fn": 134457
     },
-    "training_time_seconds": 168.613632
+    "training_time_seconds": 134.82876
   }
 }

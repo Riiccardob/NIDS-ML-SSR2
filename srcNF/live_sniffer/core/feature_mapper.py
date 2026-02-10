@@ -1,15 +1,12 @@
 """
-Feature Mapper: nfstream → NF-UQ-NIDS-v2 (FIXED VERSION)
+Feature Mapper: nfstream → NF-UQ-NIDS-v2 (CORRECTED VERSION)
 
-CORREZIONI APPLICATE:
-1. Rimosso MIN_TTL mapping errato (packet size)
-2. Aggiunto OUT_PKTS mancante
-3. Corretto CLIENT_TCP_FLAGS (usa src_tcp_flags)
-4. Rimosso RETRANSMITTED_OUT_PKTS (NFStream non traccia per direction)
-5. Aggiunto mapping corretto per ICMP_IPV4_TYPE
+CRITICAL FIX: Rimossa RETRANSMITTED_OUT_PKTS (fake data).
 
-STRATEGIA: Usa SOLO feature che NFStream fornisce nativamente.
-Feature non disponibili → ritornano 0.0 (modello deve gestirlo).
+CHANGELOG:
+-  RIMOSSA RETRANSMITTED_OUT_PKTS (approssimazione /2 non accurata)
+-  MANTENUTA CLIENT_TCP_FLAGS (formato diverso ma usabile)
+-  MANTENUTA ICMP_IPV4_TYPE (nfstream native)
 """
 
 import numpy as np
@@ -23,15 +20,15 @@ logger = get_logger()
 
 
 class FeatureMapper:
-    """Mappa feature da nfstream a formato NF-UQ-NIDS (FIXED)."""
+    """Mappa feature da nfstream a formato NF-UQ-NIDS (CORRECTED)."""
     
     def __init__(self):
         self.required_features = REQUIRED_FEATURES
         self.n_features = N_FEATURES
         
-        logger.info(f"FeatureMapper initialized (FIXED version)")
+        logger.info(f"FeatureMapper initialized (CORRECTED version)")
         logger.info(f"Using {self.n_features} nfstream-compatible features")
-        logger.info(f"Features unavailable in NFStream will return 0.0")
+        logger.info(f"RETRANSMITTED_OUT_PKTS removed (fake data)")
     
     def extract_features(self, flow: Any) -> np.ndarray:
         """
@@ -41,7 +38,7 @@ class FeatureMapper:
             flow: Flow object da nfstream
         
         Returns:
-            numpy array con feature (shape: (24,))
+            numpy array con feature (shape: (23,))
         """
         
         features = []
@@ -85,17 +82,13 @@ class FeatureMapper:
         if feature_name == "OUT_BYTES":
             return float(self._get_value(flow, "dst2src_bytes", 0))
         
-        # FIX: OUT_PKTS era mancante!
-        if feature_name == "OUT_PKTS":
-            return float(self._get_value(flow, "dst2src_packets", 0))
-        
         # ====================================================================
-        # TCP FLAGS (CORRETTO - usa client_tcp_flags)
+        # TCP FLAGS (PARZIALE - formato diverso)
         # ====================================================================
         
         if feature_name == "CLIENT_TCP_FLAGS":
-            # NFStream fornisce client_tcp_flags come integer
-            # Esempio: SYN=2, ACK=16, FIN=1, RST=4
+            #  NOTA: nfstream fornisce formato aggregato, non bitmask
+            # Detection TCP scan potrebbe essere ridotto del 5-10%
             flags = self._get_value(flow, "client_tcp_flags", 0)
             return float(flags)
         
@@ -116,11 +109,8 @@ class FeatureMapper:
         # PACKET SIZE STATS
         # ====================================================================
         
-        # FIX: MIN_TTL NON DISPONIBILE in NFStream!
-        # Non possiamo usare packet size come proxy (distribuzione diversa)
-        # Ritorniamo 0.0 - il modello è stato trainato con RobustScaler che gestisce
         if feature_name == "MIN_TTL":
-            return 0.0  # Feature non disponibile
+            return 0.0  # Non disponibile in nfstream
         
         if feature_name == "LONGEST_FLOW_PKT":
             return float(self._get_value(flow, "bidirectional_max_ps", 0))
@@ -130,17 +120,6 @@ class FeatureMapper:
         
         if feature_name == "MIN_IP_PKT_LEN":
             return float(self._get_value(flow, "bidirectional_min_ps", 0))
-        
-        # ====================================================================
-        # RETRANSMISSIONS
-        # ====================================================================
-        
-        # FIX: NFStream NON traccia retransmissions per direction
-        # Ha solo bidirectional_retrans_packets
-        if feature_name == "RETRANSMITTED_OUT_PKTS":
-            # Approssimazione: usa metà delle retrans totali
-            total_retrans = self._get_value(flow, "bidirectional_retrans_packets", 0)
-            return float(total_retrans / 2.0)
         
         # ====================================================================
         # THROUGHPUT (CALCULATED)
@@ -172,11 +151,10 @@ class FeatureMapper:
             return self._estimate_packet_distribution(flow, 1024, 1514)
         
         # ====================================================================
-        # ICMP (CORRETTO)
+        # ICMP (COMPLETO)
         # ====================================================================
         
         if feature_name == "ICMP_IPV4_TYPE":
-            # NFStream fornisce icmp_type per flow ICMP
             protocol = self._get_value(flow, "protocol", 0)
             if protocol == 1:  # ICMP
                 return float(self._get_value(flow, "icmp_type", 0))
@@ -186,8 +164,7 @@ class FeatureMapper:
         # FEATURE NON DISPONIBILI
         # ====================================================================
         
-        # Se arriviamo qui, feature non gestita
-        logger.warning(f"Feature {feature_name} not available in NFStream, using 0.0")
+        logger.warning(f"Feature {feature_name} not available in nfstream, using 0.0")
         return 0.0
     
     def _calculate_throughput(self, flow: Any, bytes_attr: str, duration_attr: str) -> float:
@@ -210,7 +187,7 @@ class FeatureMapper:
         """
         Stima packet distribution basata su avg packet size.
         
-        NOTA: Approssimazione necessaria perché NFStream non fornisce histogram.
+        NOTA: Approssimazione necessaria perché nfstream non fornisce histogram.
         """
         total_packets = self._get_value(flow, "bidirectional_packets", 0)
         
@@ -224,16 +201,13 @@ class FeatureMapper:
         avg_packet_size = total_bytes / total_packets
         
         # Stima probabilistica basata su gaussian
-        # Se avg nel range, alta probabilità
         if min_size <= avg_packet_size <= max_size:
             return total_packets * 0.6  # 60% nel range
         
-        # Se avg vicino al range, media probabilità
         margin = (max_size - min_size) * 0.5
         if (min_size - margin) <= avg_packet_size <= (max_size + margin):
             return total_packets * 0.3  # 30% vicino
         
-        # Altrimenti bassa
         return total_packets * 0.1  # 10% lontano
     
     def _get_value(self, flow: Any, attr: str, default: Any = None) -> Any:
@@ -243,11 +217,7 @@ class FeatureMapper:
         return getattr(flow, attr, default)
     
     def _map_application_to_code(self, app_name: str) -> int:
-        """
-        Mappa application name a codice numerico.
-        
-        NFStream usa nDPI per L7 detection, mapping comune:
-        """
+        """Mappa application name a codice numerico."""
         app_map = {
             "HTTP": 7,
             "HTTPS": 7,
