@@ -21,6 +21,8 @@ data/*
 !data/raw/
 data/raw/*
 !data/raw/.gitkeep
+data/raw - Copia
+srcNF/live_sniffer/results/
 
 !data/processed/
 data/processed/*
