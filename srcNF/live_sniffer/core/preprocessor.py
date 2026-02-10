@@ -1,7 +1,8 @@
 """
 Preprocessor per feature scaling.
 
-Applica RobustScaler addestrato su dataset completo.
+Applica il RobustScaler addestrato durante la feature engineering.
+Espone sia preprocess() (singolo sample) che preprocess_batch() (matrice).
 """
 
 import numpy as np
@@ -17,138 +18,160 @@ logger = get_logger()
 
 
 class FeaturePreprocessor:
-    """Preprocessor per scaling feature con RobustScaler."""
-    
-    def __init__(self, scaler_path: Optional[Path] = None):
+    """
+    Wrapper intorno al RobustScaler serializzato.
+
+    Gestisce automaticamente:
+    - Reshape singolo sample / batch
+    - Sostituzione di inf/nan post-scaling (stesso comportamento del training)
+    - Validazione della shape in input
+    """
+
+    def __init__(self, scaler_path: Optional[Path] = None) -> None:
         """
-        Inizializza preprocessor.
-        
         Args:
-            scaler_path: Path al file scaler.pkl (default: da config)
+            scaler_path: Percorso al file scaler.pkl.
+                         Se None, usa il valore da config.SCALER_PATH.
         """
-        
         self.scaler_path = scaler_path or SCALER_PATH
         self.scaler = None
         self._load_scaler()
-    
+
     def _load_scaler(self) -> None:
-        """Carica RobustScaler da file."""
-        
+        """Carica il RobustScaler dal file serializzato."""
         if not self.scaler_path.exists():
-            raise FileNotFoundError(f"Scaler not found: {self.scaler_path}")
-        
+            raise FileNotFoundError(f"Scaler non trovato: {self.scaler_path}")
+
         try:
             self.scaler = joblib.load(self.scaler_path)
-            logger.info(f"Scaler loaded from {self.scaler_path}")
-            
-            # Verifica scaler
-            if not hasattr(self.scaler, 'transform'):
-                raise ValueError("Invalid scaler: missing transform method")
-            
-            if self.scaler.n_features_in_ != N_FEATURES:
-                logger.warning(
-                    f"Scaler expects {self.scaler.n_features_in_} features, "
-                    f"but config has {N_FEATURES}"
+            logger.info(f"Scaler caricato da {self.scaler_path}")
+
+            if not hasattr(self.scaler, "transform"):
+                raise ValueError("Scaler invalido: metodo transform assente")
+
+            # Se lo scaler e' stato fittato con un DataFrame (feature_names_in_
+            # presente), sklearn emette un UserWarning ad ogni transform() su
+            # array numpy. Rimuovere l'attributo sopprime il warning senza
+            # alterare il comportamento numerico dello scaler.
+            if hasattr(self.scaler, "feature_names_in_"):
+                del self.scaler.feature_names_in_
+
+            scaler_n = getattr(self.scaler, "n_features_in_", None)
+            if scaler_n is not None and scaler_n != N_FEATURES:
+                # Questo e' un errore bloccante: il modello si aspetta N_FEATURES
+                # ma lo scaler e' stato fittato su un numero diverso.
+                # Il messaggio dirige esplicitamente alla root cause.
+                raise ValueError(
+                    f"Mismatch critico: scaler.n_features_in_={scaler_n} "
+                    f"ma N_FEATURES da features.json={N_FEATURES}. "
+                    "Gli artifacts (scaler.pkl, features.json, model) devono "
+                    "essere generati dalla stessa esecuzione della pipeline. "
+                    "Rigenera tutto con: python srcNF/pipeline.py"
                 )
-        
-        except Exception as e:
-            logger.error(f"Failed to load scaler: {e}")
+
+        except (ValueError, FileNotFoundError):
             raise
-    
+        except Exception as exc:
+            logger.error(f"Errore nel caricamento dello scaler: {exc}")
+            raise
+
     def preprocess(self, features: np.ndarray) -> np.ndarray:
         """
-        Applica scaling alle feature.
-        
+        Scala un singolo vettore feature.
+
         Args:
-            features: Feature vector raw (shape: (n_features,) o (n_samples, n_features))
-        
+            features: Array 1-D di shape (N_FEATURES,) oppure
+                      2-D di shape (1, N_FEATURES).
+
         Returns:
-            Feature vector scalate
+            Array 1-D di shape (N_FEATURES,) scalato.
+
+        Raises:
+            ValueError: Se la shape e' incompatibile con N_FEATURES.
         """
-        
-        # Gestisci singolo sample vs batch
-        single_sample = False
         if features.ndim == 1:
-            features = features.reshape(1, -1)
-            single_sample = True
-        
-        # Valida shape
-        if features.shape[1] != N_FEATURES:
-            raise ValueError(
-                f"Invalid feature shape: {features.shape}, expected (*, {N_FEATURES})"
-            )
-        
-        # Applica scaling
-        try:
-            scaled = self.scaler.transform(features)
-            
-            # Gestisci inf/nan post-scaling (come in training)
-            scaled = self._handle_inf_nan(scaled)
-            
-            # Se era singolo sample, ritorna flat
-            if single_sample:
-                return scaled.flatten()
-            
-            return scaled
-        
-        except Exception as e:
-            logger.error(f"Scaling failed: {e}")
-            raise
-    
-    def _handle_inf_nan(self, X: np.ndarray) -> np.ndarray:
+            matrix = features.reshape(1, -1)
+            return self._transform(matrix).flatten()
+
+        if features.ndim == 2 and features.shape[0] == 1:
+            return self._transform(features).flatten()
+
+        raise ValueError(
+            f"preprocess() accetta solo vettori 1-D o matrici (1, N). "
+            f"Per batch usa preprocess_batch(). Shape ricevuta: {features.shape}"
+        )
+
+    def preprocess_batch(self, features: np.ndarray) -> np.ndarray:
         """
-        Gestisce inf/nan post-scaling (stesso metodo di training).
-        
+        Scala una matrice di feature (batch).
+
         Args:
-            X: Feature matrix scalate
-        
+            features: Array 2-D di shape (n_samples, N_FEATURES).
+
         Returns:
-            Feature matrix con inf/nan gestiti
+            Array 2-D di shape (n_samples, N_FEATURES) scalato.
+
+        Raises:
+            ValueError: Se la shape e' incompatibile.
         """
-        
-        # Limiti per Float32
-        max_val = np.finfo(np.float32).max
-        min_val = np.finfo(np.float32).min
-        
-        # Sostituisci inf con valori grandi ma finiti
+        if features.ndim != 2:
+            raise ValueError(
+                f"preprocess_batch() richiede un array 2-D. "
+                f"Shape ricevuta: {features.shape}"
+            )
+        return self._transform(features)
+
+    def _transform(self, matrix: np.ndarray) -> np.ndarray:
+        """
+        Applica lo scaler e gestisce inf/nan post-scaling.
+
+        Args:
+            matrix: Array 2-D (n_samples, N_FEATURES).
+
+        Returns:
+            Array 2-D scalato senza inf/nan.
+        """
+        if matrix.shape[1] != N_FEATURES:
+            raise ValueError(
+                f"Shape incompatibile: {matrix.shape}, atteso (*, {N_FEATURES})"
+            )
+
+        scaled = self.scaler.transform(matrix)
+        return self._sanitize(scaled)
+
+    @staticmethod
+    def _sanitize(X: np.ndarray) -> np.ndarray:
+        """
+        Sostituisce inf e nan con valori finiti.
+
+        Comportamento identico a handle_inf_after_scaling() nel training:
+          +inf  -> +1e10
+          -inf  -> -1e10
+          nan   ->  0.0
+          valori float finiti ma fuori range float32 -> clipped
+
+        Args:
+            X: Array numpy (qualsiasi shape).
+
+        Returns:
+            Array con gli stessi dtype/shape, senza inf/nan.
+        """
         X[np.isposinf(X)] = 1e10
         X[np.isneginf(X)] = -1e10
-        
-        # Sostituisci nan con 0 (valore neutro per scaler)
         X[np.isnan(X)] = 0.0
-        
-        # Clamp a limiti Float32
-        X = np.clip(X, min_val, max_val)
-        
+
+        float32_max = np.finfo(np.float32).max
+        X = np.clip(X, -float32_max, float32_max)
         return X
-    
-    def preprocess_batch(self, feature_batch: np.ndarray) -> np.ndarray:
-        """
-        Preprocessa batch di feature.
-        
-        Args:
-            feature_batch: Batch di feature (shape: (batch_size, n_features))
-        
-        Returns:
-            Batch scalato
-        """
-        
-        return self.preprocess(feature_batch)
-    
+
     def get_scaler_info(self) -> dict:
-        """
-        Restituisce informazioni sullo scaler.
-        
-        Returns:
-            Dict con info scaler
-        """
-        
+        """Restituisce informazioni sullo scaler caricato."""
         if self.scaler is None:
-            return {}
-        
+            return {"loaded": False}
+
         return {
-            "scaler_type": type(self.scaler).__name__,
-            "n_features": self.scaler.n_features_in_,
-            "center": self.scaler.center_[:5].tolist() if hasattr(self.scaler, 'center_') else None,
-            "scale": self.scaler.scale_[:5].tolist() if hasattr(self.scaler, 'scale_') else None,
+            "loaded":       True,
+            "scaler_type":  type(self.scaler).__name__,
+            "n_features":   getattr(self.scaler, "n_features_in_", N_FEATURES),
+            "scaler_path":  str(self.scaler_path),
         }
