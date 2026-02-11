@@ -18,6 +18,15 @@ Nota sul problema di shutdown:
        principale). Non si usa Thread.kill() perche' non esiste in Python.
     4. Un sentinel None viene messo in coda per sbloccare eventualmente
        il consumer che attende su `flow_queue.get()`.
+
+Nota su accounting_mode=3:
+    Il dataset NF-UQ-NIDS-v2 e' stato generato con nProbe/nfdump in
+    modalita' accounting_mode=3, che include gli header L2/L3/L4 nel
+    conteggio dei byte. Usare accounting_mode=1 (solo payload) introduce
+    una discrepanza sistematica su IN_BYTES, OUT_BYTES e sulle feature
+    di throughput derivate (SRC_TO_DST_AVG_THROUGHPUT,
+    DST_TO_SRC_AVG_THROUGHPUT). La modalita' 3 garantisce l'allineamento
+    con i valori visti dallo scaler durante il training.
 """
 
 import os
@@ -82,7 +91,11 @@ class FlowCaptureEngine:
             interface:      Nome interfaccia di rete (None = auto-detect).
             flow_callback:  Funzione opzionale chiamata per ogni flow completato.
             idle_timeout:   Timeout idle flow in secondi.
+                            Default: FLOW_IDLE_TIMEOUT da config (produzione).
+                            Per la demo live usare 1 tramite --fast in main.py.
             active_timeout: Timeout active flow in secondi.
+                            Default: FLOW_ACTIVE_TIMEOUT da config (produzione).
+                            Per la demo live usare 10 tramite --fast in main.py.
         """
         self.interface = interface or self._auto_detect_interface()
         self.flow_callback = flow_callback
@@ -224,13 +237,17 @@ class FlowCaptureEngine:
         non espone un'API di pausa. Se il C layer non risponde a
         terminate(), il loop esce solo alla prossima scadenza di un flow
         (idle_timeout o active_timeout).
+
+        accounting_mode=3: conta i byte includendo gli header L2/L3/L4,
+        allineato al metodo usato da nProbe/nfdump per generare il dataset
+        NF-UQ-NIDS-v2.
         """
         try:
             self.streamer = NFStreamer(
                 source=self.interface,
                 idle_timeout=self.idle_timeout,
                 active_timeout=self.active_timeout,
-                accounting_mode=1,
+                accounting_mode=3,
                 decode_tunnels=True,
                 bpf_filter=None,
                 promiscuous_mode=True,
@@ -240,9 +257,10 @@ class FlowCaptureEngine:
             )
 
             logger.info("NFStreamer inizializzato")
-            logger.info(f"  idle_timeout:   {self.idle_timeout}s")
-            logger.info(f"  active_timeout: {self.active_timeout}s")
-            logger.info(f"  promiscuous:    attivo")
+            logger.info(f"  idle_timeout:    {self.idle_timeout}s")
+            logger.info(f"  active_timeout:  {self.active_timeout}s")
+            logger.info(f"  accounting_mode: 3 (header L2/L3/L4 inclusi)")
+            logger.info(f"  promiscuous:     attivo")
 
             for flow in self.streamer:
                 if self.stop_event.is_set():

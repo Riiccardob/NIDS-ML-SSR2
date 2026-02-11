@@ -21,7 +21,7 @@ data/*
 !data/raw/
 data/raw/*
 !data/raw/.gitkeep
-data/raw - Copia
+data/rawOld
 srcNF/live_sniffer/results/
 
 !data/processed/
@@ -37,3 +37,4 @@ reports/
 test_pcap/
 sniff_results/
 srcNF/live_sniffer/testing/test_data/
+results/

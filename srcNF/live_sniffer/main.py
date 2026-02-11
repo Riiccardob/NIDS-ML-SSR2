@@ -1,11 +1,13 @@
 """
-Live NIDS Sniffer - Entry Point.
+Live NIDS Sniffer -- Entry Point.
 
 Network Intrusion Detection System basato su ML con nfstream.
 
 Utilizzo:
-    sudo python3 main.py --mode alert --interface eth0
-    sudo python3 main.py --mode block --interface eth0 --batch-size 200
+    sudo $(which python) main.py --mode alert --interface eth0
+    sudo $(which python) main.py --mode alert --interface br-xxxx --fast --verbose
+    sudo $(which python) main.py --mode block --interface eth0 --idle-timeout 10
+    sudo $(which python) main.py --mode alert --interface eth0 --batch-size 200
 """
 
 import argparse
@@ -28,7 +30,9 @@ for _p in (_PROJECT_ROOT, _SNIFFER_DIR):
         sys.path.insert(0, str(_p))
 
 from config import (
+    FLOW_ACTIVE_TIMEOUT,
     FLOW_EXPIRATION_CHECK_INTERVAL,
+    FLOW_IDLE_TIMEOUT,
     INFERENCE_BATCH_SIZE,
     INFERENCE_BATCH_TIMEOUT,
     NETWORK_INTERFACE,
@@ -48,6 +52,15 @@ from utils.logger import get_logger
 
 logger = get_logger()
 
+# Codici ANSI per output console colorato.
+# Usati esclusivamente in _print_live_event(): il logger strutturato
+# (CSV/JSONL) non viene mai toccato da questi codici.
+_ANSI_RED    = "\033[91m\033[1m"
+_ANSI_GREEN  = "\033[92m"
+_ANSI_GREY   = "\033[90m"
+_ANSI_YELLOW = "\033[93m"
+_ANSI_RESET  = "\033[0m"
+
 
 class LiveNIDSSniffer:
     """
@@ -65,11 +78,30 @@ class LiveNIDSSniffer:
         operation_mode: OperationMode = OPERATION_MODE,
         batch_size: int = INFERENCE_BATCH_SIZE,
         batch_timeout: float = INFERENCE_BATCH_TIMEOUT,
+        idle_timeout: int = FLOW_IDLE_TIMEOUT,
+        active_timeout: int = FLOW_ACTIVE_TIMEOUT,
+        verbose: bool = False,
+        alert_cooldown: float = 30.0,
     ) -> None:
+        """
+        Args:
+            interface:       Interfaccia di rete (None = auto-detect).
+            operation_mode:  ALERT o BLOCK.
+            batch_size:      Flow per batch di inferenza.
+            batch_timeout:   Secondi massimi di attesa prima di forzare il batch.
+            idle_timeout:    Idle timeout nfstream in secondi. Con --fast = 1.
+            active_timeout:  Active timeout nfstream in secondi. Con --fast = 10.
+            verbose:         Se True, stampa a console anche i flow benigni.
+            alert_cooldown:  Cooldown in secondi per rate limiting per IP.
+        """
         self.interface = interface or NETWORK_INTERFACE
         self.operation_mode = operation_mode
         self.batch_size = batch_size
         self.batch_timeout = batch_timeout
+        self.idle_timeout = idle_timeout
+        self.active_timeout = active_timeout
+        self.verbose = verbose
+        self.alert_cooldown = alert_cooldown
 
         # Componenti (inizializzati in setup())
         self.capture_engine: Optional[FlowCaptureEngine] = None
@@ -107,18 +139,22 @@ class LiveNIDSSniffer:
             FileNotFoundError: Se mancano artifacts.
         """
         logger.info("=" * 70)
-        logger.info("NIDS LIVE SNIFFER - INIZIALIZZAZIONE")
+        logger.info("NIDS LIVE SNIFFER -- INIZIALIZZAZIONE")
         logger.info("=" * 70)
 
         validate_config()
         logger.info("Configurazione validata")
 
         cfg = get_config_summary()
-        logger.info(f"  Modalita':  {cfg['operation_mode']}")
-        logger.info(f"  Modello:    {cfg['model_type']} ({cfg['n_features']} feature)")
-        logger.info(f"  Interfaccia: {self.interface or 'auto-detect'}")
-        logger.info(f"  Threshold:  {cfg['attack_threshold']}")
-        logger.info(f"  Batch:      {self.batch_size} flow / {self.batch_timeout}s")
+        logger.info(f"  Modalita':       {cfg['operation_mode']}")
+        logger.info(f"  Modello:         {cfg['model_type']} ({cfg['n_features']} feature)")
+        logger.info(f"  Interfaccia:     {self.interface or 'auto-detect'}")
+        logger.info(f"  Threshold:       {cfg['attack_threshold']}")
+        logger.info(f"  Batch:           {self.batch_size} flow / {self.batch_timeout}s")
+        logger.info(f"  Idle timeout:    {self.idle_timeout}s")
+        logger.info(f"  Active timeout:  {self.active_timeout}s")
+        logger.info(f"  Verbose:         {self.verbose}")
+        logger.info(f"  Alert cooldown:  {self.alert_cooldown}s")
 
         if self.operation_mode == OperationMode.BLOCK:
             logger.info("\nInizializzazione FirewallController...")
@@ -132,10 +168,15 @@ class LiveNIDSSniffer:
         self.alert_manager = AlertManager(
             operation_mode=self.operation_mode,
             firewall=self.firewall,
+            alert_cooldown=self.alert_cooldown,
         )
 
         logger.info("\nInizializzazione capture engine...")
-        self.capture_engine = FlowCaptureEngine(interface=self.interface)
+        self.capture_engine = FlowCaptureEngine(
+            interface=self.interface,
+            idle_timeout=self.idle_timeout,
+            active_timeout=self.active_timeout,
+        )
 
         logger.info("\n" + "=" * 70)
         logger.info("SETUP COMPLETATO")
@@ -156,6 +197,18 @@ class LiveNIDSSniffer:
         logger.info(f"Modalita': {self.operation_mode.value.upper()}")
         logger.info(f"Interfaccia: {self.interface}")
         logger.info("Premi Ctrl+C per fermare\n")
+
+        # Banner console separato dal logger strutturato
+        if self.verbose:
+            print(
+                f"{_ANSI_GREEN}[*] Verbose mode attivo: "
+                f"verranno mostrati anche i flow benigni{_ANSI_RESET}"
+            )
+        print(
+            f"{_ANSI_YELLOW}[*] Idle timeout: {self.idle_timeout}s  "
+            f"Active timeout: {self.active_timeout}s  "
+            f"Cooldown alert: {self.alert_cooldown}s{_ANSI_RESET}\n"
+        )
 
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
@@ -283,6 +336,9 @@ class LiveNIDSSniffer:
         Tutti i flow del batch vengono passati all'AlertManager (non solo
         gli attacchi) in modo che i flow benigni campionati possano essere
         loggati per il calcolo del FPR.
+
+        Per ogni predizione viene anche chiamato _print_live_event() per
+        l'output colorato a console (separato dal logger strutturato).
         """
         if not self.feature_batch:
             return
@@ -300,6 +356,7 @@ class LiveNIDSSniffer:
                     confidence=result.confidence,
                     metadata=metadata,
                 )
+                self._print_live_event(result, metadata)
                 self.total_predictions += 1
 
         except Exception as exc:
@@ -309,6 +366,38 @@ class LiveNIDSSniffer:
             self.feature_batch.clear()
             self.metadata_batch.clear()
             self.batch_start_time = time.monotonic()
+
+    def _print_live_event(self, result: object, metadata: dict) -> None:
+        """
+        Stampa a console l'evento in tempo reale con colorazione ANSI.
+
+        Gli attacchi vengono sempre mostrati (rosso grassetto).
+        I flow benigni vengono mostrati solo se --verbose e' attivo (grigio).
+
+        Nota: questo metodo scrive su stdout direttamente, separato dal
+        logger strutturato che scrive su CSV/JSONL. Non ci sono codici ANSI
+        nei file di log.
+        """
+        src   = f"{metadata.get('src_ip', '?')}:{metadata.get('src_port', '?')}"
+        dst   = f"{metadata.get('dst_ip', '?')}:{metadata.get('dst_port', '?')}"
+        conf  = float(getattr(result, "confidence", 0.0))
+        pred  = int(getattr(result, "prediction", 0))
+        proto = metadata.get("l7_proto", "?")
+
+        if pred == 1:
+            print(
+                f"{_ANSI_RED}"
+                f"[ATTACK] {src} -> {dst}"
+                f"  proto={proto}  conf={conf:.4f}"
+                f"{_ANSI_RESET}"
+            )
+        elif self.verbose:
+            print(
+                f"{_ANSI_GREY}"
+                f"[SAFE]   {src} -> {dst}"
+                f"  proto={proto}  conf={conf:.4f}"
+                f"{_ANSI_RESET}"
+            )
 
     # ------------------------------------------------------------------
     # Statistiche e segnali
@@ -356,14 +445,20 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Esempi:
-  # Modalita' ALERT (solo log, nessun blocco):
-  sudo python3 main.py --mode alert --interface eth0
+  # Demo veloce (timeout ridotti, output colorato):
+  sudo $(which python) main.py --mode alert --interface br-xxxx --fast --verbose
 
-  # Modalita' BLOCK (log + blocco IP via iptables):
-  sudo python3 main.py --mode block --interface eth0
+  # Demo con cooldown basso per vedere alert ripetuti:
+  sudo $(which python) main.py --mode alert --interface br-xxxx --fast --verbose --cooldown 5
+
+  # Produzione (timeout default, nessun output verbose):
+  sudo $(which python) main.py --mode alert --interface eth0
+
+  # Modalita' BLOCK con timeout personalizzati:
+  sudo $(which python) main.py --mode block --interface eth0 --idle-timeout 30 --active-timeout 300
 
   # Batch personalizzato:
-  sudo python3 main.py --mode alert --batch-size 200 --batch-timeout 3.0
+  sudo $(which python) main.py --mode alert --batch-size 200 --batch-timeout 3.0
         """,
     )
 
@@ -393,12 +488,76 @@ Esempi:
         metavar="SEC",
         help=f"Timeout batch in secondi [default: {INFERENCE_BATCH_TIMEOUT}]",
     )
+    parser.add_argument(
+        "--idle-timeout",
+        type=int,
+        default=None,
+        metavar="SEC",
+        help=(
+            f"Idle timeout nfstream in secondi (default produzione: {FLOW_IDLE_TIMEOUT}s). "
+            "Sovrascrive --fast se specificato esplicitamente."
+        ),
+    )
+    parser.add_argument(
+        "--active-timeout",
+        type=int,
+        default=None,
+        metavar="SEC",
+        help=(
+            f"Active timeout nfstream in secondi (default produzione: {FLOW_ACTIVE_TIMEOUT}s). "
+            "Sovrascrive --fast se specificato esplicitamente."
+        ),
+    )
+    parser.add_argument(
+        "--fast",
+        action="store_true",
+        help=(
+            "Modalita' Demo: idle-timeout=1s, active-timeout=10s. "
+            "Riduce la latenza da ~120s a ~1s dopo l'ultimo pacchetto del flow. "
+            "I valori espliciti --idle-timeout / --active-timeout hanno precedenza."
+        ),
+    )
+    parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Mostra a console (con colore grigio) anche i flow classificati come benigni",
+    )
+    parser.add_argument(
+        "--cooldown",
+        type=float,
+        default=30.0,
+        metavar="SEC",
+        help=(
+            "Cooldown rate limiting alert per IP in secondi [default: 30.0]. "
+            "Usare valori bassi (es. 5) per demo in cui si vogliono vedere alert ripetuti."
+        ),
+    )
 
     args = parser.parse_args()
 
     if os.geteuid() != 0:
         print("ERRORE: Questo script richiede privilegi root (sudo)")
         sys.exit(1)
+
+    # Risoluzione timeout.
+    # Priorita': valore esplicito > --fast > default config.
+    idle_to = (
+        args.idle_timeout
+        if args.idle_timeout is not None
+        else (1 if args.fast else FLOW_IDLE_TIMEOUT)
+    )
+    active_to = (
+        args.active_timeout
+        if args.active_timeout is not None
+        else (10 if args.fast else FLOW_ACTIVE_TIMEOUT)
+    )
+
+    if args.fast:
+        print(
+            f"{_ANSI_YELLOW}"
+            f"[!] Modalita' FAST attiva: idle={idle_to}s  active={active_to}s"
+            f"{_ANSI_RESET}"
+        )
 
     operation_mode = (
         OperationMode.BLOCK if args.mode == "block" else OperationMode.ALERT
@@ -410,6 +569,10 @@ Esempi:
             operation_mode=operation_mode,
             batch_size=args.batch_size,
             batch_timeout=args.batch_timeout,
+            idle_timeout=idle_to,
+            active_timeout=active_to,
+            verbose=args.verbose,
+            alert_cooldown=args.cooldown,
         )
         sniffer.setup()
         sniffer.start()

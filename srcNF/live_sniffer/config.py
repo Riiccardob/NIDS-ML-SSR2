@@ -109,9 +109,10 @@ FLOW_EXPIRATION_CHECK_INTERVAL: int = 10
 
 MODEL_TYPE: str = "xgboost"
 MODEL_PATH: Path = MODELS_DIR / MODEL_TYPE / "model.pkl"
-ATTACK_THRESHOLD: float = 0.5
+ATTACK_THRESHOLD: float = 0.75
 INFERENCE_BATCH_SIZE: int = 100
-INFERENCE_BATCH_TIMEOUT: float = 5.0
+# INFERENCE_BATCH_TIMEOUT: float = 5.0
+INFERENCE_BATCH_TIMEOUT: float = 2.0
 
 # ============================================================================
 # OPERATION

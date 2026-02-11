@@ -9,10 +9,13 @@ Responsabilita':
 
 Rate limiting:
     Ogni IP che genera un alert viene messo in cooldown per
-    ALERT_COOLDOWN_SEC secondi. Alert successivi dallo stesso IP
-    vengono contati ma non loggati nuovamente. Questo evita migliaia
-    di subprocess iptables e loop di scrittura su disco durante un
-    attacco sostenuto come un SYN flood.
+    alert_cooldown secondi (configurabile nel costruttore, default 30s).
+    Alert successivi dallo stesso IP vengono contati ma non loggati
+    nuovamente. Questo evita migliaia di subprocess iptables e loop di
+    scrittura su disco durante un attacco sostenuto come un SYN flood.
+
+    Per la demo live usare cooldown basso (es. 5s) tramite --cooldown.
+    Per la produzione mantenere il default di 30s.
 
 Log dei flow benigni:
     I flow classificati come benigni vengono loggati a campione
@@ -32,11 +35,6 @@ from utils.logger import get_logger
 
 logger = get_logger()
 
-# Finestra di cooldown per IP (secondi).
-# Durante questa finestra gli alert dallo stesso IP vengono contati
-# ma non reloggati ne' generano nuove chiamate iptables.
-ALERT_COOLDOWN_SEC: float = 30.0
-
 # Campionamento flow benigni: 1 ogni N flow viene loggato.
 # Valore 100 = 1% dei flow benigni, sufficiente per stimare FPR.
 # Impostare a 1 per loggare tutto (sconsigliato in produzione).
@@ -48,21 +46,26 @@ class AlertManager:
     Manager per la gestione degli alert e delle azioni di risposta.
 
     Thread-safety: non e' thread-safe. Il caller (processing loop) deve
-    garantire che process_alert() venga chiamato da un unico thread.
+    garantire che process_flow() venga chiamato da un unico thread.
     """
 
     def __init__(
         self,
         operation_mode: OperationMode = OPERATION_MODE,
         firewall: Optional[FirewallController] = None,
+        alert_cooldown: float = 30.0,
     ) -> None:
         """
         Args:
-            operation_mode: ALERT (solo log) o BLOCK (log + firewall).
+            operation_mode:  ALERT (solo log) o BLOCK (log + firewall).
             firewall:        FirewallController, obbligatorio se mode=BLOCK.
+            alert_cooldown:  Secondi di cooldown per IP dopo un alert.
+                             Default 30s per produzione.
+                             Usare valori bassi (es. 5s) per demo live.
         """
         self.operation_mode = operation_mode
         self.firewall = firewall
+        self._alert_cooldown_sec: float = alert_cooldown
 
         if self.operation_mode == OperationMode.BLOCK and self.firewall is None:
             raise ValueError("FirewallController obbligatorio in BLOCK mode")
@@ -85,7 +88,7 @@ class AlertManager:
 
         logger.info(f"AlertManager inizializzato in modalita' {operation_mode.value.upper()}")
         logger.info(
-            f"  Cooldown alert per IP: {ALERT_COOLDOWN_SEC}s | "
+            f"  Cooldown alert per IP: {self._alert_cooldown_sec}s | "
             f"Campionamento benigni: 1/{BENIGN_SAMPLE_RATE}"
         )
 
@@ -104,9 +107,8 @@ class AlertManager:
         """
         Processa un flow classificato (attack o benign).
 
-        A differenza della versione precedente (che riceveva solo attacchi),
-        questo metodo riceve tutti i flow. Questo permette di loggare un
-        campione di flow benigni per il calcolo del FPR in produzione.
+        Riceve tutti i flow per consentire il logging campionato dei
+        flow benigni, utile al calcolo del FPR in produzione.
 
         Args:
             src_ip:     IP sorgente.
@@ -124,18 +126,6 @@ class AlertManager:
             return self._process_attack(src_ip, dst_ip, confidence, metadata)
         else:
             return self._process_benign(src_ip, dst_ip, confidence, metadata)
-
-    # Mantenuto per compatibilita' con main.py precedente.
-    def process_alert(
-        self,
-        src_ip: str,
-        dst_ip: str,
-        prediction: int,
-        confidence: float,
-        metadata: Dict[str, Any],
-    ) -> str:
-        """Alias di process_flow(). Deprecato: usare process_flow()."""
-        return self.process_flow(src_ip, dst_ip, prediction, confidence, metadata)
 
     # ------------------------------------------------------------------
     # Logica interna
@@ -157,7 +147,7 @@ class AlertManager:
         # Rate limiting: controlla se l'IP e' in cooldown
         now = time.monotonic()
         last_time = self._last_alert_time.get(src_ip, 0.0)
-        in_cooldown = (now - last_time) < ALERT_COOLDOWN_SEC
+        in_cooldown = (now - last_time) < self._alert_cooldown_sec
 
         if in_cooldown:
             self._suppressed_alerts += 1
@@ -261,15 +251,16 @@ class AlertManager:
         )
 
         stats: Dict[str, Any] = {
-            "operation_mode":     self.operation_mode.value,
-            "total_alerts":       self.total_alerts,
-            "total_blocks":       self.total_blocks,
-            "total_benign_seen":  self.total_benign_seen,
+            "operation_mode":      self.operation_mode.value,
+            "alert_cooldown_sec":  self._alert_cooldown_sec,
+            "total_alerts":        self.total_alerts,
+            "total_blocks":        self.total_blocks,
+            "total_benign_seen":   self.total_benign_seen,
             "total_benign_logged": self.total_benign_logged,
-            "suppressed_alerts":  self._suppressed_alerts,
-            "alert_rate_pct":     round(alert_rate * 100, 2),
-            "top_alerting_ips":   self._get_top_n(self.alerts_by_ip, 10),
-            "alerts_by_protocol": dict(self.alerts_by_protocol),
+            "suppressed_alerts":   self._suppressed_alerts,
+            "alert_rate_pct":      round(alert_rate * 100, 2),
+            "top_alerting_ips":    self._get_top_n(self.alerts_by_ip, 10),
+            "alerts_by_protocol":  dict(self.alerts_by_protocol),
         }
 
         if self.firewall is not None:
