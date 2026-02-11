@@ -166,19 +166,20 @@ class FeatureMapper:
         if name == "CLIENT_TCP_FLAGS":
             return float(self._get(flow, "client_tcp_flags", 0))
 
-        # --- FEATURE TEMPORALI (FIX UNITA' DI MISURA: ms -> s) ---
-        # Il dataset NF-UQ-NIDS-v2 usa SECONDI per DURATION_IN/OUT
-        # nfstream fornisce MILLISECONDI. Dividiamo per 1000.0.
-        
-        if name == "DURATION_IN":
-            return float(self._get(flow, "src2dst_duration_ms", 0)) / 1000.0
-
-        if name == "DURATION_OUT":
-            return float(self._get(flow, "dst2src_duration_ms", 0)) / 1000.0
-
-        # FLOW_DURATION_MILLISECONDS rimane in ms (come da nome)
         if name == "FLOW_DURATION_MILLISECONDS":
-             return float(self._get(flow, "bidirectional_duration_ms", 0))
+            return float(self._get(flow, "bidirectional_duration_ms", 0))
+        if name == "DURATION_IN":
+            # nfstream: src2dst_duration_ms (millisecondi)
+            # Dataset NF-UQ-NIDS-v2: DURATION_IN (microsecondi)
+            # Conversione: ms * 1000 = µs
+            ms = float(self._get(flow, "src2dst_duration_ms", 0))
+            return ms * 1000.0
+        if name == "DURATION_OUT":
+            # nfstream: dst2src_duration_ms (millisecondi)
+            # Dataset NF-UQ-NIDS-v2: DURATION_OUT (microsecondi)
+            # Conversione: ms * 1000 = µs
+            ms = float(self._get(flow, "dst2src_duration_ms", 0))
+            return ms * 1000.0
 
         if name == "LONGEST_FLOW_PKT":
             return float(self._get(flow, "bidirectional_max_ps", 0))
@@ -190,11 +191,8 @@ class FeatureMapper:
         # RETRANSMITTED_OUT_PKTS: rimossa in v3 (nfstream non espone retrans counters)
         # Se compare in REQUIRED_FEATURES, il warning viene emesso in _log_inventory()
 
-        # --- THROUGHPUT (FIX: Bytes / Secondi) ---
         if name == "SRC_TO_DST_AVG_THROUGHPUT":
-            # Throughput = Bytes * 1000 / Duration_ms  (= Bytes/Sec)
             return self._throughput(flow, "src2dst_bytes", "src2dst_duration_ms")
-
         if name == "DST_TO_SRC_AVG_THROUGHPUT":
             return self._throughput(flow, "dst2src_bytes", "dst2src_duration_ms")
 
@@ -227,10 +225,9 @@ class FeatureMapper:
         return v if v is not None else default
 
     def _throughput(self, flow: Any, bytes_attr: str, dur_attr: str) -> float:
-        """Throughput in bytes/s, cap a 10 Gbps."""
+        """Throughput in bytes/s, cap a 10 Gbps (1.25e9 B/s)."""
         b = float(self._get(flow, bytes_attr, 0))
         d = float(self._get(flow, dur_attr, 0))
         if d > 0:
-            # Bytes / (d / 1000.0) = Bytes * 1000 / d
-            return min((b * 1000.0) / d, 1.25e9)
+            return min(b * 1000.0 / d, 1.25e9)
         return 0.0

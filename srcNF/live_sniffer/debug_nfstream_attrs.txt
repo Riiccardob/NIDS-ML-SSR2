@@ -1,0 +1,118 @@
+Analizzando PCAP: ../../data/pcap/Tuesday-WorkingHours.pcap
+
+================================================================================
+ATTRIBUTI NFSTREAM (primo flow)
+================================================================================
+
+Totale attributi: 99
+
+ATTRIBUTI CRITICI:
+--------------------------------------------------------------------------------
+  dst2src_duration_ms                      = 0
+  src2dst_duration_ms                      = 10
+  bidirectional_duration_ms                = 10
+  dst2src_retrans_packets                  = NOT FOUND 
+  src2dst_retrans_packets                  = NOT FOUND 
+  bidirectional_retrans_packets            = NOT FOUND 
+  dst2src_bytes                            = 0
+  src2dst_bytes                            = 156
+  dst2src_packets                          = 0
+  src2dst_packets                          = 2
+
+
+TUTTI GLI ATTRIBUTI:
+--------------------------------------------------------------------------------
+  application_category_name                = System
+  application_confidence                   = 6
+  application_is_guessed                   = 0
+  application_name                         = BJNP
+  bidirectional_ack_packets                = 0
+  bidirectional_bytes                      = 156
+  bidirectional_cwr_packets                = 0
+  bidirectional_duration_ms                = 10
+  bidirectional_ece_packets                = 0
+  bidirectional_fin_packets                = 0
+  bidirectional_first_seen_ms              = 1499169223076
+  bidirectional_last_seen_ms               = 1499169223086
+  bidirectional_max_piat_ms                = 10
+  bidirectional_max_ps                     = 78
+  bidirectional_mean_piat_ms               = 10.0
+  bidirectional_mean_ps                    = 78.0
+  bidirectional_min_piat_ms                = 10
+  bidirectional_min_ps                     = 78
+  bidirectional_packets                    = 2
+  bidirectional_psh_packets                = 0
+  bidirectional_rst_packets                = 0
+  bidirectional_stddev_piat_ms             = 0.0
+  bidirectional_stddev_ps                  = 0.0
+  bidirectional_syn_packets                = 0
+  bidirectional_urg_packets                = 0
+  client_fingerprint                       = 
+  content_type                             = 
+  dst2src_ack_packets                      = 0
+  dst2src_bytes                            = 0
+  dst2src_cwr_packets                      = 0
+  dst2src_duration_ms                      = 0
+  dst2src_ece_packets                      = 0
+  dst2src_fin_packets                      = 0
+  dst2src_first_seen_ms                    = 0
+  dst2src_last_seen_ms                     = 0
+  dst2src_max_piat_ms                      = 0
+  dst2src_max_ps                           = 0
+  dst2src_mean_piat_ms                     = 0.0
+  dst2src_mean_ps                          = 0.0
+  dst2src_min_piat_ms                      = 0
+  dst2src_min_ps                           = 0
+  dst2src_packets                          = 0
+  dst2src_psh_packets                      = 0
+  dst2src_rst_packets                      = 0
+  dst2src_stddev_piat_ms                   = 0.0
+  dst2src_stddev_ps                        = 0.0
+  dst2src_syn_packets                      = 0
+  dst2src_urg_packets                      = 0
+  dst_ip                                   = ff02::1
+  dst_mac                                  = 33:33:00:00:00:01
+  dst_oui                                  = 33:33:00
+  dst_port                                 = 8612
+  expiration_id                            = 0
+  id                                       = 0
+  ip_version                               = 6
+  protocol                                 = 17
+  requested_server_name                    = 
+  server_fingerprint                       = 
+  src2dst_ack_packets                      = 0
+  src2dst_bytes                            = 156
+  src2dst_cwr_packets                      = 0
+  src2dst_duration_ms                      = 10
+  src2dst_ece_packets                      = 0
+  src2dst_fin_packets                      = 0
+  src2dst_first_seen_ms                    = 1499169223076
+  src2dst_last_seen_ms                     = 1499169223086
+  src2dst_max_piat_ms                      = 10
+  src2dst_max_ps                           = 78
+  src2dst_mean_piat_ms                     = 10.0
+  src2dst_mean_ps                          = 78.0
+  src2dst_min_piat_ms                      = 10
+  src2dst_min_ps                           = 78
+  src2dst_packets                          = 2
+  src2dst_psh_packets                      = 0
+  src2dst_rst_packets                      = 0
+  src2dst_stddev_piat_ms                   = 0.0
+  src2dst_stddev_ps                        = 0.0
+  src2dst_syn_packets                      = 0
+  src2dst_urg_packets                      = 0
+  src_ip                                   = fe80::266e:96ff:fe4a:377a
+  src_mac                                  = 24:6e:96:4a:37:7a
+  src_oui                                  = 24:6e:96
+  src_port                                 = 8612
+  tunnel_id                                = 0
+  user_agent                               = 
+  vlan_id                                  = 0
+
+================================================================================
+CONFRONTO CON FEATURE MAPPER
+================================================================================
+
+Calcolo manuale THROUGHPUT:
+
+================================================================================
