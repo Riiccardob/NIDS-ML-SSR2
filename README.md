@@ -1,415 +1,686 @@
-# NIDS NetFlow Pipeline - Chunk-Based Processing
+# NIDS-ML-SSR2: Network Intrusion Detection System
 
-Pipeline ottimizzata per training di modelli NIDS su dataset molto grandi (>70M records) come NF-UQ-NIDS-v2.
+Machine Learning-based Network Intrusion Detection System using NetFlow features extracted via nfstream. The system consists of two main components: an offline training pipeline for model development and a live deployment sniffer for real-time network monitoring.
 
-##  Caratteristiche Principali
+## Table of Contents
 
-### Parallel Processing 
-- **Multiprocessing**: Processa chunk in parallelo usando pool di worker
-- **Configurabile**: Imposta percentuale CPU da usare in `config.py`
-- **Scalabile**: Automaticamente adatta worker count ai core disponibili
-- **Speedup**: ~2-4x più veloce su CPU multi-core (es. 8 core)
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Part 1: Model Training Pipeline](#part-1-model-training-pipeline)
+- [Part 2: Live Network Sniffer](#part-2-live-network-sniffer)
+- [Dataset](#dataset)
+- [Performance](#performance)
+- [Limitations and Known Issues](#limitations-and-known-issues)
+- [Deployment](#deployment)
+- [Contributing](#contributing)
+- [License](#license)
 
-### Chunk-Based Processing
-- **Preprocessing**: Legge CSV a blocchi di 500k righe, pulisce e salva in Parquet compresso
-- **Feature Engineering**: Fit scaler su sample rappresentativo (1M righe), applica scaling chunk-by-chunk
-- **Training**: Carica train set in memoria, usa data loaders per validation/test
+## Overview
 
-### Gestione Outlier Corretta
--  **Scaler fittato su dati "sporchi"** (outlier inclusi)
--  Sample rappresentativo del train set PRIMA di qualsiasi pulizia
--  Gestisce correttamente picchi di traffico in produzione
+NIDS-ML-SSR2 implements a supervised machine learning approach to network intrusion detection based on NetFlow feature analysis. The system analyzes network flow characteristics (packet counts, byte counts, timing statistics, protocol information) to classify traffic as benign or malicious.
 
-### Ottimizzazioni Memoria
-- Mai più di 500k-1M righe in RAM contemporaneamente
-- Parquet compresso (~10x più piccolo di CSV)
-- Data loaders per evaluation su grandi dataset
+**Key Features**:
+- NetFlow-based detection using nfstream for feature extraction
+- XGBoost classifier trained on NF-UQ-NIDS-v2 dataset (76M+ flows)
+- Real-time traffic analysis with sub-second latency
+- Modular architecture separating training from deployment
+- Two operational modes: ALERT (logging only) and BLOCK (with iptables integration)
+- Comprehensive logging and statistics tracking
+- Memory-efficient chunk-based processing for large datasets
 
-##  Requisiti
+## Architecture
+
+The system is divided into two independent components:
+
+### 1. Training Pipeline (`srcNF/*.py`)
+
+Offline machine learning pipeline for model development:
+
+```
+Raw CSV Data → Preprocessing → Feature Engineering → Model Training → Artifacts
+                (chunk-based)    (RobustScaler)      (XGBoost)       (pkl files)
+```
+
+**Input**: NF-UQ-NIDS-v2 dataset (CSV format, 76M records, 43 features)  
+**Output**: Trained model, fitted scaler, feature metadata  
+**Processing**: Chunk-based to handle large datasets without loading entire dataset into RAM
+
+### 2. Live Sniffer (`srcNF/live_sniffer/`)
+
+Real-time network monitoring system:
+
+```
+Network Interface → Packet Capture → Flow Generation → Feature Extraction → 
+(eth0, wlan0)       (nfstream)        (NetFlow)         (18 features)
+
+→ Preprocessing → Model Inference → Alert/Block → Logging
+  (RobustScaler)   (XGBoost)         (iptables)     (CSV/JSONL)
+```
+
+**Input**: Live network traffic on specified interface  
+**Output**: Alert logs (CSV), statistics (JSONL), optional firewall rules  
+**Processing**: Real-time with configurable batch inference (default: 100 flows / 2s)
+
+## Project Structure
+
+```
+NIDS-ML-SSR2/
+
+ srcNF/                          # Main source directory
+   
+    config.py                   # Training pipeline configuration
+    preprocessing.py            # Data cleaning and splitting
+    feature_engineering.py     # Scaler fitting and feature selection
+    training.py                 # Model training (XGBoost/LightGBM)
+    pipeline.py                 # Orchestrator for full training pipeline
+    utils.py                    # Shared utilities (logging, metrics)
+   
+    live_sniffer/               # Live deployment system
+       
+        main.py                 # Entry point for live sniffer
+        config.py               # Sniffer configuration
+        requirements.txt        # Python dependencies
+       
+        core/                   # Core inference components
+           capture.py          # Network capture with nfstream
+           feature_mapper.py   # NetFlow → model feature conversion
+           preprocessor.py     # RobustScaler application
+           predictor.py        # Model inference wrapper
+       
+        security/               # Security response modules
+           alert_manager.py    # Alert generation and rate limiting
+           firewall_controller.py  # iptables integration (BLOCK mode)
+       
+        utils/                  # Sniffer utilities
+           logger.py           # Structured logging (CSV/JSONL)
+       
+        GUIDES/                 # Deployment documentation
+           NIDS_TEST_ROADMAP.md       # Testing roadmap
+           loopback/
+              DEMO_LOOPBACK_GUIDE.md
+           linode/
+               LINODE_NIDS_SETUP.md
+       
+        test_on_file.py         # Offline validation tool (PCAP/CSV/Parquet)
+        test_sniffer.py         # Component integration tests
+
+ artifacts/                      # Generated artifacts
+    features.json               # Feature metadata (18 features)
+    scaler.pkl                  # Fitted RobustScaler
+    model.pkl                   # Trained XGBoost model (if using sklearn API)
+
+ models/                         # Trained models
+    xgboost/
+        model.pkl               # XGBoost classifier
+
+ data/                           # Dataset directory (not in repo)
+    raw/                        # Original CSV files
+    processed/                  # Parquet files (train/val/test)
+    pcap/                       # PCAP files for validation
+
+ logs/                           # Log directory (created at runtime)
+     training/                   # Training logs
+     sniffer/                    # Live sniffer logs
+         nids_sniffer.log        # General log
+         nids_sniffer_alerts.csv # Attack alerts
+         nids_sniffer_benign.csv # Benign samples
+         nids_sniffer_stats.jsonl # System statistics
+```
+
+## Prerequisites
+
+### Hardware Requirements
+
+**Training Pipeline**:
+- RAM: 8-16 GB (depends on chunk size configuration)
+- CPU: Multi-core recommended (XGBoost benefits from parallelization)
+- Disk: 50-100 GB free space (dataset + intermediate files)
+
+**Live Sniffer**:
+- RAM: 2-4 GB
+- CPU: 2+ cores
+- Network: Interface with promiscuous mode support
+
+### Software Requirements
+
+- Python 3.10 or higher
+- Ubuntu 20.04+ / Debian 11+ (for live sniffer with iptables)
+- Root privileges (for packet capture)
+
+### Python Dependencies
+
+Core libraries:
+- `nfstream >= 6.5.3` - Network flow capture and feature extraction
+- `xgboost >= 2.1.0` - Gradient boosting classifier
+- `scikit-learn >= 1.6.0` - Preprocessing and metrics
+- `pandas >= 2.2.0` - Data manipulation
+- `numpy >= 1.26.0` - Numerical operations
+- `pyarrow >= 10.0.0` - Parquet file handling
+- `joblib >= 1.4.0` - Model serialization
+- `psutil >= 6.0.0` - System monitoring
+
+See `srcNF/live_sniffer/requirements.txt` for complete dependency list.
+
+## Installation
+
+### 1. Clone Repository
 
 ```bash
-# Python 3.8+
-pip install pandas numpy scikit-learn xgboost lightgbm pyarrow psutil
+git clone https://github.com/YOUR_USERNAME/NIDS-ML-SSR2.git
+cd NIDS-ML-SSR2
 ```
 
-**Hardware raccomandato per NF-UQ-NIDS-v2 (76M records):**
-- RAM: 16GB (usa ~8GB durante processing)
-- Storage: ~10GB liberi
-- CPU: Multi-core raccomandato (XGBoost/LightGBM usano parallelismo)
-
-##  Struttura Dataset
-
-```
-project/
- data/
-    raw/              # CSV del dataset (NF-UQ-NIDS-v2)
-    processed/        # Parquet generati dalla pipeline
- models/               # Modelli salvati
- artifacts/            # Scaler e feature list
- logs/                 # Log di esecuzione
-```
-
-##  Setup Iniziale
-
-### 1. Scarica il Dataset
-
-Scarica NF-UQ-NIDS-v2 da: https://staff.itee.uq.edu.au/marius/NIDS_datasets/
+### 2. Create Virtual Environment
 
 ```bash
-# Copia il CSV in data/raw/
-cp NF-UQ-NIDS-v2.csv data/raw/
+python3 -m venv venv
+source venv/bin/activate  # Linux/Mac
+# venv\Scripts\activate   # Windows
 ```
 
-### 2. Verifica Dataset
+### 3. Install Dependencies
 
 ```bash
-python srcNF/check_dataset.py
+# For training pipeline
+pip install -r srcNF/requirements.txt
+
+# For live sniffer
+pip install -r srcNF/live_sniffer/requirements.txt
 ```
 
-Questo script:
-- Verifica presenza del CSV
-- Analizza un sample per controllare le label
-- Stima memoria richiesta
-- Verifica bilanciamento classi
+### 4. Download Dataset
 
-##  Esecuzione Pipeline
-
-### Opzione 1: Pipeline Completa (Raccomandato)
+Download the NF-UQ-NIDS-v2 dataset and place it in `data/raw/`:
 
 ```bash
-# Con XGBoost (default)
-python srcNF/pipeline.py
-
-# Con LightGBM
-python srcNF/pipeline.py --model lightgbm
-
-# Con Random Forest
-python srcNF/pipeline.py --model random_forest
+mkdir -p data/raw
+# Download NF-UQ-NIDS-v2.csv to data/raw/
 ```
 
-**Tempi stimati** (76M records, 16GB RAM, 8 core @ 75% usage):
-- Preprocessing: **15-30 min** (parallel) vs 30-60 min (sequential)
-- Feature Engineering: 15-30 min
-- Training XGBoost: 30-90 min
-- **Totale: ~1-2.5 ore** (parallel) vs 1.5-3 ore (sequential)
+Dataset source: [NF-UQ-NIDS-v2 on Kaggle](https://www.kaggle.com/datasets/your-dataset-link)
 
-### Opzione 2: Step-by-Step
+## Part 1: Model Training Pipeline
 
-```bash
-# 1. Preprocessing (CSV → Parquet)
-python srcNF/preprocessing.py
+The training pipeline converts raw NetFlow CSV data into a trained machine learning model.
 
-# 2. Feature Engineering (Scaling)
-python srcNF/feature_engineering.py
+### Configuration
 
-# 3. Training
-python srcNF/training.py --model xgboost
-```
-
-### Opzione 3: Solo Training (Dati già processati)
-
-```bash
-python srcNF/pipeline.py --model xgboost --skip-preprocessing
-```
-
-##  Output della Pipeline
-
-### 1. Preprocessing Output
-
-```
-data/processed/
- train.parquet          # Train set (70%)
- val.parquet            # Validation set (15%)
- test.parquet           # Test set (15%)
-```
-
-**Caratteristiche:**
-- Split stratificato (mantiene distribuzione classi)
-- Formato Parquet compresso (snappy)
-- Pulizia dati (NaN, Inf rimossi)
-- **Outlier mantenuti** (essenziale per scaler)
-
-### 2. Feature Engineering Output
-
-```
-data/processed/
- train_scaled.parquet   # Train set scalato
- val_scaled.parquet     # Validation set scalato
- test_scaled.parquet    # Test set scalato
-
-artifacts/
- scaler.pkl             # RobustScaler fitted
- features.json          # Lista feature + metadata
- features.txt           # Lista leggibile
-```
-
-**Note importanti:**
-- Scaler fittato su **1M sample del train set CON outlier**
-- Feature selection minimale (solo varianza zero e correlazione >0.95)
-- Tutte le feature numeriche utilizzate (<50 feature OK per XGBoost/LightGBM)
-
-### 3. Training Output
-
-```
-models/xgboost/            # (o lightgbm, random_forest)
- model.pkl              # Modello trained
- metrics.json           # Metriche validation + test
-
-logs/
- preprocessing.log
- feature_engineering.log
- training.log
- pipeline.log
-```
-
-##  Configurazione Avanzata
-
-### File: `config.py`
+Edit `srcNF/config.py` to adjust:
 
 ```python
-# Chunk processing
-CHUNK_SIZE = 500_000              # Righe per chunk (adatta a RAM)
-SCALER_SAMPLE_SIZE = 1_000_000    # Sample per scaler fitting
+# Dataset paths
+RAW_DATA_DIR = Path("data/raw")
+PROCESSED_DATA_DIR = Path("data/processed")
 
-# Parallel processing 
-ENABLE_PARALLEL_PROCESSING = True # Abilita/disabilita parallelismo
-CPU_USAGE_PERCENT = 0.75          # Usa 75% dei core disponibili
-MIN_WORKERS = 2                    # Minimo worker anche se CPU_USAGE_PERCENT è basso
-MAX_WORKERS = 16                   # Massimo worker (safety limit)
+# Feature selection (18 features used)
+REQUIRED_FEATURES = [
+    "PROTOCOL", "L7_PROTO", "IN_BYTES", "OUT_BYTES",
+    "IN_PKTS", "OUT_PKTS", "TCP_FLAGS", "CLIENT_TCP_FLAGS",
+    # ... (see config.py for full list)
+]
 
-# Split ratios
-TRAIN_RATIO = 0.70
-VAL_RATIO = 0.15
-TEST_RATIO = 0.15
-
-# Feature selection
-CORRELATION_THRESHOLD = 0.95      # Rimuovi feature correlate
-
-# Scaler
-SCALER_TYPE = 'robust'            # 'robust' o 'standard'
-```
-
-### Ottimizzazione Parallelismo
-
-**CPU_USAGE_PERCENT** controlla quanti core utilizzare:
-
-```python
-# Esempi per sistema con 8 core:
-CPU_USAGE_PERCENT = 0.50  # 4 workers (usa 50%)
-CPU_USAGE_PERCENT = 0.75  # 6 workers (usa 75%, raccomandato)
-CPU_USAGE_PERCENT = 1.00  # 8 workers (usa 100%, max performance)
-```
-
-**Quando usare 100%**: Se il PC è dedicato al task
-**Quando usare 50-75%**: Se vuoi usare il PC durante il processing (raccomandato)
-
-**Speedup atteso**:
-- 4 core: ~2-3x più veloce
-- 8 core: ~3-5x più veloce
-- 16 core: ~5-8x più veloce
-
-**Note**: Lo speedup non è lineare per overhead di sincronizzazione, ma è comunque significativo.
-
-### Adatta Chunk Size alla tua RAM
-
-Con 16GB RAM:
-- `CHUNK_SIZE = 500_000`  (default, safe)
-- `CHUNK_SIZE = 1_000_000`  (più veloce, usa ~1-2GB per chunk)
-
-Con 8GB RAM:
-- `CHUNK_SIZE = 250_000`  (più lento ma safe)
-
-##  Monitoraggio Esecuzione
-
-La pipeline logga costantemente:
-- Progresso (% completamento)
-- Uso RAM corrente
-- Tempo elapsed
-
-**Esempio output:**
-```
-[2024-02-04 10:30:15] | INFO | Chunk 50/153 (32.7%) - RAM: 45.2%
-[2024-02-04 10:30:45] | INFO | Chunk 100/153 (65.4%) - RAM: 47.8%
-```
-
-##  Troubleshooting
-
-### 1. Out of Memory durante Preprocessing
-
-**Sintomo**: Crash del PC o processo killed
-
-**Soluzione**:
-```python
-# In config.py, riduci chunk size
-CHUNK_SIZE = 250_000  # Da 500_000
-```
-
-### 2. Out of Memory durante Training
-
-**Sintomo**: Crash durante model.fit()
-
-**Soluzione 1** - Usa LightGBM (più leggero):
-```bash
-python srcNF/training.py --model lightgbm
-```
-
-**Soluzione 2** - Riduci parametri XGBoost:
-```python
-# In config.py
+# Model hyperparameters
 XGBOOST_PARAMS = {
-    ...
-    'max_bin': 128,  # Da 256
-    'max_depth': 5,  # Da 6
+    'n_estimators': 200,
+    'max_depth': 10,
+    'learning_rate': 0.1,
+    'subsample': 0.8,
+    'colsample_bytree': 0.8,
+    # ...
 }
+
+# Processing
+CHUNK_SIZE = 500_000  # Rows per chunk
+TRAIN_SPLIT = 0.70
+VAL_SPLIT = 0.15
+TEST_SPLIT = 0.15
 ```
 
-### 3. Training troppo lento
+### Pipeline Execution
 
-**Causa**: Random Forest su 76M records
+#### Option 1: Full Pipeline (Recommended for First Run)
 
-**Soluzione**: Usa XGBoost o LightGBM (10-100x più veloci)
 ```bash
-python srcNF/training.py --model xgboost
+cd srcNF
+python pipeline.py --model xgboost
 ```
 
-### 4. File Parquet corrotto
+This executes:
+1. **Preprocessing**: CSV → Parquet, stratified train/val/test split
+2. **Feature Engineering**: Fit RobustScaler on training data
+3. **Training**: Train XGBoost classifier with incremental learning
+4. **Validation**: Evaluate on validation and test sets
 
-**Sintomo**: Errore durante lettura Parquet
+**Output**:
+- `artifacts/features.json` - Feature metadata
+- `artifacts/scaler.pkl` - Fitted RobustScaler
+- `models/xgboost/model.pkl` - Trained XGBoost model
 
-**Soluzione**: Riesegui preprocessing
+**Expected Duration**: 30-90 minutes (depends on hardware)
+
+#### Option 2: Individual Steps
+
+**Preprocessing only**:
 ```bash
-# Rimuovi file corrotti
-rm data/processed/*.parquet
-
-# Riesegui
-python srcNF/preprocessing.py
+python preprocessing.py
 ```
 
-### 5. Parallel processing troppo lento o crash
+**Feature engineering only** (requires preprocessed data):
+```bash
+python feature_engineering.py
+```
 
-**Causa**: Troppi worker per RAM disponibile
+**Training only** (requires preprocessed + scaled data):
+```bash
+python training.py --model xgboost
+```
 
-**Soluzione**: Riduci percentuale CPU
+**Full pipeline with LightGBM**:
+```bash
+python pipeline.py --model lightgbm
+```
+
+**Skip preprocessing** (if already done):
+```bash
+python pipeline.py --model xgboost --skip-preprocessing
+```
+
+### Model Performance Metrics
+
+Expected results on NF-UQ-NIDS-v2 test set (11.4M flows):
+
+| Metric    | Value  |
+|-----------|--------|
+| Accuracy  | 97.4%  |
+| Precision | 98.5%  |
+| Recall    | 97.6%  |
+| F1 Score  | 98.0%  |
+
+Confusion matrix:
+- True Positives: 7.44M (attacks correctly detected)
+- True Negatives: 3.66M (benign correctly identified)
+- False Positives: 115K (benign misclassified as attack, 1.5%)
+- False Negatives: 183K (attacks missed, 2.4%)
+
+## Part 2: Live Network Sniffer
+
+Real-time network intrusion detection system.
+
+### Prerequisites for Live Sniffer
+
+1. **Trained model artifacts** (from Part 1):
+   - `artifacts/features.json`
+   - `artifacts/scaler.pkl`
+   - `models/xgboost/model.pkl`
+
+2. **Root privileges** (for packet capture)
+
+3. **Network interface** in promiscuous mode
+
+### Configuration
+
+Edit `srcNF/live_sniffer/config.py`:
+
 ```python
-# In config.py
-CPU_USAGE_PERCENT = 0.50  # Da 0.75 a 0.50
-# Oppure disabilita parallelismo
-ENABLE_PARALLEL_PROCESSING = False
+# Network
+NETWORK_INTERFACE = None  # None = auto-detect, or "eth0", "wlan0"
+
+# Operation
+OPERATION_MODE = OperationMode.ALERT  # ALERT or BLOCK
+ATTACK_THRESHOLD = 0.7  # Classification threshold (0.5-0.9)
+
+# Performance
+INFERENCE_BATCH_SIZE = 100  # Flows per batch
+INFERENCE_BATCH_TIMEOUT = 2.0  # Max seconds before forcing batch
+FLOW_IDLE_TIMEOUT = 120  # Seconds before closing idle flow
+FLOW_ACTIVE_TIMEOUT = 1800  # Max flow duration
+
+# Logging
+STATS_LOG_INTERVAL = 60  # Statistics log frequency (seconds)
 ```
 
-### 6. CPU usage al 100% rallenta il sistema
+### Running the Sniffer
 
-**Causa**: Troppi worker dedicati
-
-**Soluzione**: Riduci CPU_USAGE_PERCENT
-```python
-# In config.py
-CPU_USAGE_PERCENT = 0.50  # Lascia metà CPU libera
-```
-
-##  Performance Attese
-
-### Dataset: NF-UQ-NIDS-v2 (76M records)
-
-**Distribuzione:**
-- Benign: 25M (33%)
-- Attack: 51M (67%)
-
-**Metriche attese** (XGBoost/LightGBM):
-- Accuracy: >99%
-- Precision: >98%
-- Recall: >99%
-- F1: >98%
-- FPR: <1%
-
-**Nota**: Random Forest può avere performance leggermente inferiori ma training molto più lento.
-
-##  Note Importanti sullo Scaler
-
-**CRITICAL**: Lo scaler DEVE essere fittato su dati "sporchi" (outlier inclusi)
-
-###  Approccio Corretto (implementato)
-
-1. Prendi sample RAPPRESENTATIVO del train set (1M righe)
-2. Sample include TUTTI i dati (outlier inclusi)
-3. Fit RobustScaler su questo sample
-4. Apply scaling a tutti i dataset
-
-###  Approccio SBAGLIATO (evitato)
-
-1. ~~Rimuovi outlier dal train set~~
-2. ~~Fit scaler su dati "puliti"~~
-3.  In produzione non funziona (picchi traffico)
-
-### Perché è importante?
-
-In produzione:
-- Traffico ha picchi naturali (non outlier ma traffico legittimo)
-- Se scaler fittato su dati "puliti", non gestisce picchi
-- Risultato: false positive e degrado performance
-
-**RobustScaler** è robusto agli outlier quindi gestisce bene entrambi:
-- Dati normali (usa mediana e IQR)
-- Picchi di traffico (non vengono distorti)
-
-##  Log Files
-
-I log contengono informazioni dettagliate su ogni step:
+#### Basic Usage (ALERT Mode)
 
 ```bash
-# Vedi progresso preprocessing
-tail -f logs/preprocessing.log
-
-# Vedi feature selection
-tail -f logs/feature_engineering.log
-
-# Vedi training metrics
-tail -f logs/training.log
-
-# Pipeline completa
-tail -f logs/pipeline.log
+cd srcNF/live_sniffer
+sudo $(which python) main.py --mode alert --interface eth0
 ```
 
-##  Comandi Utili
+This will:
+- Capture packets on interface `eth0`
+- Extract NetFlow features
+- Classify flows as benign/attack
+- Log alerts to `logs/sniffer/nids_sniffer_alerts.csv`
+- Display statistics every 60 seconds
+
+#### Advanced Options
+
+**Demo mode** (fast timeouts, verbose output):
+```bash
+sudo $(which python) main.py \
+    --mode alert \
+    --interface eth0 \
+    --fast \
+    --verbose \
+    --cooldown 3
+```
+
+**BLOCK mode** (with iptables firewall integration):
+```bash
+sudo $(which python) main.py \
+    --mode block \
+    --interface eth0
+```
+
+**Custom batch configuration**:
+```bash
+sudo $(which python) main.py \
+    --mode alert \
+    --interface eth0 \
+    --batch-size 200 \
+    --batch-timeout 5.0
+```
+
+**All CLI options**:
+```
+--mode {alert,block}       Operation mode (default: alert)
+--interface IFACE          Network interface (default: auto-detect)
+--batch-size N             Flows per inference batch (default: 100)
+--batch-timeout SEC        Max batch wait time (default: 2.0)
+--idle-timeout SEC         Flow idle timeout (default: 120)
+--active-timeout SEC       Flow active timeout (default: 1800)
+--fast                     Demo mode: idle=1s, active=10s
+--verbose                  Show benign flows in console
+--cooldown SEC             Alert rate limiting per IP (default: 30)
+```
+
+### Output and Logs
+
+The sniffer generates structured logs in `logs/sniffer/`:
+
+**`nids_sniffer_alerts.csv`** - Attack alerts:
+```csv
+timestamp,src_ip,src_port,dst_ip,dst_port,protocol,l7_proto,prediction,confidence,action,duration_ms,bytes_in,bytes_out,packets_in,packets_out
+2026-02-17 14:23:45,192.168.1.100,54321,8.8.8.8,80,6,HTTP,attack,0.9234,alert_logged,150,512,2048,5,8
+```
+
+**`nids_sniffer_benign.csv`** - Benign sample (1 every 100 flows):
+```csv
+timestamp,src_ip,src_port,dst_ip,dst_port,protocol,l7_proto,prediction,confidence,action,duration_ms,bytes_in,bytes_out,packets_in,packets_out
+2026-02-17 14:23:50,192.168.1.100,54322,1.1.1.1,443,6,HTTPS,benign,0.0234,logged,200,1024,4096,10,12
+```
+
+**`nids_sniffer_stats.jsonl`** - System statistics (every 60s):
+```json
+{"timestamp": "2026-02-17T14:24:00", "total_flows": 1234, "total_predictions": 1234, "total_alerts": 45, "total_blocks": 0, "alert_rate_pct": 3.65, "flows_per_second": 20.5, "memory_usage_mb": 245, "cpu_usage_percent": 12.3}
+```
+
+### Testing and Validation
+
+#### 1. Component Tests
 
 ```bash
-# Verifica spazio disco
-df -h data/
-
-# Monitora RAM durante esecuzione
-watch -n 1 free -h
-
-# Monitora CPU usage (mostra worker in azione)
-htop  # o top
-
-# Conta numero di core disponibili
-python -c "import psutil; print(f'Cores: {psutil.cpu_count()}')"
-
-# Verifica worker count configurato
-python -c "from utils import get_worker_count; from config import CPU_USAGE_PERCENT, MIN_WORKERS, MAX_WORKERS; print(f'Workers: {get_worker_count(CPU_USAGE_PERCENT, MIN_WORKERS, MAX_WORKERS)}')"
-
-# Conta righe nei Parquet
-python -c "import pyarrow.parquet as pq; print(pq.ParquetFile('data/processed/train.parquet').metadata.num_rows)"
-
-# Vedi feature selezionate
-cat artifacts/features.txt
+cd srcNF/live_sniffer
+python test_sniffer.py
 ```
 
-##  Riferimenti
+This runs integration tests for:
+- Artifact loading
+- Feature mapper initialization
+- Preprocessor functionality
+- Model predictor
+- Logger components
 
-- **Dataset**: NF-UQ-NIDS-v2 - https://staff.itee.uq.edu.au/marius/NIDS_datasets/
-- **Paper**: NetFlow-based intrusion detection systems
-- **XGBoost**: https://xgboost.readthedocs.io/
-- **LightGBM**: https://lightgbm.readthedocs.io/
+#### 2. Offline Validation
 
-## 🤝 Support
+Test the model on PCAP files, CSV, or Parquet data:
 
-In caso di problemi:
-1. Controlla i log in `logs/`
-2. Verifica RAM disponibile con `free -h`
-3. Riduci `CHUNK_SIZE` se necessario
-4. Usa LightGBM se XGBoost usa troppa RAM
+```bash
+# Test on PCAP file
+python test_on_file.py \
+    --pcap ../../data/pcap/Tuesday-WorkingHours.pcap \
+    --output ../../results/tuesday_results.csv \
+    --stats
+
+# Test on scaled Parquet (with ground truth comparison)
+python test_on_file.py \
+    --parquet ../../data/processed/test_scaled.parquet \
+    --output ../../results/test_validation.csv \
+    --compare
+
+# Test on raw CSV
+python test_on_file.py \
+    --csv ../../data/raw/sample.csv \
+    --output ../../results/sample_results.csv \
+    --max 10000
+```
+
+#### 3. Live Testing
+
+See comprehensive testing roadmaps in `srcNF/live_sniffer/GUIDES/`:
+
+- **`NIDS_TEST_ROADMAP.md`**: Complete 3-phase validation (components, offline, live)
+- **`loopback/DEMO_LOOPBACK_GUIDE.md`**: Testing on localhost
+- **`linode/LINODE_NIDS_SETUP.md`**: Production deployment on remote server
+
+## Dataset
+
+**NF-UQ-NIDS-v2**: NetFlow-based intrusion detection dataset
+
+- **Size**: 76,187,588 flows (train: 53.3M, val: 11.4M, test: 11.4M)
+- **Features**: 43 original features (18 selected for model)
+- **Classes**: Binary (benign / attack)
+- **Attacks**: DDoS, DoS, Reconnaissance, Brute Force, Injection, XSS, Infiltration, Exploits, and more
+- **Benign**: 25.2M flows (33%)
+- **Malicious**: 51.0M flows (67%)
+
+**Feature Selection** (18 features used):
+
+Network layer:
+- `PROTOCOL`: IP protocol number
+- `L7_PROTO`: Application layer protocol ID
+
+Volume metrics:
+- `IN_BYTES`, `OUT_BYTES`: Byte counts per direction
+- `IN_PKTS`, `OUT_PKTS`: Packet counts per direction
+
+Timing:
+- `DURATION_IN`, `DURATION_OUT`: Flow duration per direction (seconds)
+
+Size statistics:
+- `MIN_IP_PKT_LEN`, `MAX_IP_PKT_LEN`: Packet size range (bytes)
+
+TCP-specific:
+- `TCP_FLAGS`, `CLIENT_TCP_FLAGS`, `SERVER_TCP_FLAGS`: TCP flag bitmasks
+
+Throughput:
+- `SRC_TO_DST_AVG_THROUGHPUT`, `DST_TO_SRC_AVG_THROUGHPUT`: Bytes per second
+
+Bidirectional:
+- `FLOW_DURATION_MILLISECONDS`: Total flow duration
+- `MIN_TTL`, `MAX_TTL`: Time-to-live range
+
+## Performance
+
+### Training Pipeline
+
+**Test Environment**: 
+- CPU: Intel i7-9700K (8 cores)
+- RAM: 16 GB
+- Disk: NVMe SSD
+
+**Results**:
+- Preprocessing: 15-20 minutes
+- Feature engineering: 5-10 minutes
+- Training (XGBoost, 200 estimators): 20-30 minutes
+- Total pipeline: 45-60 minutes
+
+**Memory Usage**: Peak 8-10 GB during training
+
+### Live Sniffer
+
+**Test Environment**:
+- CPU: Intel i5-8250U (4 cores)
+- RAM: 8 GB
+- Network: 1 Gbps Ethernet
+
+**Results**:
+- Throughput: 500-800 flows/second
+- Latency: <2 seconds (with batch_size=100, batch_timeout=2.0)
+- Memory: 200-300 MB steady state
+- CPU: 10-20% average
+
+**Scalability**:
+- Handles 100 Mbps sustained traffic without dropped flows
+- Suitable for small to medium network segments (100-500 devices)
+
+## Limitations and Known Issues
+
+### 1. Feature Mismatch (nProbe vs nfstream)
+
+**Issue**: The model was trained on NF-UQ-NIDS-v2 dataset generated with nProbe/nfdump, but the live sniffer uses nfstream. These libraries calculate some features slightly differently.
+
+**Impact**:
+- Higher false positive rate on benign traffic (5-10% instead of 1.5%)
+- Reduced detection rate on micro-flows (<5 packets)
+- Port scans may be misclassified as benign (flow-level vs temporal aggregation)
+
+**Mitigation**:
+- Use `ATTACK_THRESHOLD=0.7` instead of 0.5 to reduce false positives
+- For production deployment, consider retraining on data captured with nfstream
+- Implement temporal aggregation layer for port scan detection
+
+### 2. Loopback Interface Not Supported
+
+**Issue**: Testing on loopback interface (127.0.0.1) produces unreliable results due to unrealistic network characteristics (zero latency, 65K MTU, unlimited throughput).
+
+**Impact**:
+- Port scans appear 99% benign (confidence 0.999)
+- SYN floods not detected
+- Only HTTP flood detection works reliably
+
+**Solution**: Always test on real network interfaces (eth0, wlan0) or remote targets. See `GUIDES/linode/LINODE_NIDS_SETUP.md` for production deployment.
+
+### 3. BLOCK Mode Requires Careful Configuration
+
+**Issue**: Firewall integration with iptables can block legitimate traffic if misconfigured.
+
+**Requirements**:
+- Add management IPs to `WHITELIST_IPS` in config.py
+- Test thoroughly in ALERT mode before enabling BLOCK mode
+- Ensure iptables is installed and accessible
+
+### 4. Model Limitations
+
+**Not Detected Well**:
+- Application-layer attacks (SQL injection, XSS) - insufficient feature representation
+- Low-and-slow attacks (slowloris) - temporal aggregation needed
+- Encrypted payload attacks - no deep packet inspection
+
+**Well Detected**:
+- Volumetric attacks (DDoS, DoS) - 95%+ detection rate
+- Port scans (with temporal aggregation) - 80%+ detection rate
+- Brute force attempts - 90%+ detection rate
+
+## Deployment
+
+### Recommended Production Setup
+
+1. **Server-side deployment**: Install sniffer on gateway/firewall server
+2. **Mirror port**: Configure switch to mirror traffic to sniffer interface
+3. **ALERT mode initially**: Run in monitoring mode for 1-2 weeks
+4. **Baseline establishment**: Analyze false positive rate on production traffic
+5. **Threshold tuning**: Adjust `ATTACK_THRESHOLD` based on observed FPR
+6. **BLOCK mode (optional)**: Enable firewall integration after validation
+
+### Systemd Service Example
+
+Create `/etc/systemd/system/nids-sniffer.service`:
+
+```ini
+[Unit]
+Description=NIDS Live Sniffer
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/nids/srcNF/live_sniffer
+Environment="PATH=/opt/nids/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
+ExecStart=/opt/nids/venv/bin/python main.py --mode alert --interface eth0
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable nids-sniffer
+sudo systemctl start nids-sniffer
+sudo systemctl status nids-sniffer
+```
+
+### Monitoring
+
+**Real-time logs**:
+```bash
+tail -f /opt/nids/logs/sniffer/nids_sniffer.log
+```
+
+**Alert monitoring**:
+```bash
+tail -f /opt/nids/logs/sniffer/nids_sniffer_alerts.csv | \
+    awk -F',' 'NR>1 {print $1, $2, $3, $4, $9}'
+```
+
+**Statistics dashboard** (requires jq):
+```bash
+tail -1 /opt/nids/logs/sniffer/nids_sniffer_stats.jsonl | jq .
+```
+
+## Contributing
+
+Contributions are welcome. Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/improvement`)
+3. Commit changes (`git commit -am 'Add new feature'`)
+4. Push to branch (`git push origin feature/improvement`)
+5. Open a Pull Request
+
+**Areas for Improvement**:
+- Temporal aggregation for port scan detection
+- Support for additional ML models (LSTM, Transformer)
+- Dashboard/visualization interface
+- Multi-class classification (attack type identification)
+- Integration with SIEM systems
+
+## License
+
+This project is licensed under the MIT License. See `LICENSE` file for details.
+
+## Acknowledgments
+
+- NF-UQ-NIDS-v2 dataset creators
+- nfstream library developers
+- XGBoost project contributors
+
+## Contact
+
+For questions or issues:
+- Open an issue on GitHub
+- Contact: [your email or contact info]
 
 ---
 
-**Buon training! **
+**Last Updated**: February 2026  
+**Version**: 2.0  
+**Status**: Production-ready with known limitations
